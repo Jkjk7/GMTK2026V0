@@ -3,7 +3,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
-/// 原型启动器：组装画面分区、棋盘、棋盘外发射器、手牌、商店占位、靶子与伤害 HUD。
+/// 原型启动器：组装画面分区、棋盘、发射器、手牌、商店、波次战斗与 HUD。
 /// 放到场景空物体上即可；若场景中不存在，也会在运行时自动创建一份。
 /// </summary>
 public class GameBootstrap : MonoBehaviour
@@ -67,36 +67,55 @@ public class GameBootstrap : MonoBehaviour
 
         var emitterGo = new GameObject("Emitter");
         var emitter = emitterGo.AddComponent<Emitter>();
-        emitter.Initialize(board, ballManager);
 
         Bounds boardBounds = board.GetWorldBounds();
-        Vector3 enemyPos = new Vector3(boardBounds.max.x - cellSize * 0.5f, boardBounds.max.y + cellSize * 2.2f, 0f);
-        var enemyGo = new GameObject("EnemyTarget");
-        var enemy = enemyGo.AddComponent<EnemyTarget>();
-        enemy.Initialize(enemyPos);
 
-        CreateBattleBackdrop(boardBounds, enemyPos.y);
+        var sessionGo = new GameObject("GameSession");
+        var session = sessionGo.AddComponent<GameSession>();
+
+        emitter.Initialize(board, ballManager, session);
+
+        var laneGo = new GameObject("BattleLane");
+        var lane = laneGo.AddComponent<BattleLane>();
+        lane.Initialize(boardBounds, cellSize);
+
+        var mageGo = new GameObject("Mage");
+        var mage = mageGo.AddComponent<Mage>();
+
+        var enemyRoot = new GameObject("Enemies").transform;
+
+        var wavesGo = new GameObject("WaveManager");
+        var waveManager = wavesGo.AddComponent<WaveManager>();
+
+        mage.Initialize(lane.GetEndPosition(), waveManager, session);
+        waveManager.Initialize(lane, mage, session, enemyRoot);
+
+        CreateBattleBackdrop(boardBounds, lane.LaneY);
 
         var trackerGo = new GameObject("DamageTracker");
         var tracker = trackerGo.AddComponent<DamageTracker>();
 
         Font font = ResolveUiFont();
         Canvas canvas = CreateCanvas();
-        Text damageLabel = CreateDamageLabel(canvas.transform, font);
-        tracker.BindLabel(damageLabel);
+        Text statusLabel = CreateCombatStatusLabel(canvas.transform, font);
+        Text overlayLabel = CreateOverlayLabel(canvas.transform, font);
+
+        var hudGo = new GameObject("CombatHUD");
+        var combatHud = hudGo.AddComponent<CombatHUD>();
+        combatHud.Initialize(statusLabel, overlayLabel, mage, waveManager, session, tracker);
 
         HandController hand = CreateHand(canvas.transform, font);
-        CreateShopPanel(canvas.transform, font, hand);
+        CreateShopPanel(canvas.transform, font, hand, session);
 
         var placementGo = new GameObject("PlacementController");
         var placement = placementGo.AddComponent<PlacementController>();
-        placement.Initialize(board, hand, modulesRoot);
+        placement.Initialize(board, hand, modulesRoot, session);
 
         CreateHintLabel(canvas.transform, font);
-        FitCameraToLayout(boardBounds, enemyPos.y);
+        FitCameraToLayout(boardBounds, lane.LaneY);
 
         ValidateRedirectorTable();
-        Debug.Log("[GameBootstrap] Prototype ready. 选中手牌 → 点棋盘放置；R/右键旋转收束器。");
+        Debug.Log("[GameBootstrap] Prototype ready. 商店购入 → 手牌放置 | R旋转 | 右键/X拆除 | 守住魔法师！");
     }
 
     static void ValidateRedirectorTable()
@@ -214,24 +233,24 @@ public class GameBootstrap : MonoBehaviour
         return canvas;
     }
 
-    Text CreateDamageLabel(Transform canvas, Font font)
+    Text CreateCombatStatusLabel(Transform canvas, Font font)
     {
-        var go = new GameObject("DamageLabel");
+        var go = new GameObject("CombatStatusLabel");
         go.transform.SetParent(canvas, false);
         var rt = go.AddComponent<RectTransform>();
         rt.anchorMin = new Vector2(0f, 1f);
         rt.anchorMax = new Vector2(0f, 1f);
         rt.pivot = new Vector2(0f, 1f);
         rt.anchoredPosition = new Vector2(20f, -16f);
-        rt.sizeDelta = new Vector2(520f, 64f);
+        rt.sizeDelta = new Vector2(720f, 64f);
         var text = go.AddComponent<Text>();
         text.font = font;
-        text.fontSize = 36;
+        text.fontSize = 30;
         text.color = Color.white;
         text.alignment = TextAnchor.UpperLeft;
-        text.text = "Total Damage: 0";
+        text.text = "准备中…";
 
-        var bgGo = new GameObject("DamageBg");
+        var bgGo = new GameObject("StatusBg");
         bgGo.transform.SetParent(go.transform, false);
         bgGo.transform.SetAsFirstSibling();
         var bgRt = bgGo.AddComponent<RectTransform>();
@@ -241,6 +260,27 @@ public class GameBootstrap : MonoBehaviour
         bgRt.offsetMax = new Vector2(12f, 8f);
         var bg = bgGo.AddComponent<Image>();
         bg.color = new Color(0f, 0f, 0f, 0.55f);
+        return text;
+    }
+
+    Text CreateOverlayLabel(Transform canvas, Font font)
+    {
+        var go = new GameObject("ResultOverlay");
+        go.transform.SetParent(canvas, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta = new Vector2(600f, 120f);
+        var text = go.AddComponent<Text>();
+        text.font = font;
+        text.fontSize = 72;
+        text.fontStyle = FontStyle.Bold;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = Color.white;
+        text.text = string.Empty;
+        go.SetActive(false);
         return text;
     }
 
@@ -259,11 +299,11 @@ public class GameBootstrap : MonoBehaviour
         text.fontSize = 20;
         text.color = new Color(0.85f, 0.88f, 0.95f, 1f);
         text.alignment = TextAnchor.MiddleCenter;
-        text.text = "商店点击购入(免费) → 手牌选中 → 棋盘放置 | R旋转 | F刷新商店";
+        text.text = "商店购入 | 左键放置 | R旋转 | 右键/X拆除 | F刷新商店";
         return text;
     }
 
-    RectTransform CreateShopPanel(Transform canvas, Font font, HandController hand)
+    RectTransform CreateShopPanel(Transform canvas, Font font, HandController hand, GameSession session)
     {
         var panelGo = new GameObject("ShopPanel");
         panelGo.transform.SetParent(canvas, false);
@@ -313,7 +353,7 @@ public class GameBootstrap : MonoBehaviour
             slots[i] = CreateShopSlot(listGo.transform, font, shop, i);
         }
 
-        shop.Initialize(hand, slots);
+        shop.Initialize(hand, slots, session);
         return panel;
     }
 

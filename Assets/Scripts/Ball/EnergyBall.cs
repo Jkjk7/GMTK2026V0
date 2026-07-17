@@ -14,8 +14,8 @@ public class EnergyBall : MonoBehaviour
     [Tooltip("飞行速度（格/秒）。实际世界速度 = cellsPerSecond * board.CellSize。")]
     [SerializeField] float cellsPerSecond = 4f;
 
-    [Tooltip("存活时间（秒）；到期销毁。")]
-    [SerializeField] float lifetimeSeconds = 5f;
+    [Tooltip("存活时间（秒）；到期销毁。若 EnergyBallManager 传入正数寿命会覆盖此值。")]
+    [SerializeField] float lifetimeSeconds = 50f;
 
     GridBoard _board;
     EnergyBallManager _manager;

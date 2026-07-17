@@ -15,19 +15,26 @@ public class ShopController : MonoBehaviour
 
     HandController _hand;
     ShopSlot[] _slots;
+    GameSession _session;
 
     /// <summary>
     /// 注入手牌引用并绑定槽位，首次刷新货架。
     /// </summary>
-    public void Initialize(HandController hand, ShopSlot[] slots)
+    public void Initialize(HandController hand, ShopSlot[] slots, GameSession session)
     {
         _hand = hand;
         _slots = slots;
+        _session = session;
         RerollShop();
     }
 
     void Update()
     {
+        if (_session != null && !_session.IsPlaying)
+        {
+            return;
+        }
+
         if (Input.GetKeyDown(refreshKey))
         {
             RerollShop();
@@ -61,6 +68,11 @@ public class ShopController : MonoBehaviour
     /// </summary>
     public bool TryPurchaseSlot(int index)
     {
+        if (_session != null && !_session.IsPlaying)
+        {
+            return false;
+        }
+
         if (_hand == null || _slots == null || index < 0 || index >= _slots.Length)
         {
             return false;

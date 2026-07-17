@@ -13,8 +13,11 @@ public class EnergyBallManager : MonoBehaviour
     [SerializeField] int maxBalls = 40;
 
     [Header("Defaults")]
+    [Tooltip("新生球速度（格/秒）。<=0 则使用 EnergyBall 组件上的默认值。")]
     [SerializeField] float defaultSpeedCellsPerSecond = 4f;
-    [SerializeField] float defaultLifetimeSeconds = 5f;
+
+    [Tooltip("新生球寿命（秒）。<=0 则使用 EnergyBall 组件上的 lifetimeSeconds（改球寿命请改那边，或在此填正数覆盖）。")]
+    [SerializeField] float defaultLifetimeSeconds = -1f;
 
     GridBoard _board;
     readonly List<EnergyBall> _active = new List<EnergyBall>();

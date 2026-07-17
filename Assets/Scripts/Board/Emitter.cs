@@ -22,6 +22,7 @@ public class Emitter : MonoBehaviour
 
     GridBoard _board;
     EnergyBallManager _ballManager;
+    GameSession _session;
     float _timer;
     SpriteRenderer _visual;
 
@@ -31,10 +32,11 @@ public class Emitter : MonoBehaviour
     /// <summary>
     /// 由 GameBootstrap 注入依赖并摆到棋盘外侧。
     /// </summary>
-    public void Initialize(GridBoard board, EnergyBallManager ballManager)
+    public void Initialize(GridBoard board, EnergyBallManager ballManager, GameSession session)
     {
         _board = board;
         _ballManager = ballManager;
+        _session = session;
         _timer = 0f;
         SnapToOffBoardPosition();
         EnsureVisual();
@@ -43,6 +45,11 @@ public class Emitter : MonoBehaviour
     void Update()
     {
         if (_board == null || _ballManager == null)
+        {
+            return;
+        }
+
+        if (_session != null && !_session.IsPlaying)
         {
             return;
         }

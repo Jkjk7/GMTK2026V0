@@ -120,21 +120,34 @@ public class GridBoard : MonoBehaviour
     }
 
     /// <summary>
-    /// 移除并销毁某格模块（原型未做拆除 UI，预留给调试）。
+    /// 移除并销毁某格模块。
     /// </summary>
     public void ClearCell(GridCoord coord)
     {
-        if (!IsInside(coord))
+        TryRemoveModule(coord, out _);
+    }
+
+    /// <summary>
+    /// 拆除模块并返回其类型，供手牌回收。
+    /// </summary>
+    public bool TryRemoveModule(GridCoord coord, out ModuleType moduleType)
+    {
+        moduleType = default;
+        if (!IsInside(coord) || _modules == null)
         {
-            return;
+            return false;
         }
 
         ModuleBase existing = _modules[coord.Col, coord.Row];
-        if (existing != null)
+        if (existing == null)
         {
-            Destroy(existing.gameObject);
-            _modules[coord.Col, coord.Row] = null;
+            return false;
         }
+
+        moduleType = existing.ModuleType;
+        Destroy(existing.gameObject);
+        _modules[coord.Col, coord.Row] = null;
+        return true;
     }
 
     /// <summary>

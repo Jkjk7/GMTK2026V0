@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// 放置控制器。
-/// 职责：在选中手牌时，左键点空格放置；R / 右键旋转收束器预览朝向。
+/// 职责：左键点空格放置；R 旋转收束器；右键 / X 拆除模块回手牌。
 /// 不处理 UI 点击（手牌由 EventSystem 处理）；只在非 UI 区域做棋盘射线。
 /// </summary>
 public class PlacementController : MonoBehaviour
@@ -10,6 +10,7 @@ public class PlacementController : MonoBehaviour
     GridBoard _board;
     HandController _hand;
     Transform _moduleRoot;
+    GameSession _session;
 
     /// <summary>放置收束器时的预览朝向 0..3。</summary>
     int _previewOrientation;
@@ -22,11 +23,12 @@ public class PlacementController : MonoBehaviour
     /// <summary>
     /// 注入依赖。
     /// </summary>
-    public void Initialize(GridBoard board, HandController hand, Transform moduleRoot)
+    public void Initialize(GridBoard board, HandController hand, Transform moduleRoot, GameSession session)
     {
         _board = board;
         _hand = hand;
         _moduleRoot = moduleRoot;
+        _session = session;
         _previewOrientation = 0;
     }
 
@@ -37,26 +39,34 @@ public class PlacementController : MonoBehaviour
             return;
         }
 
+        if (_session != null && !_session.IsPlaying)
+        {
+            ClearGhost();
+            return;
+        }
+
         HandleRotationInput();
         UpdateGhost();
 
+        if (IsPointerOverUi())
+        {
+            return;
+        }
+
         if (Input.GetMouseButtonDown(0))
         {
-            // 点在 UI 上时不放置
-            if (UnityEngine.EventSystems.EventSystem.current != null &&
-                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
-            {
-                return;
-            }
-
             TryPlaceAtMouse();
+        }
+
+        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.X))
+        {
+            TryDismantleAtMouse();
         }
     }
 
     void HandleRotationInput()
     {
-        bool rotate = Input.GetKeyDown(KeyCode.R) || Input.GetMouseButtonDown(1);
-        if (!rotate)
+        if (!Input.GetKeyDown(KeyCode.R))
         {
             return;
         }
@@ -143,6 +153,38 @@ public class PlacementController : MonoBehaviour
 
         _hand.ConsumeSelected();
         ClearGhost();
+    }
+
+    void TryDismantleAtMouse()
+    {
+        // 预留：将来拆除扣金币
+        if (_hand.IsFull)
+        {
+            Debug.Log("[Placement] 手牌已满，无法拆除。");
+            return;
+        }
+
+        Vector3 mouseWorld = GetMouseWorld();
+        if (!_board.TryWorldToCell(mouseWorld, out GridCoord cell))
+        {
+            return;
+        }
+
+        if (!_board.TryRemoveModule(cell, out ModuleType moduleType))
+        {
+            return;
+        }
+
+        if (!_hand.TryAddCard(moduleType))
+        {
+            Debug.LogWarning("[Placement] 拆除后无法回手牌，模块已移除。");
+        }
+    }
+
+    static bool IsPointerOverUi()
+    {
+        return UnityEngine.EventSystems.EventSystem.current != null &&
+               UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
     }
 
     ModuleBase CreateModule(ModuleType type)

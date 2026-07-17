@@ -76,7 +76,7 @@ public class ProjectileModule : ModuleBase
     /// </summary>
     void ConsumeEnergyAndFire()
     {
-        EnemyTarget target = FindLeftmostEnemy();
+        Enemy target = FindLeftmostEnemy();
         if (target == null)
         {
             // 没有目标时仍消耗能量，避免能量卡死；也可改为不消耗，原型选择消耗。
@@ -94,20 +94,20 @@ public class ProjectileModule : ModuleBase
     /// <summary>
     /// 选择世界坐标 X 最小的敌人（“最左边”）。
     /// </summary>
-    EnemyTarget FindLeftmostEnemy()
+    Enemy FindLeftmostEnemy()
     {
-        EnemyTarget[] enemies = FindObjectsOfType<EnemyTarget>();
+        Enemy[] enemies = FindObjectsOfType<Enemy>();
         if (enemies == null || enemies.Length == 0)
         {
             return null;
         }
 
-        EnemyTarget best = null;
+        Enemy best = null;
         float bestX = float.PositiveInfinity;
         for (int i = 0; i < enemies.Length; i++)
         {
-            EnemyTarget e = enemies[i];
-            if (e == null || !e.isActiveAndEnabled)
+            Enemy e = enemies[i];
+            if (e == null || !e.isActiveAndEnabled || !e.IsAlive)
             {
                 continue;
             }
