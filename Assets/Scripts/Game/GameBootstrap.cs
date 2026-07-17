@@ -85,8 +85,8 @@ public class GameBootstrap : MonoBehaviour
         Text damageLabel = CreateDamageLabel(canvas.transform, font);
         tracker.BindLabel(damageLabel);
 
-        CreateShopPanel(canvas.transform, font);
         HandController hand = CreateHand(canvas.transform, font);
+        CreateShopPanel(canvas.transform, font, hand);
 
         var placementGo = new GameObject("PlacementController");
         var placement = placementGo.AddComponent<PlacementController>();
@@ -259,11 +259,11 @@ public class GameBootstrap : MonoBehaviour
         text.fontSize = 20;
         text.color = new Color(0.85f, 0.88f, 0.95f, 1f);
         text.alignment = TextAnchor.MiddleCenter;
-        text.text = "点击手牌选中 → 点击棋盘放置 | R / 右键旋转收束器";
+        text.text = "商店点击购入(免费) → 手牌选中 → 棋盘放置 | R旋转 | F刷新商店";
         return text;
     }
 
-    RectTransform CreateShopPanel(Transform canvas, Font font)
+    RectTransform CreateShopPanel(Transform canvas, Font font, HandController hand)
     {
         var panelGo = new GameObject("ShopPanel");
         panelGo.transform.SetParent(canvas, false);
@@ -287,7 +287,7 @@ public class GameBootstrap : MonoBehaviour
         titleRt.sizeDelta = new Vector2(0f, 28f);
         var title = titleGo.AddComponent<Text>();
         title.font = font;
-        title.text = "商店(预留)";
+        title.text = "商店 (F刷新)";
         title.alignment = TextAnchor.MiddleCenter;
         title.color = new Color(0.7f, 0.7f, 0.75f);
         title.fontSize = 16;
@@ -306,9 +306,55 @@ public class GameBootstrap : MonoBehaviour
         layout.childControlWidth = true;
         layout.childForceExpandWidth = true;
 
-        var shop = panelGo.AddComponent<ShopPanelPlaceholder>();
-        shop.Build(listGo.transform, font);
+        var shop = panelGo.AddComponent<ShopController>();
+        var slots = new ShopSlot[ShopController.SlotCount];
+        for (int i = 0; i < ShopController.SlotCount; i++)
+        {
+            slots[i] = CreateShopSlot(listGo.transform, font, shop, i);
+        }
+
+        shop.Initialize(hand, slots);
         return panel;
+    }
+
+    ShopSlot CreateShopSlot(Transform parent, Font font, ShopController shop, int index)
+    {
+        var slotGo = new GameObject($"ShopSlot_{index}");
+        slotGo.transform.SetParent(parent, false);
+        var rt = slotGo.AddComponent<RectTransform>();
+        rt.sizeDelta = new Vector2(120f, 56f);
+
+        var bg = slotGo.AddComponent<Image>();
+        bg.color = new Color(0.12f, 0.12f, 0.15f, 0.85f);
+
+        var iconGo = new GameObject("Icon");
+        iconGo.transform.SetParent(slotGo.transform, false);
+        var iconRt = iconGo.AddComponent<RectTransform>();
+        iconRt.anchorMin = new Vector2(0f, 0.5f);
+        iconRt.anchorMax = new Vector2(0f, 0.5f);
+        iconRt.pivot = new Vector2(0f, 0.5f);
+        iconRt.anchoredPosition = new Vector2(8f, 0f);
+        iconRt.sizeDelta = new Vector2(28f, 28f);
+        var icon = iconGo.AddComponent<Image>();
+        icon.color = Color.gray;
+
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(slotGo.transform, false);
+        var labelRt = labelGo.AddComponent<RectTransform>();
+        labelRt.anchorMin = new Vector2(0f, 0f);
+        labelRt.anchorMax = new Vector2(1f, 1f);
+        labelRt.offsetMin = new Vector2(40f, 0f);
+        labelRt.offsetMax = new Vector2(-4f, 0f);
+        var label = labelGo.AddComponent<Text>();
+        label.font = font;
+        label.text = "空";
+        label.alignment = TextAnchor.MiddleLeft;
+        label.color = new Color(0.55f, 0.55f, 0.6f, 1f);
+        label.fontSize = 14;
+
+        var slot = slotGo.AddComponent<ShopSlot>();
+        slot.Setup(shop, index, bg, icon, label);
+        return slot;
     }
 
     HandController CreateHand(Transform canvas, Font font)
@@ -345,7 +391,7 @@ public class GameBootstrap : MonoBehaviour
         }
 
         hand.BindSlots(slots);
-        hand.DealStartingHand();
+        hand.ClearHand();
         return hand;
     }
 

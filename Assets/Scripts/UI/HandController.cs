@@ -2,8 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// 底部手牌区控制器。
-/// 职责：维护约 5 个槽、选中状态、开局发牌、放置后消耗。
-/// 不负责：实际往棋盘实例化模块（交给 PlacementController）。
+/// 职责：维护最多 5 个槽、选中状态、从商店加入、放置后消耗。
+/// 不负责：商店刷新、棋盘实例化（交给 ShopController / PlacementController）。
 /// </summary>
 public class HandController : MonoBehaviour
 {
@@ -14,6 +14,32 @@ public class HandController : MonoBehaviour
 
     /// <summary>当前选中槽下标；无选中为 -1。</summary>
     public int SelectedIndex => _selectedIndex;
+
+    /// <summary>已占用槽数量。</summary>
+    public int OccupiedCount
+    {
+        get
+        {
+            if (_slots == null)
+            {
+                return 0;
+            }
+
+            int n = 0;
+            for (int i = 0; i < _slots.Length; i++)
+            {
+                if (_slots[i] != null && _slots[i].IsOccupied)
+                {
+                    n++;
+                }
+            }
+
+            return n;
+        }
+    }
+
+    /// <summary>手牌是否已满。</summary>
+    public bool IsFull => OccupiedCount >= SlotCount;
 
     /// <summary>
     /// 是否有选中且非空的手牌。
@@ -40,21 +66,46 @@ public class HandController : MonoBehaviour
     }
 
     /// <summary>
-    /// 开局手牌：3 收束器 + 2 射弹塔。
+    /// 开局清空手牌（模块从商店免费购入）。
     /// </summary>
-    public void DealStartingHand()
+    public void ClearHand()
     {
-        if (_slots == null || _slots.Length < SlotCount)
+        if (_slots == null)
         {
             return;
         }
 
-        _slots[0].SetCard(global::ModuleType.Redirector);
-        _slots[1].SetCard(global::ModuleType.Redirector);
-        _slots[2].SetCard(global::ModuleType.Redirector);
-        _slots[3].SetCard(global::ModuleType.Projectile);
-        _slots[4].SetCard(global::ModuleType.Projectile);
+        for (int i = 0; i < _slots.Length; i++)
+        {
+            if (_slots[i] != null)
+            {
+                _slots[i].Clear();
+            }
+        }
+
         _selectedIndex = -1;
+    }
+
+    /// <summary>
+    /// 尝试将一张模块加入第一个空槽。手满返回 false。
+    /// </summary>
+    public bool TryAddCard(ModuleType type)
+    {
+        if (_slots == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < _slots.Length; i++)
+        {
+            if (_slots[i] != null && !_slots[i].IsOccupied)
+            {
+                _slots[i].SetCard(type);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

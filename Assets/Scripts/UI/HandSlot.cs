@@ -46,14 +46,12 @@ public class HandSlot : MonoBehaviour, IPointerClickHandler
         _moduleType = type;
         if (label != null)
         {
-            label.text = type == global::ModuleType.Redirector ? "收束器" : "射弹塔";
+            label.text = ModuleCatalog.GetDisplayName(type);
         }
 
         if (icon != null)
         {
-            icon.color = type == global::ModuleType.Redirector
-                ? new Color(0.4f, 0.75f, 0.95f, 1f)
-                : new Color(0.9f, 0.35f, 0.25f, 1f);
+            icon.color = ModuleCatalog.GetDisplayColor(type);
         }
 
         SetSelected(false);
