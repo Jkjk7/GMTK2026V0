@@ -1,126 +1,127 @@
-﻿"""Generate transparent pixel-style UI game frame for Unity."""
+﻿"""Generate transparent UI game frame — Phase-1 layout fix.
+
+1920x1080 target from Newchange.txt:
+  Battle:  nearly full width at top (~34%)
+  Board:   left+center bottom, includes emitter (left ~16% + board ~58%)
+  Sidebar: right column of BOTTOM only (~22% x ~66%)
+"""
 from PIL import Image, ImageDraw
 from pathlib import Path
 
 OUT = Path(r"D:\unity\GMTK2026塔防V0\Assets\Resources\UI\ui_game_frame.png")
 W, H = 1920, 1080
 
-FRAME_BASE = (28, 22, 48, 255)
-FRAME_MID = (42, 36, 72, 255)
-FRAME_DARK = (16, 12, 32, 255)
-HIGHLIGHT = (110, 140, 200, 220)
-HIGHLIGHT_DIM = (70, 90, 150, 180)
-SIDEBAR = (24, 20, 44, 255)
-SIDEBAR_EDGE = (55, 70, 120, 255)
-CORNER = (90, 120, 180, 240)
-BORDER_INNER = (60, 80, 140, 200)
+FRAME = (20, 16, 36, 255)
+FRAME_EDGE = (12, 10, 24, 255)
+ACCENT = (80, 170, 230, 235)
+ACCENT_DIM = (45, 95, 145, 170)
+SIDEBAR = (16, 14, 28, 250)
+SIDEBAR_LINE = (55, 110, 160, 180)
 
-BATTLE = (80, 40, 1400, 360)
-BOARD = (280, 400, 1400, 1040)
-SIDEBAR_X0, SIDEBAR_X1 = 1460, 1890
-BORDER = 32
+MARGIN = 30
+# Sidebar only on lower console (not over battle)
+SIDEBAR_X0 = int(W * 0.78)          # 1498
+BATTLE_BOTTOM = int(H * 0.34)       # 367
+DIVIDER = 14
+BOARD_TOP = BATTLE_BOTTOM + DIVIDER  # 381
 
+# Battle = almost full width (over sidebar column too)
+BATTLE = (MARGIN, MARGIN, W - MARGIN, BATTLE_BOTTOM)
 
-def draw_border_frame(draw, x0, y0, x1, y1, thickness, outer, inner, highlight):
-    draw.rectangle([x0 - thickness, y0 - thickness, x1 + thickness, y0], fill=outer)
-    draw.rectangle([x0 - thickness, y1, x1 + thickness, y1 + thickness], fill=outer)
-    draw.rectangle([x0 - thickness, y0 - thickness, x0, y1 + thickness], fill=outer)
-    draw.rectangle([x1, y0 - thickness, x1 + thickness, y1 + thickness], fill=outer)
-    draw.rectangle([x0 - 2, y0 - 2, x1 + 1, y0], fill=highlight)
-    draw.rectangle([x0 - 2, y1, x1 + 1, y1 + 1], fill=highlight)
-    draw.rectangle([x0 - 2, y0 - 2, x0, y1 + 1], fill=highlight)
-    draw.rectangle([x1, y0 - 2, x1 + 1, y1 + 1], fill=highlight)
-    ox0, oy0 = x0 - thickness, y0 - thickness
-    ox1, oy1 = x1 + thickness, y1 + thickness
-    draw.rectangle([ox0, oy0, ox1, oy0 + 1], fill=inner)
-    draw.rectangle([ox0, oy0, ox0 + 1, oy1], fill=inner)
+# Board = left+center of lower area (emitter + grid)
+BOARD = (MARGIN, BOARD_TOP, SIDEBAR_X0 - 10, H - MARGIN)
+
+# Sidebar plate = lower-right only
+SIDEBAR_RECT = (SIDEBAR_X0, BOARD_TOP, W - MARGIN, H - MARGIN)
 
 
-def draw_l_corner(draw, cx, cy, size, thick, color, flip_x=False, flip_y=False):
-    dx = -1 if flip_x else 1
-    dy = -1 if flip_y else 1
-    x1 = cx + dx * size
-    y1 = cy + dy * thick
-    draw.rectangle([min(cx, x1), min(cy, y1), max(cx, x1), max(cy, y1)], fill=color)
-    x2 = cx + dx * thick
-    y2 = cy + dy * size
-    draw.rectangle([min(cx, x2), min(cy, y2), max(cx, x2), max(cy, y2)], fill=color)
+def stroke_rect(draw, box, color, width=2):
+    x0, y0, x1, y1 = box
+    for i in range(width):
+        draw.rectangle([x0 - i, y0 - i, x1 + i, y1 + i], outline=color)
 
 
 def main():
-    img = Image.new("RGBA", (W, H), FRAME_BASE)
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    draw.rectangle([0, 0, W, 40], fill=FRAME_DARK)
-    draw.rectangle([0, H - 40, W, H], fill=FRAME_DARK)
-    draw.rectangle([0, 0, 60, H], fill=FRAME_DARK)
-    draw.rectangle([60, 40, 1460, H - 40], fill=FRAME_MID)
+    # Fill opaque frame, then punch battle + board
+    draw.rectangle([0, 0, W, H], fill=FRAME)
+    draw.rectangle([0, 0, W, MARGIN], fill=FRAME_EDGE)
+    draw.rectangle([0, H - MARGIN, W, H], fill=FRAME_EDGE)
+    draw.rectangle([0, 0, MARGIN, H], fill=FRAME_EDGE)
+    draw.rectangle([W - MARGIN, 0, W, H], fill=FRAME_EDGE)
 
-    draw.rectangle([SIDEBAR_X0, 0, SIDEBAR_X1, H], fill=SIDEBAR)
-    draw.rectangle([SIDEBAR_X0, 0, SIDEBAR_X0 + 3, H], fill=SIDEBAR_EDGE)
-    draw.rectangle([SIDEBAR_X1, 0, W, H], fill=FRAME_DARK)
-    for y in (120, 280, 520, 780):
-        draw.rectangle([SIDEBAR_X0 + 20, y, SIDEBAR_X1 - 20, y + 1], fill=HIGHLIGHT_DIM)
+    for x0, y0, x1, y1 in (BATTLE, BOARD):
+        clear = Image.new("RGBA", (x1 - x0, y1 - y0), (0, 0, 0, 0))
+        img.paste(clear, (x0, y0))
 
-    draw.rectangle([0, 0, W - 1, 2], fill=HIGHLIGHT)
-    draw.rectangle([0, 0, 2, H - 1], fill=HIGHLIGHT)
-    draw.rectangle([0, H - 3, W - 1, H - 1], fill=HIGHLIGHT_DIM)
-    draw.rectangle([W - 3, 0, W - 1, H - 1], fill=HIGHLIGHT_DIM)
+    draw = ImageDraw.Draw(img)
 
-    bx0, by0, bx1, by1 = BATTLE
-    ox0, oy0, ox1, oy1 = BOARD
+    # Sidebar plate
+    sx0, sy0, sx1, sy1 = SIDEBAR_RECT
+    draw.rectangle([sx0, sy0, sx1, sy1], fill=SIDEBAR)
+    draw.rectangle([sx0, sy0, sx0 + 3, sy1], fill=SIDEBAR_LINE)
+    mid_y = sy0 + int((sy1 - sy0) * 0.48)
+    draw.rectangle([sx0 + 14, mid_y, sx1 - 14, mid_y + 2], fill=SIDEBAR_LINE)
 
-    transparent = Image.new("RGBA", (bx1 - bx0, by1 - by0), (0, 0, 0, 0))
-    transparent2 = Image.new("RGBA", (ox1 - ox0, oy1 - oy0), (0, 0, 0, 0))
+    # Divider bar between battle and board (left of sidebar)
+    draw.rectangle(
+        [MARGIN, BATTLE_BOTTOM, SIDEBAR_X0 - 10, BOARD_TOP],
+        fill=FRAME_EDGE,
+    )
+    draw.rectangle(
+        [MARGIN + 8, BATTLE_BOTTOM + 5, SIDEBAR_X0 - 18, BATTLE_BOTTOM + 7],
+        fill=ACCENT_DIM,
+    )
 
-    draw_border_frame(draw, bx0, by0, bx1, by1, BORDER, FRAME_BASE, HIGHLIGHT, BORDER_INNER)
-    draw_border_frame(draw, ox0, oy0, ox1, oy1, BORDER, FRAME_BASE, HIGHLIGHT, BORDER_INNER)
+    stroke_rect(draw, BATTLE, ACCENT, 2)
+    stroke_rect(draw, BOARD, ACCENT, 2)
+    stroke_rect(draw, SIDEBAR_RECT, ACCENT_DIM, 2)
+    stroke_rect(draw, (3, 3, W - 4, H - 4), ACCENT, 2)
 
-    cs, ct = 28, 6
-    draw_l_corner(draw, bx0 - 4, by0 - 4, cs, ct, CORNER, False, False)
-    draw_l_corner(draw, bx1 + 4, by0 - 4, cs, ct, CORNER, True, False)
-    draw_l_corner(draw, bx0 - 4, by1 + 4, cs, ct, CORNER, False, True)
-    draw_l_corner(draw, bx1 + 4, by1 + 4, cs, ct, CORNER, True, True)
-    draw_l_corner(draw, ox0 - 4, oy0 - 4, cs, ct, CORNER, False, False)
-    draw_l_corner(draw, ox1 + 4, oy0 - 4, cs, ct, CORNER, True, False)
-    draw_l_corner(draw, ox0 - 4, oy1 + 4, cs, ct, CORNER, False, True)
-    draw_l_corner(draw, ox1 + 4, oy1 + 4, cs, ct, CORNER, True, True)
-    draw_l_corner(draw, 8, 8, 40, 8, CORNER, False, False)
-    draw_l_corner(draw, W - 9, 8, 40, 8, CORNER, True, False)
-    draw_l_corner(draw, 8, H - 9, 40, 8, CORNER, False, True)
-    draw_l_corner(draw, W - 9, H - 9, 40, 8, CORNER, True, True)
-
-    # Punch transparent interiors last so they stay alpha=0
-    img.paste(transparent, (bx0, by0))
-    img.paste(transparent2, (ox0, oy0))
+    # Corner ticks on board window
+    tick = 26
+    bx0, by0, bx1, by1 = BOARD
+    for cx, cy, dx, dy in [
+        (bx0, by0, 1, 1),
+        (bx1, by0, -1, 1),
+        (bx0, by1, 1, -1),
+        (bx1, by1, -1, -1),
+    ]:
+        x0, x1 = sorted([cx, cx + dx * tick])
+        y0a, y1a = sorted([cy, cy + dy * 3])
+        draw.rectangle([x0, y0a, x1, y1a], fill=ACCENT)
+        x0b, x1b = sorted([cx, cx + dx * 3])
+        y0b, y1b = sorted([cy, cy + dy * tick])
+        draw.rectangle([x0b, y0b, x1b, y1b], fill=ACCENT)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     img.save(OUT, "PNG")
-    print(f"Saved: {OUT}")
-    print(f"Size: {OUT.stat().st_size} bytes")
-    print(f"Dimensions: {img.size} mode={img.mode}")
 
-    battle_samples = [(200, 100), (700, 200), (1200, 300)]
-    board_samples = [(400, 500), (800, 700), (1200, 900)]
-    sidebar_samples = [(1600, 100), (1700, 540), (1800, 1000)]
+    def a(x, y):
+        return img.getpixel((x, y))[3]
 
-    def check(label, pts, expect_transparent=True):
-        results = []
-        for x, y in pts:
-            a = img.getpixel((x, y))[3]
-            results.append((x, y, a))
-        print(f"{label}: {results}")
-        if expect_transparent:
-            ok = all(a == 0 for _, _, a in results)
-        else:
-            ok = all(a > 200 for _, _, a in results)
-        print(f"  PASS={ok}")
-        return ok
+    tests = [
+        ("battle center", 960, 180, True),
+        ("battle over sidebar column", 1700, 180, True),
+        ("board center", 800, 700, True),
+        ("board left / emitter", 120, 700, True),
+        ("sidebar plate", 1700, 700, False),
+        ("outer margin", 10, 540, False),
+    ]
+    ok = True
+    for name, x, y, clear in tests:
+        alpha = a(x, y)
+        passed = (alpha == 0) if clear else (alpha > 200)
+        ok &= passed
+        print(f"{name}: alpha={alpha} PASS={passed}")
 
-    ok1 = check("Battle (expect alpha=0)", battle_samples, True)
-    ok2 = check("Board (expect alpha=0)", board_samples, True)
-    ok3 = check("Sidebar (expect alpha>200)", sidebar_samples, False)
-    print(f"ALL_CHECKS_PASS={ok1 and ok2 and ok3}")
+    print(f"BATTLE={BATTLE}")
+    print(f"BOARD={BOARD}")
+    print(f"SIDEBAR={SIDEBAR_RECT}")
+    print(f"Saved {OUT} size={OUT.stat().st_size}")
+    print(f"ALL_PASS={ok}")
 
 
 if __name__ == "__main__":

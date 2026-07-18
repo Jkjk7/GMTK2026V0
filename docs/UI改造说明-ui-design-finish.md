@@ -31,7 +31,24 @@
 - `GridBoard` / `BattleLane` / `Enemy` / `WaveManager` 玩法逻辑
 - 仍未做完整 `GameLayout.prefab`、多摄像机、TMP、GameSkin
 
-## Unity 里你需要做的
+## 布局修正（结构问题）
+
+截图暴露的问题：
+1. 外框左侧大块不透明 → 棋盘左边出现空洞死区
+2. 战斗窗未拉满全宽 → 右上被挡住
+3. 相机未把棋盘对齐进透明窗 → 棋盘偏右、偏小
+4. **棋盘顶穿进战斗窗**（分隔线切过顶行格子）
+
+已修正：
+- 重做 `ui_game_frame.png`：战斗窗接近全宽；棋盘窗含左侧发射器区；侧栏只占右下
+- `FitCameraToBoardWindow`：只把棋盘装进棋盘窗（顶边 ≤ 视口 y≈0.60），战斗区用视口锚点单独放置
+- `GridBoard`：坐标相对 Transform（`localOrigin` + `TransformPoint`）
+- `BattleLane`：`Initialize(spawnAnchor, endAnchor)`，不再依赖棋盘 Bounds
+- `GameLayoutView`：运行时组装 WorldRoot / BoardRoot / BattleRoot / 锚点
+- Sidebar 锚点与外框右下底板对齐
+
+请在 Unity 中 **停 Play → 再 Play** 验证棋盘顶边在分隔线下方。
+
 
 1. 打开工程，等脚本编译完成
 2. Game 窗口选 **1920×1080**，Scale 拉到 **1x / Fit**（不要 2x）

@@ -11,24 +11,27 @@ public class PlacementController : MonoBehaviour
     HandController _hand;
     Transform _moduleRoot;
     GameSession _session;
+    Camera _gameplayCamera;
 
     /// <summary>放置收束器时的预览朝向 0..3。</summary>
     int _previewOrientation;
 
-    /// <summary>可选：跟随鼠标的半透明预览物体。</summary>
     RedirectorModule _ghostRedirector;
     ProjectileModule _ghostProjectile;
     ModuleType? _ghostType;
 
-    /// <summary>
-    /// 注入依赖。
-    /// </summary>
-    public void Initialize(GridBoard board, HandController hand, Transform moduleRoot, GameSession session)
+    public void Initialize(
+        GridBoard board,
+        HandController hand,
+        Transform moduleRoot,
+        GameSession session,
+        Camera gameplayCamera = null)
     {
         _board = board;
         _hand = hand;
         _moduleRoot = moduleRoot;
         _session = session;
+        _gameplayCamera = gameplayCamera != null ? gameplayCamera : Camera.main;
         _previewOrientation = 0;
     }
 
@@ -45,13 +48,14 @@ public class PlacementController : MonoBehaviour
             return;
         }
 
-        HandleRotationInput();
-        UpdateGhost();
-
         if (IsPointerOverUi())
         {
+            ClearGhost();
             return;
         }
+
+        HandleRotationInput();
+        UpdateGhost();
 
         if (Input.GetMouseButtonDown(0))
         {
@@ -181,6 +185,21 @@ public class PlacementController : MonoBehaviour
         }
     }
 
+    Vector3 GetMouseWorld()
+    {
+        Camera cam = _gameplayCamera != null ? _gameplayCamera : Camera.main;
+        if (cam == null)
+        {
+            return Vector3.zero;
+        }
+
+        Vector3 screen = Input.mousePosition;
+        screen.z = -cam.transform.position.z;
+        Vector3 world = cam.ScreenToWorldPoint(screen);
+        world.z = 0f;
+        return world;
+    }
+
     static bool IsPointerOverUi()
     {
         return UnityEngine.EventSystems.EventSystem.current != null &&
@@ -249,19 +268,6 @@ public class PlacementController : MonoBehaviour
         }
 
         _ghostType = null;
-    }
-
-    static Vector3 GetMouseWorld()
-    {
-        Camera cam = Camera.main;
-        if (cam == null)
-        {
-            return Vector3.zero;
-        }
-
-        Vector3 screen = Input.mousePosition;
-        screen.z = -cam.transform.position.z;
-        return cam.ScreenToWorldPoint(screen);
     }
 
     static void SetGhostAlpha(GameObject root, float alpha)

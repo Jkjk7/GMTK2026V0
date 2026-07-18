@@ -41,53 +41,97 @@ public class GameBootstrap : MonoBehaviour
         SetupCamera();
         EnsureEventSystem();
 
-        float boardWorldWidth = GridBoard.Width * cellSize;
-        // 棋盘略偏左，给右侧栏留出世界空间余量（相机全屏后由 FitCamera 处理）
-        Vector2 boardOrigin = new Vector2(-boardWorldWidth * 0.5f + cellSize * 0.5f - 0.6f, -2.6f);
+        Camera worldCam = Camera.main;
 
-        var boardGo = new GameObject("GridBoard");
-        var board = boardGo.AddComponent<GridBoard>();
-        board.Initialize(boardOrigin, cellSize);
+        // —— 世界层级（文档 GameLayout 结构）——
+        var layoutGo = new GameObject("GameLayout");
+        var layout = layoutGo.AddComponent<GameLayoutView>();
+        layout.worldCamera = worldCam;
 
-        var modulesRoot = new GameObject("Modules").transform;
-        modulesRoot.SetParent(boardGo.transform, false);
+        var worldRoot = new GameObject("WorldRoot").transform;
+        worldRoot.SetParent(layoutGo.transform, false);
+        layout.worldRoot = worldRoot;
+
+        var boardRoot = new GameObject("BoardRoot").transform;
+        boardRoot.SetParent(worldRoot, false);
+        // BoardRoot 放在棋盘左下角世界位置；格子用本地坐标
+        boardRoot.position = new Vector3(-GridBoard.Width * cellSize * 0.5f, -3.2f, 0f);
+        layout.boardRoot = boardRoot;
+        layout.gridAnchor = boardRoot;
+
+        var board = boardRoot.gameObject.AddComponent<GridBoard>();
+        board.Initialize(cellSize, Vector2.zero);
+
+        layout.moduleRoot = board.ModulesRoot;
 
         var ballMgrGo = new GameObject("EnergyBallManager");
+        ballMgrGo.transform.SetParent(worldRoot, false);
         var ballManager = ballMgrGo.AddComponent<EnergyBallManager>();
         ballManager.Initialize(board);
 
         var emitterGo = new GameObject("Emitter");
+        emitterGo.transform.SetParent(boardRoot, false);
+        layout.emitterAnchor = emitterGo.transform;
         var emitter = emitterGo.AddComponent<Emitter>();
 
         Bounds boardBounds = board.GetWorldBounds();
 
+        // 先按「棋盘窗」对齐相机，再算战斗锚点世界坐标（避免棋盘顶穿进战斗窗）
+        FitCameraToBoardWindow(boardBounds);
+
+        var battleRoot = new GameObject("BattleRoot").transform;
+        battleRoot.SetParent(worldRoot, false);
+        layout.battleRoot = battleRoot;
+
+        float laneY = ViewportToWorldY(worldCam, 0.82f);
+        float endX = ViewportToWorldX(worldCam, 0.08f);
+        float spawnX = ViewportToWorldX(worldCam, 0.72f);
+        // 保证路线覆盖棋盘左右外延
+        endX = Mathf.Min(endX, boardBounds.min.x - cellSize * 0.4f);
+        spawnX = Mathf.Max(spawnX, boardBounds.max.x + cellSize * 1.2f);
+
+        var spawnAnchor = CreateAnchor(battleRoot, "EnemySpawnAnchor", new Vector3(spawnX, laneY, 0f));
+        var endAnchor = CreateAnchor(battleRoot, "EnemyEndAnchor", new Vector3(endX, laneY, 0f));
+        var mageAnchor = CreateAnchor(battleRoot, "MageAnchor", new Vector3(endX, laneY, 0f));
+        layout.enemySpawnAnchor = spawnAnchor;
+        layout.enemyEndAnchor = endAnchor;
+        layout.mageAnchor = mageAnchor;
+
+        var enemyRoot = new GameObject("Enemies").transform;
+        enemyRoot.SetParent(battleRoot, false);
+        layout.enemyRoot = enemyRoot;
+
         var sessionGo = new GameObject("GameSession");
+        sessionGo.transform.SetParent(layoutGo.transform, false);
         var session = sessionGo.AddComponent<GameSession>();
 
         emitter.Initialize(board, ballManager, session);
 
-        var laneGo = new GameObject("BattleLane");
-        var lane = laneGo.AddComponent<BattleLane>();
-        lane.Initialize(boardBounds, cellSize);
+        var lane = battleRoot.gameObject.AddComponent<BattleLane>();
+        lane.Initialize(spawnAnchor, endAnchor);
 
         var mageGo = new GameObject("Mage");
+        mageGo.transform.SetParent(mageAnchor, false);
+        mageGo.transform.localPosition = Vector3.zero;
         var mage = mageGo.AddComponent<Mage>();
 
-        var enemyRoot = new GameObject("Enemies").transform;
-
         var wavesGo = new GameObject("WaveManager");
+        wavesGo.transform.SetParent(battleRoot, false);
         var waveManager = wavesGo.AddComponent<WaveManager>();
 
-        mage.Initialize(lane.GetEndPosition(), waveManager, session);
+        mage.Initialize(mageAnchor.position, waveManager, session);
         waveManager.Initialize(lane, mage, session, enemyRoot);
 
-        CreateBattleBackdrop(boardBounds, lane.LaneY);
+        CreateBattleBackdrop(battleRoot, boardBounds, laneY, worldCam);
 
         var trackerGo = new GameObject("DamageTracker");
+        trackerGo.transform.SetParent(layoutGo.transform, false);
         var tracker = trackerGo.AddComponent<DamageTracker>();
 
         Font font = ResolveUiFont();
         Canvas canvas = CreateCanvas();
+        layout.canvas = canvas;
+        canvas.transform.SetParent(layoutGo.transform, false);
 
         CreateGameShell(canvas.transform);
 
@@ -95,23 +139,54 @@ public class GameBootstrap : MonoBehaviour
         Text overlayLabel = CreateOverlayLabel(canvas.transform, font);
 
         var hudGo = new GameObject("CombatHUD");
+        hudGo.transform.SetParent(layoutGo.transform, false);
         var combatHud = hudGo.AddComponent<CombatHUD>();
         combatHud.Initialize(statusLabel, overlayLabel, mage, waveManager, session, tracker);
+        layout.combatHud = combatHud;
 
-        // 右侧栏：上手牌、下商店
         Transform sidebar = CreateSidebar(canvas.transform, font);
         HandController hand = CreateHand(sidebar, font);
         CreateShopPanel(sidebar, font, hand, session);
+        layout.handController = hand;
 
         var placementGo = new GameObject("PlacementController");
+        placementGo.transform.SetParent(layoutGo.transform, false);
         var placement = placementGo.AddComponent<PlacementController>();
-        placement.Initialize(board, hand, modulesRoot, session);
+        placement.Initialize(board, hand, board.ModulesRoot, session, worldCam);
 
         CreateHintLabel(canvas.transform, font);
-        FitCameraToLayout(boardBounds, lane.LaneY);
 
         ValidateRedirectorTable();
-        Debug.Log("[GameBootstrap] UI 布局：顶部战斗窗 + 棋盘窗 + 右侧手牌/商店。");
+        Debug.Log("[GameBootstrap] 棋盘限制在棋盘窗内；战斗区用独立锚点。");
+    }
+
+    static Transform CreateAnchor(Transform parent, string name, Vector3 worldPos)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, true);
+        go.transform.position = worldPos;
+        return go.transform;
+    }
+
+    static float ViewportToWorldX(Camera cam, float vx)
+    {
+        if (cam == null)
+        {
+            return 0f;
+        }
+
+        float aspect = cam.aspect > 0.1f ? cam.aspect : 16f / 9f;
+        return cam.transform.position.x + (vx - 0.5f) * 2f * cam.orthographicSize * aspect;
+    }
+
+    static float ViewportToWorldY(Camera cam, float vy)
+    {
+        if (cam == null)
+        {
+            return 0f;
+        }
+
+        return cam.transform.position.y + (vy - 0.5f) * 2f * cam.orthographicSize;
     }
 
     static void ValidateRedirectorTable()
@@ -172,9 +247,10 @@ public class GameBootstrap : MonoBehaviour
     }
 
     /// <summary>
-    /// 全屏相机；棋盘+战斗放在左侧可视区，右侧约 22% 留给 UI 侧栏。
+    /// 只把棋盘（含发射器余量）装进棋盘透明窗，顶边不超过分隔线（约 y=0.64）。
+    /// 战斗区另用视口锚点放置，避免棋盘顶穿框。
     /// </summary>
-    void FitCameraToLayout(Bounds boardBounds, float enemyY)
+    void FitCameraToBoardWindow(Bounds boardBounds)
     {
         Camera cam = Camera.main;
         if (cam == null)
@@ -184,18 +260,34 @@ public class GameBootstrap : MonoBehaviour
 
         cam.rect = new Rect(0f, 0f, 1f, 1f);
 
-        float top = Mathf.Max(boardBounds.max.y, enemyY) + 1.4f;
-        float bottom = boardBounds.min.y - 1.1f;
-        float height = Mathf.Max(0.1f, top - bottom);
-        cam.orthographicSize = Mathf.Max(5.8f, height * 0.55f);
+        float contentMinX = boardBounds.min.x - cellSize * 1.6f;
+        float contentMaxX = boardBounds.max.x + cellSize * 0.5f;
+        float contentMinY = boardBounds.min.y - cellSize * 0.45f;
+        float contentMaxY = boardBounds.max.y + cellSize * 0.35f;
+        float contentW = Mathf.Max(0.1f, contentMaxX - contentMinX);
+        float contentH = Mathf.Max(0.1f, contentMaxY - contentMinY);
+        float contentCX = (contentMinX + contentMaxX) * 0.5f;
+        float contentCY = (contentMinY + contentMaxY) * 0.5f;
 
-        // 视口中心略偏左，让右侧留给侧栏
-        float worldHalfWidth = cam.orthographicSize * cam.aspect;
-        float targetCenterX = boardBounds.center.x - worldHalfWidth * 0.12f;
-        cam.transform.position = new Vector3(
-            targetCenterX,
-            (top + bottom) * 0.5f,
-            -10f);
+        // 与 ui_game_frame 棋盘窗对齐（底栏上沿约 0.03，分隔线下沿约 0.64）
+        const float viewX0 = 0.05f;
+        const float viewX1 = 0.75f;
+        const float viewY0 = 0.06f;
+        const float viewY1 = 0.60f;
+        float viewW = viewX1 - viewX0;
+        float viewH = viewY1 - viewY0;
+
+        float aspect = cam.aspect > 0.1f ? cam.aspect : 16f / 9f;
+        float sizeFromWidth = contentW / (2f * viewW * aspect);
+        float sizeFromHeight = contentH / (2f * viewH);
+        float orthoSize = Mathf.Max(sizeFromWidth, sizeFromHeight) * 1.04f;
+        cam.orthographicSize = orthoSize;
+
+        float targetVx = (viewX0 + viewX1) * 0.5f;
+        float targetVy = (viewY0 + viewY1) * 0.5f;
+        float camX = contentCX - (targetVx - 0.5f) * 2f * orthoSize * aspect;
+        float camY = contentCY - (targetVy - 0.5f) * 2f * orthoSize;
+        cam.transform.position = new Vector3(camX, camY, -10f);
     }
 
     void EnsureEventSystem()
@@ -210,15 +302,18 @@ public class GameBootstrap : MonoBehaviour
         es.AddComponent<StandaloneInputModule>();
     }
 
-    void CreateBattleBackdrop(Bounds boardBounds, float enemyY)
+    void CreateBattleBackdrop(Transform battleRoot, Bounds boardBounds, float laneY, Camera cam)
     {
         var go = new GameObject("BattleBackdrop");
-        float y = (boardBounds.max.y + enemyY) * 0.5f + 0.3f;
-        go.transform.position = new Vector3(boardBounds.center.x, y, 0f);
-        go.transform.localScale = new Vector3(boardBounds.size.x + 3.5f, 2.4f, 1f);
+        go.transform.SetParent(battleRoot, false);
+        float left = ViewportToWorldX(cam, 0.04f);
+        float right = ViewportToWorldX(cam, 0.96f);
+        float width = Mathf.Max(boardBounds.size.x + cellSize * 6f, right - left);
+        go.transform.position = new Vector3((left + right) * 0.5f, laneY, 0f);
+        go.transform.localScale = new Vector3(width, 2.4f, 1f);
         var sr = go.AddComponent<SpriteRenderer>();
         sr.sprite = PrototypeSprites.Square;
-        sr.color = new Color(0.12f, 0.14f, 0.18f, 1f);
+        sr.color = new Color(0.11f, 0.13f, 0.17f, 1f);
         sr.sortingOrder = -2;
     }
 
@@ -282,24 +377,25 @@ public class GameBootstrap : MonoBehaviour
         StretchFull(rootRt);
         root.transform.SetAsFirstSibling();
 
-        Color frame = new Color(0.22f, 0.18f, 0.35f, 0.92f);
-        Color accent = new Color(0.55f, 0.4f, 0.85f, 0.55f);
-        Color sidebar = new Color(0.08f, 0.07f, 0.12f, 0.88f);
+        Color frame = new Color(0.14f, 0.12f, 0.22f, 0.95f);
+        Color accent = new Color(0.35f, 0.65f, 0.9f, 0.7f);
+        Color sidebar = new Color(0.07f, 0.06f, 0.11f, 0.92f);
 
-        // 外边框条
         CreateShellBar(root.transform, "TopBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
-            new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(0f, -28f), frame);
+            new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(0f, 0f), frame);
         CreateShellBar(root.transform, "BottomBar", new Vector2(0f, 0f), new Vector2(1f, 0f),
-            new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, 28f), frame);
+            new Vector2(0.5f, 0f), new Vector2(0f, 0f), new Vector2(0f, 30f), frame);
         CreateShellBar(root.transform, "LeftBar", new Vector2(0f, 0f), new Vector2(0f, 1f),
-            new Vector2(0f, 0.5f), new Vector2(0f, 0f), new Vector2(36f, -56f), frame);
+            new Vector2(0f, 0.5f), new Vector2(0f, 30f), new Vector2(30f, -30f), frame);
+        CreateShellBar(root.transform, "RightBar", new Vector2(1f, 0f), new Vector2(1f, 1f),
+            new Vector2(1f, 0.5f), new Vector2(-30f, 30f), new Vector2(0f, -30f), frame);
 
-        // 战斗区上下分隔线（约顶部 34%）
-        CreateShellBar(root.transform, "BattleDivider", new Vector2(0f, 0.66f), new Vector2(0.78f, 0.66f),
-            new Vector2(0.5f, 0.5f), new Vector2(0f, 0f), new Vector2(0f, 4f), accent);
+        // 战斗 / 棋盘分隔（仅左侧，侧栏上方战斗窗保持贯通）
+        CreateShellBar(root.transform, "BattleDivider", new Vector2(0.02f, 0.65f), new Vector2(0.78f, 0.66f),
+            new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, accent);
 
-        // 右侧栏底板（不透明，放手牌/商店）
-        CreateShellBar(root.transform, "SidebarPlate", new Vector2(0.78f, 0f), new Vector2(1f, 0.66f),
+        // 右下侧栏底板
+        CreateShellBar(root.transform, "SidebarPlate", new Vector2(0.78f, 0.03f), new Vector2(0.985f, 0.64f),
             new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, sidebar);
     }
 
@@ -343,8 +439,8 @@ public class GameBootstrap : MonoBehaviour
         var go = new GameObject("Sidebar");
         go.transform.SetParent(canvas, false);
         var rt = go.AddComponent<RectTransform>();
-        // 对应文档：侧边栏约右下 22% × 下 66%
-        rt.anchorMin = new Vector2(0.78f, 0.02f);
+        // 与 ui_game_frame 右下侧栏镂空/底板对齐
+        rt.anchorMin = new Vector2(0.78f, 0.03f);
         rt.anchorMax = new Vector2(0.985f, 0.64f);
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;

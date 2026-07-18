@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 战斗区单路线坐标：刷怪点、魔法师终点、路线 Y。
+/// 战斗区单路线：由独立锚点定义出生点与终点，不再依赖棋盘 Bounds。
 /// </summary>
 public class BattleLane : MonoBehaviour
 {
@@ -9,17 +9,37 @@ public class BattleLane : MonoBehaviour
     public float EndX { get; private set; }
     public float LaneY { get; private set; }
 
+    Transform _spawnAnchor;
+    Transform _endAnchor;
+
     /// <summary>
-    /// 根据棋盘包围盒计算战斗区坐标。
+    /// 使用场景/运行时锚点初始化路线。
     /// </summary>
-    public void Initialize(Bounds boardBounds, float cellSize)
+    public void Initialize(Transform spawnAnchor, Transform endAnchor)
     {
-        LaneY = boardBounds.max.y + cellSize * 2.2f;
-        SpawnX = boardBounds.max.x + cellSize * 1.5f;
-        EndX = boardBounds.min.x - cellSize * 0.5f;
+        _spawnAnchor = spawnAnchor;
+        _endAnchor = endAnchor;
+        RefreshFromAnchors();
     }
 
-    public Vector3 GetSpawnPosition() => new Vector3(SpawnX, LaneY, 0f);
+    /// <summary>
+    /// 锚点被移动后可再次调用以刷新路线坐标。
+    /// </summary>
+    public void RefreshFromAnchors()
+    {
+        if (_spawnAnchor == null || _endAnchor == null)
+        {
+            return;
+        }
 
-    public Vector3 GetEndPosition() => new Vector3(EndX, LaneY, 0f);
+        SpawnX = _spawnAnchor.position.x;
+        EndX = _endAnchor.position.x;
+        LaneY = _spawnAnchor.position.y;
+    }
+
+    public Vector3 GetSpawnPosition() =>
+        _spawnAnchor != null ? _spawnAnchor.position : new Vector3(SpawnX, LaneY, 0f);
+
+    public Vector3 GetEndPosition() =>
+        _endAnchor != null ? _endAnchor.position : new Vector3(EndX, LaneY, 0f);
 }
