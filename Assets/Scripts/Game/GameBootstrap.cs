@@ -97,6 +97,8 @@ public class GameBootstrap : MonoBehaviour
 
         Font font = ResolveUiFont();
         Canvas canvas = CreateCanvas();
+        // 创建并显示整屏 UI 外框
+        CreateGameShell(canvas.transform);
         Text statusLabel = CreateCombatStatusLabel(canvas.transform, font);
         Text overlayLabel = CreateOverlayLabel(canvas.transform, font);
 
@@ -231,6 +233,56 @@ public class GameBootstrap : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
         go.AddComponent<GraphicRaycaster>();
         return canvas;
+    }
+    void CreateGameShell(Transform canvas)
+    {
+        // Resources.Load 的路径不写 Assets/Resources，也不写 .png
+        Sprite frameSprite = Resources.Load<Sprite>("UI/ui_game_frame");
+
+        if (frameSprite == null)
+        {
+            Debug.LogWarning(
+                "[GameBootstrap] 没找到 UI 外框。请确认图片位于 " +
+                "Assets/Resources/UI/ui_game_frame.png，" +
+                "并且 Texture Type 是 Sprite (2D and UI)。"
+            );
+
+            return;
+        }
+
+        // 创建一个新的 UI 图片对象
+        var shellGo = new GameObject("GameShell");
+        shellGo.transform.SetParent(canvas, false);
+
+        // 添加 RectTransform，并让它铺满整个 Canvas
+        var rectTransform = shellGo.AddComponent<RectTransform>();
+
+        rectTransform.anchorMin = Vector2.zero;
+        rectTransform.anchorMax = Vector2.one;
+
+        rectTransform.offsetMin = Vector2.zero;
+        rectTransform.offsetMax = Vector2.zero;
+
+        rectTransform.localScale = Vector3.one;
+
+        // 添加 Image 组件并使用外框图片
+        var image = shellGo.AddComponent<Image>();
+
+        image.sprite = frameSprite;
+        image.color = Color.white;
+        image.type = Image.Type.Simple;
+
+        // false 表示强制铺满屏幕，不保留原始图片比例
+        image.preserveAspect = false;
+
+        // 非常重要：避免整屏图片挡住商店和手牌点击
+        image.raycastTarget = false;
+
+        // 放到 Canvas 的最底层，
+        // 后面创建的 HUD、手牌、商店会显示在它上面
+        shellGo.transform.SetAsFirstSibling();
+
+        Debug.Log("[GameBootstrap] UI 外框加载成功。");
     }
 
     Text CreateCombatStatusLabel(Transform canvas, Font font)
