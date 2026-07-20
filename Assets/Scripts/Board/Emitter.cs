@@ -22,6 +22,7 @@ public class Emitter : MonoBehaviour
     GameSession _session;
     float _timer;
     SpriteRenderer _visual;
+    Vector3 _baseScale = new Vector3(0.55f, 0.55f, 1f);
 
     public GridCoord EntryCell => new GridCoord(entryCol, entryRow);
 
@@ -48,6 +49,13 @@ public class Emitter : MonoBehaviour
         }
 
         _timer += Time.deltaTime;
+        // 呼吸缩放反馈
+        if (_visual != null)
+        {
+            float pulse = 1f + Mathf.Sin(Time.time * 2.4f) * 0.06f;
+            transform.localScale = _baseScale * pulse;
+        }
+
         if (_timer < fireInterval)
         {
             return;
@@ -90,7 +98,8 @@ public class Emitter : MonoBehaviour
         _visual.sprite = PrototypeSprites.Square;
         _visual.color = new Color(0.95f, 0.75f, 0.2f, 1f);
         _visual.sortingOrder = 5;
-        transform.localScale = new Vector3(0.55f, 0.55f, 1f);
+        _baseScale = new Vector3(0.55f, 0.55f, 1f);
+        transform.localScale = _baseScale;
 
         var arrow = new GameObject("Arrow");
         arrow.transform.SetParent(transform, false);

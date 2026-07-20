@@ -11,6 +11,8 @@ public class GameBootstrap : MonoBehaviour
     [Header("Board")]
     [SerializeField] float cellSize = 1f;
 
+    GameSkin _skin;
+
     static bool s_autoSpawnChecked;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -135,29 +137,74 @@ public class GameBootstrap : MonoBehaviour
 
         CreateGameShell(canvas.transform);
 
-        Text statusLabel = CreateCombatStatusLabel(canvas.transform, font);
-        Text overlayLabel = CreateOverlayLabel(canvas.transform, font);
+        _skin = GameSkin.LoadOrCreateRuntime();
 
-        var hudGo = new GameObject("CombatHUD");
-        hudGo.transform.SetParent(layoutGo.transform, false);
-        var combatHud = hudGo.AddComponent<CombatHUD>();
-        combatHud.Initialize(statusLabel, overlayLabel, mage, waveManager, session, tracker);
-        layout.combatHud = combatHud;
+        var audioGo = new GameObject("UIAudioFeedback");
+        audioGo.transform.SetParent(layoutGo.transform, false);
+        var uiAudio = audioGo.AddComponent<UIAudioFeedback>();
+        uiAudio.EnsureSource();
+
+        BuildHudAndWire(
+            canvas.transform,
+            font,
+            layout,
+            layoutGo.transform,
+            mage,
+            waveManager,
+            session,
+            tracker,
+            uiAudio);
 
         Transform sidebar = CreateSidebar(canvas.transform, font);
-        HandController hand = CreateHand(sidebar, font);
-        CreateShopPanel(sidebar, font, hand, session);
+        HandController hand = CreateHand(sidebar, font, _skin);
+        var shop = CreateShopPanel(sidebar, font, hand, session, _skin);
         layout.handController = hand;
+        layout.shopController = shop;
 
         var placementGo = new GameObject("PlacementController");
         placementGo.transform.SetParent(layoutGo.transform, false);
         var placement = placementGo.AddComponent<PlacementController>();
-        placement.Initialize(board, hand, board.ModulesRoot, session, worldCam);
+        placement.Initialize(board, hand, board.ModulesRoot, session, worldCam, _skin);
 
         CreateHintLabel(canvas.transform, font);
 
         ValidateRedirectorTable();
-        Debug.Log("[GameBootstrap] 棋盘限制在棋盘窗内；战斗区用独立锚点。");
+        Debug.Log("[GameBootstrap] 文档步骤 4-7：槽位状态 / HUD 机会图标 / GameSkin / 放置高亮。");
+    }
+
+    void BuildHudAndWire(
+        Transform canvas,
+        Font font,
+        GameLayoutView layout,
+        Transform layoutRoot,
+        Mage mage,
+        WaveManager waveManager,
+        GameSession session,
+        DamageTracker tracker,
+        UIAudioFeedback uiAudio)
+    {
+        Text statusLabel = CreateCombatStatusLabel(canvas, font);
+        Text livesLabel = CreateLivesLabel(canvas, font);
+        Text breachLabel = CreateBreachLabel(canvas, font);
+        Image flash = CreateBreachFlash(canvas);
+        ResultOverlayView overlay = CreateResultOverlay(canvas, font);
+        layout.resultOverlay = overlay.GetComponent<CanvasGroup>();
+
+        var hudGo = new GameObject("CombatHUD");
+        hudGo.transform.SetParent(layoutRoot, false);
+        var combatHud = hudGo.AddComponent<CombatHUD>();
+        combatHud.Initialize(
+            statusLabel,
+            livesLabel,
+            breachLabel,
+            flash,
+            overlay,
+            mage,
+            waveManager,
+            session,
+            tracker,
+            uiAudio);
+        layout.combatHud = combatHud;
     }
 
     static Transform CreateAnchor(Transform parent, string name, Vector3 worldPos)
@@ -492,35 +539,94 @@ public class GameBootstrap : MonoBehaviour
         return text;
     }
 
-    Text CreateOverlayLabel(Transform canvas, Font font)
+    Text CreateLivesLabel(Transform canvas, Font font)
+    {
+        var go = new GameObject("LivesLabel");
+        go.transform.SetParent(canvas, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.56f, 0.92f);
+        rt.anchorMax = new Vector2(0.78f, 0.99f);
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+        var text = go.AddComponent<Text>();
+        text.font = font;
+        text.fontSize = 28;
+        text.alignment = TextAnchor.MiddleLeft;
+        text.color = new Color(0.7f, 0.85f, 1f, 1f);
+        text.text = "机会 ◆◆◆";
+        return text;
+    }
+
+    Text CreateBreachLabel(Transform canvas, Font font)
+    {
+        var go = new GameObject("BreachWarning");
+        go.transform.SetParent(canvas, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.2f, 0.72f);
+        rt.anchorMax = new Vector2(0.8f, 0.82f);
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+        var text = go.AddComponent<Text>();
+        text.font = font;
+        text.fontSize = 36;
+        text.fontStyle = FontStyle.Bold;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = new Color(1f, 0.45f, 0.4f, 1f);
+        text.text = string.Empty;
+        go.SetActive(false);
+        return text;
+    }
+
+    Image CreateBreachFlash(Transform canvas)
+    {
+        var go = new GameObject("BreachFlash");
+        go.transform.SetParent(canvas, false);
+        var rt = go.AddComponent<RectTransform>();
+        StretchFull(rt);
+        var img = go.AddComponent<Image>();
+        img.color = new Color(0.8f, 0.1f, 0.1f, 0f);
+        img.raycastTarget = false;
+        return img;
+    }
+
+    ResultOverlayView CreateResultOverlay(Transform canvas, Font font)
     {
         var go = new GameObject("ResultOverlay");
         go.transform.SetParent(canvas, false);
         var rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = Vector2.zero;
-        rt.anchorMax = Vector2.one;
-        rt.offsetMin = Vector2.zero;
-        rt.offsetMax = Vector2.zero;
+        StretchFull(rt);
+
+        var group = go.AddComponent<CanvasGroup>();
+        group.alpha = 0f;
+        group.blocksRaycasts = false;
+        group.interactable = false;
 
         var dimGo = new GameObject("Dim");
         dimGo.transform.SetParent(go.transform, false);
         var dimRt = dimGo.AddComponent<RectTransform>();
         StretchFull(dimRt);
         var dim = dimGo.AddComponent<Image>();
-        dim.color = new Color(0f, 0f, 0f, 0.55f);
+        dim.color = new Color(0f, 0f, 0f, 0.6f);
         dim.raycastTarget = true;
 
-        // Text 挂在根节点，CombatHUD SetActive 时整块遮罩一起显示
-        var text = go.AddComponent<Text>();
+        var titleGo = new GameObject("Title");
+        titleGo.transform.SetParent(go.transform, false);
+        var titleRt = titleGo.AddComponent<RectTransform>();
+        titleRt.anchorMin = new Vector2(0.5f, 0.5f);
+        titleRt.anchorMax = new Vector2(0.5f, 0.5f);
+        titleRt.pivot = new Vector2(0.5f, 0.5f);
+        titleRt.sizeDelta = new Vector2(700f, 140f);
+        var text = titleGo.AddComponent<Text>();
         text.font = font;
         text.fontSize = 72;
         text.fontStyle = FontStyle.Bold;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = Color.white;
-        text.text = string.Empty;
         text.raycastTarget = false;
-        go.SetActive(false);
-        return text;
+
+        var view = go.AddComponent<ResultOverlayView>();
+        view.Bind(group, text);
+        return view;
     }
 
     Text CreateHintLabel(Transform canvas, Font font)
@@ -541,12 +647,11 @@ public class GameBootstrap : MonoBehaviour
         return text;
     }
 
-    RectTransform CreateShopPanel(Transform sidebar, Font font, HandController hand, GameSession session)
+    ShopController CreateShopPanel(Transform sidebar, Font font, HandController hand, GameSession session, GameSkin skin)
     {
         var panelGo = new GameObject("ShopPanel");
         panelGo.transform.SetParent(sidebar, false);
         var panel = panelGo.AddComponent<RectTransform>();
-        // 侧栏下半：商店
         panel.anchorMin = new Vector2(0.04f, 0.02f);
         panel.anchorMax = new Vector2(0.96f, 0.46f);
         panel.offsetMin = Vector2.zero;
@@ -591,14 +696,14 @@ public class GameBootstrap : MonoBehaviour
         var slots = new ShopSlot[ShopController.SlotCount];
         for (int i = 0; i < ShopController.SlotCount; i++)
         {
-            slots[i] = CreateShopSlot(listGo.transform, font, shop, i);
+            slots[i] = CreateShopSlot(listGo.transform, font, shop, i, skin);
         }
 
         shop.Initialize(hand, slots, session);
-        return panel;
+        return shop;
     }
 
-    ShopSlot CreateShopSlot(Transform parent, Font font, ShopController shop, int index)
+    ShopSlot CreateShopSlot(Transform parent, Font font, ShopController shop, int index, GameSkin skin)
     {
         var slotGo = new GameObject($"ShopSlot_{index}");
         slotGo.transform.SetParent(parent, false);
@@ -608,6 +713,18 @@ public class GameBootstrap : MonoBehaviour
         var bg = slotGo.AddComponent<Image>();
         bg.color = new Color(0.14f, 0.14f, 0.18f, 0.95f);
 
+        var frameGo = new GameObject("SelectionFrame");
+        frameGo.transform.SetParent(slotGo.transform, false);
+        var frameRt = frameGo.AddComponent<RectTransform>();
+        frameRt.anchorMin = Vector2.zero;
+        frameRt.anchorMax = Vector2.one;
+        frameRt.offsetMin = new Vector2(-2f, -2f);
+        frameRt.offsetMax = new Vector2(2f, 2f);
+        var frame = frameGo.AddComponent<Image>();
+        frame.color = new Color(0.55f, 0.75f, 1f, 0f);
+        frame.raycastTarget = false;
+        frame.enabled = false;
+
         var iconGo = new GameObject("Icon");
         iconGo.transform.SetParent(slotGo.transform, false);
         var iconRt = iconGo.AddComponent<RectTransform>();
@@ -615,6 +732,7 @@ public class GameBootstrap : MonoBehaviour
         iconRt.anchorMax = new Vector2(0.5f, 0.55f);
         iconRt.sizeDelta = new Vector2(28f, 28f);
         var icon = iconGo.AddComponent<Image>();
+        icon.sprite = skin != null ? skin.ResolveSquare(null) : PrototypeSprites.Square;
         icon.color = Color.gray;
         icon.raycastTarget = false;
 
@@ -634,17 +752,19 @@ public class GameBootstrap : MonoBehaviour
         label.fontSize = 12;
         label.raycastTarget = false;
 
+        var view = slotGo.AddComponent<ModuleSlotView>();
+        view.Bind(bg, icon, label, frame, skin);
+
         var slot = slotGo.AddComponent<ShopSlot>();
-        slot.Setup(shop, index, bg, icon, label);
+        slot.Setup(shop, index, view);
         return slot;
     }
 
-    HandController CreateHand(Transform sidebar, Font font)
+    HandController CreateHand(Transform sidebar, Font font, GameSkin skin)
     {
         var handGo = new GameObject("Hand");
         handGo.transform.SetParent(sidebar, false);
         var handRt = handGo.AddComponent<RectTransform>();
-        // 侧栏上半：手牌
         handRt.anchorMin = new Vector2(0.04f, 0.48f);
         handRt.anchorMax = new Vector2(0.96f, 0.94f);
         handRt.offsetMin = Vector2.zero;
@@ -690,7 +810,7 @@ public class GameBootstrap : MonoBehaviour
         var slots = new HandSlot[HandController.SlotCount];
         for (int i = 0; i < HandController.SlotCount; i++)
         {
-            slots[i] = CreateHandSlot(row.transform, font, hand, i);
+            slots[i] = CreateHandSlot(row.transform, font, hand, i, skin);
         }
 
         hand.BindSlots(slots);
@@ -698,7 +818,7 @@ public class GameBootstrap : MonoBehaviour
         return hand;
     }
 
-    HandSlot CreateHandSlot(Transform parent, Font font, HandController hand, int index)
+    HandSlot CreateHandSlot(Transform parent, Font font, HandController hand, int index, GameSkin skin)
     {
         var slotGo = new GameObject($"HandSlot_{index}");
         slotGo.transform.SetParent(parent, false);
@@ -708,6 +828,18 @@ public class GameBootstrap : MonoBehaviour
         var bg = slotGo.AddComponent<Image>();
         bg.color = new Color(0.16f, 0.16f, 0.2f, 0.95f);
 
+        var frameGo = new GameObject("SelectionFrame");
+        frameGo.transform.SetParent(slotGo.transform, false);
+        var frameRt = frameGo.AddComponent<RectTransform>();
+        frameRt.anchorMin = Vector2.zero;
+        frameRt.anchorMax = Vector2.one;
+        frameRt.offsetMin = new Vector2(-2f, -2f);
+        frameRt.offsetMax = new Vector2(2f, 2f);
+        var frame = frameGo.AddComponent<Image>();
+        frame.color = new Color(0.55f, 0.95f, 0.45f, 0f);
+        frame.raycastTarget = false;
+        frame.enabled = false;
+
         var iconGo = new GameObject("Icon");
         iconGo.transform.SetParent(slotGo.transform, false);
         var iconRt = iconGo.AddComponent<RectTransform>();
@@ -715,6 +847,7 @@ public class GameBootstrap : MonoBehaviour
         iconRt.anchorMax = new Vector2(0.5f, 0.55f);
         iconRt.sizeDelta = new Vector2(36f, 36f);
         var icon = iconGo.AddComponent<Image>();
+        icon.sprite = skin != null ? skin.ResolveSquare(null) : PrototypeSprites.Square;
         icon.color = Color.gray;
         icon.raycastTarget = false;
 
@@ -734,8 +867,11 @@ public class GameBootstrap : MonoBehaviour
         label.text = "空";
         label.raycastTarget = false;
 
+        var view = slotGo.AddComponent<ModuleSlotView>();
+        view.Bind(bg, icon, label, frame, skin);
+
         var slot = slotGo.AddComponent<HandSlot>();
-        slot.Setup(hand, index, bg, icon, label);
+        slot.Setup(hand, index, view);
         return slot;
     }
 }

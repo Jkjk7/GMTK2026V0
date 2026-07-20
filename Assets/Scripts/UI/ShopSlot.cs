@@ -1,18 +1,13 @@
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.EventSystems;
 
 /// <summary>
-/// 商店单个货架槽。
-/// 点击后尝试免费购入到手牌；成功则清空本槽，等待下次刷新。
-/// 暂无金币；预留扩展购买校验。
+/// 商店货架槽：点击购入；视觉交给 ModuleSlotView。
 /// </summary>
-public class ShopSlot : MonoBehaviour, IPointerClickHandler
+public class ShopSlot : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
 {
-    Image _background;
-    Image _icon;
-    Text _label;
     ShopController _shop;
+    ModuleSlotView _view;
     int _index;
     ModuleType _moduleType;
     bool _occupied;
@@ -20,64 +15,26 @@ public class ShopSlot : MonoBehaviour, IPointerClickHandler
     public bool IsOccupied => _occupied;
     public ModuleType ModuleType => _moduleType;
 
-    /// <summary>
-    /// 由 ShopController 初始化视觉引用。
-    /// </summary>
-    public void Setup(ShopController shop, int index, Image background, Image icon, Text label)
+    public void Setup(ShopController shop, int index, ModuleSlotView view)
     {
         _shop = shop;
         _index = index;
-        _background = background;
-        _icon = icon;
-        _label = label;
+        _view = view;
         Clear();
     }
 
-    /// <summary>
-    /// 上架一种模块（随机刷新时调用）。
-    /// </summary>
     public void SetOffer(ModuleType type)
     {
         _occupied = true;
         _moduleType = type;
-        if (_label != null)
-        {
-            _label.text = ModuleCatalog.GetDisplayName(type);
-            _label.color = Color.white;
-        }
-
-        if (_icon != null)
-        {
-            _icon.color = ModuleCatalog.GetDisplayColor(type);
-        }
-
-        if (_background != null)
-        {
-            _background.color = new Color(0.18f, 0.2f, 0.24f, 0.95f);
-        }
+        _view?.SetModule(type);
+        _view?.SetState(ModuleSlotView.SlotVisualState.Normal);
     }
 
-    /// <summary>
-    /// 清空货架（购入后或刷新前）。
-    /// </summary>
     public void Clear()
     {
         _occupied = false;
-        if (_label != null)
-        {
-            _label.text = "空";
-            _label.color = new Color(0.55f, 0.55f, 0.6f, 1f);
-        }
-
-        if (_icon != null)
-        {
-            _icon.color = new Color(0.25f, 0.25f, 0.28f, 1f);
-        }
-
-        if (_background != null)
-        {
-            _background.color = new Color(0.12f, 0.12f, 0.15f, 0.85f);
-        }
+        _view?.SetEmpty();
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -88,5 +45,25 @@ public class ShopSlot : MonoBehaviour, IPointerClickHandler
         }
 
         _shop.TryPurchaseSlot(_index);
+    }
+
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        if (_occupied)
+        {
+            _view?.SetState(ModuleSlotView.SlotVisualState.Hover);
+        }
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        if (_occupied)
+        {
+            _view?.SetState(ModuleSlotView.SlotVisualState.Normal);
+        }
+        else
+        {
+            _view?.SetEmpty();
+        }
     }
 }

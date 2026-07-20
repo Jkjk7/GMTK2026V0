@@ -12,6 +12,9 @@ public class PlacementController : MonoBehaviour
     Transform _moduleRoot;
     GameSession _session;
     Camera _gameplayCamera;
+    GameSkin _skin;
+    GridCoord? _hoveredCell;
+    GridCellView _hoveredCellView;
 
     /// <summary>放置收束器时的预览朝向 0..3。</summary>
     int _previewOrientation;
@@ -25,13 +28,15 @@ public class PlacementController : MonoBehaviour
         HandController hand,
         Transform moduleRoot,
         GameSession session,
-        Camera gameplayCamera = null)
+        Camera gameplayCamera = null,
+        GameSkin skin = null)
     {
         _board = board;
         _hand = hand;
         _moduleRoot = moduleRoot;
         _session = session;
         _gameplayCamera = gameplayCamera != null ? gameplayCamera : Camera.main;
+        _skin = skin;
         _previewOrientation = 0;
     }
 
@@ -87,6 +92,7 @@ public class PlacementController : MonoBehaviour
         if (!_hand.HasSelection)
         {
             ClearGhost();
+            ClearCellHover();
             return;
         }
 
@@ -94,28 +100,111 @@ public class PlacementController : MonoBehaviour
         EnsureGhost(type);
 
         Vector3 mouseWorld = GetMouseWorld();
-        if (_board.TryWorldToCell(mouseWorld, out GridCoord cell) && _board.CanPlace(cell))
+        if (_board.TryWorldToCell(mouseWorld, out GridCoord cell))
         {
+            bool canPlace = _board.CanPlace(cell);
             Vector3 pos = _board.CellToWorld(cell);
-            if (_ghostType == ModuleType.Redirector && _ghostRedirector != null)
-            {
-                _ghostRedirector.gameObject.SetActive(true);
-                _ghostRedirector.transform.position = pos;
-                _ghostRedirector.SetOrientation(_previewOrientation);
-                SetGhostAlpha(_ghostRedirector.gameObject, 0.45f);
-            }
-            else if (_ghostType == ModuleType.Projectile && _ghostProjectile != null)
-            {
-                _ghostProjectile.gameObject.SetActive(true);
-                _ghostProjectile.transform.position = pos;
-                SetGhostAlpha(_ghostProjectile.gameObject, 0.45f);
-            }
+            ShowGhostAt(pos, canPlace);
+            UpdateCellHover(cell, canPlace);
         }
         else
         {
-            if (_ghostRedirector != null) _ghostRedirector.gameObject.SetActive(false);
-            if (_ghostProjectile != null) _ghostProjectile.gameObject.SetActive(false);
+            HideGhost();
+            ClearCellHover();
         }
+    }
+
+    void ShowGhostAt(Vector3 pos, bool valid)
+    {
+        Color tint = valid
+            ? new Color(0.35f, 0.95f, 0.55f, 0.55f)
+            : new Color(0.95f, 0.3f, 0.3f, 0.55f);
+
+        if (_ghostType == ModuleType.Redirector && _ghostRedirector != null)
+        {
+            _ghostRedirector.gameObject.SetActive(true);
+            _ghostRedirector.transform.position = pos;
+            _ghostRedirector.SetOrientation(_previewOrientation);
+            SetGhostTint(_ghostRedirector.gameObject, tint);
+        }
+        else if (_ghostType == ModuleType.Projectile && _ghostProjectile != null)
+        {
+            _ghostProjectile.gameObject.SetActive(true);
+            _ghostProjectile.transform.position = pos;
+            SetGhostTint(_ghostProjectile.gameObject, tint);
+        }
+    }
+
+    void HideGhost()
+    {
+        if (_ghostRedirector != null)
+        {
+            _ghostRedirector.gameObject.SetActive(false);
+        }
+
+        if (_ghostProjectile != null)
+        {
+            _ghostProjectile.gameObject.SetActive(false);
+        }
+    }
+
+    void UpdateCellHover(GridCoord cell, bool valid)
+    {
+        if (_hoveredCell.HasValue && _hoveredCell.Value.Equals(cell) && _hoveredCellView != null)
+        {
+            if (valid)
+            {
+                _hoveredCellView.SetValid();
+            }
+            else
+            {
+                _hoveredCellView.SetInvalid();
+            }
+
+            return;
+        }
+
+        ClearCellHover();
+        ModuleBase module = _board.GetModule(cell);
+        // 格子视觉在 Cells 子物体上
+        Transform cells = _board.transform.Find("Cells");
+        if (cells == null)
+        {
+            return;
+        }
+
+        Transform cellTf = cells.Find($"Cell_{cell.Col}_{cell.Row}");
+        if (cellTf == null)
+        {
+            return;
+        }
+
+        _hoveredCellView = cellTf.GetComponent<GridCellView>();
+        _hoveredCell = cell;
+        if (_hoveredCellView == null)
+        {
+            return;
+        }
+
+        if (module != null || !valid)
+        {
+            _hoveredCellView.SetInvalid();
+        }
+        else
+        {
+            _hoveredCellView.SetValid();
+        }
+    }
+
+    void ClearCellHover()
+    {
+        if (_hoveredCellView != null)
+        {
+            _hoveredCellView.SetNormal();
+            _hoveredCellView = null;
+        }
+
+        _hoveredCell = null;
     }
 
     void TryPlaceAtMouse()
@@ -268,15 +357,14 @@ public class PlacementController : MonoBehaviour
         }
 
         _ghostType = null;
+        ClearCellHover();
     }
 
-    static void SetGhostAlpha(GameObject root, float alpha)
+    static void SetGhostTint(GameObject root, Color tint)
     {
         foreach (var sr in root.GetComponentsInChildren<SpriteRenderer>())
         {
-            Color c = sr.color;
-            c.a = alpha;
-            sr.color = c;
+            sr.color = tint;
         }
     }
 }
