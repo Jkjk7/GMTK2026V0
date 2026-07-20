@@ -1,9 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// 射弹模块（攻击输出）。
-/// 职责：被光球命中时吸收能量；只要有能量，每 0.1 秒消耗 1 点并对最近（最左）敌人造成 5 点伤害。
-/// 特效：用 LineRenderer 从本模块拉一条短暂拖尾线到目标。
+/// 查理激光塔（攻击输出）。
+/// 职责：被光球命中时吸收能量；只要有能量，按射速消耗能量攻击最近（最左）敌人。
+/// 有储能时头顶显示能量条。
 /// </summary>
 public class ProjectileModule : ModuleBase
 {
@@ -15,7 +15,9 @@ public class ProjectileModule : ModuleBase
     [Tooltip("有能量时的开火间隔（秒）。")]
     [SerializeField] float fireInterval = 0.1f;
 
+    [SerializeField] int baseDamagePerShot = 5;
     [SerializeField] int damagePerShot = 5;
+    [SerializeField] int baseEnergyCapacity = 10;
 
     [Header("VFX")]
     [SerializeField] float trailVisibleSeconds = 0.08f;
@@ -24,12 +26,74 @@ public class ProjectileModule : ModuleBase
     float _trailTimer;
     LineRenderer _line;
     SpriteRenderer _body;
-    SpriteRenderer _energyBar;
+    Transform _energyHud;
+    SpriteRenderer _energyHudBg;
+    SpriteRenderer _energyHudFill;
+    TextMesh _levelLabel;
 
     public override ModuleType ModuleType => global::ModuleType.Projectile;
 
-    /// <summary>当前储能。</summary>
     public int CurrentEnergy => currentEnergy;
+    public int EnergyCapacity => energyCapacity;
+    public int DamagePerShot => damagePerShot;
+    public float FireInterval => fireInterval;
+
+    public void ClearEnergy()
+    {
+        currentEnergy = 0;
+        RefreshVisual();
+    }
+
+    public override void ApplyCardData(ModuleCardData data)
+    {
+        base.ApplyCardData(data);
+        ApplyLevelStats(data.Level);
+    }
+
+    void ApplyLevelStats(int level)
+    {
+        int lvl = Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel);
+        damagePerShot = Mathf.RoundToInt(baseDamagePerShot * Mathf.Pow(1.8f, lvl - 1));
+        energyCapacity = baseEnergyCapacity + (lvl - 1) * 2;
+        // 约 +10% 射速 / 级
+        fireInterval = Mathf.Max(0.05f, 0.1f / (1f + 0.10f * (lvl - 1)));
+        currentEnergy = Mathf.Min(currentEnergy, energyCapacity);
+        EnsureLevelLabel(lvl);
+        RefreshVisual();
+    }
+
+    void EnsureLevelLabel(int level)
+    {
+        if (level <= 1)
+        {
+            if (_levelLabel != null)
+            {
+                _levelLabel.gameObject.SetActive(false);
+            }
+
+            return;
+        }
+
+        if (_levelLabel == null)
+        {
+            var go = new GameObject("LevelLabel");
+            go.transform.SetParent(transform, false);
+            go.transform.localPosition = new Vector3(0f, 0.55f, 0f);
+            go.transform.localScale = new Vector3(0.08f, 0.08f, 1f);
+            _levelLabel = go.AddComponent<TextMesh>();
+            _levelLabel.anchor = TextAnchor.MiddleCenter;
+            _levelLabel.fontSize = 40;
+            _levelLabel.color = Color.white;
+            var mr = go.GetComponent<MeshRenderer>();
+            if (mr != null)
+            {
+                mr.sortingOrder = 12;
+            }
+        }
+
+        _levelLabel.gameObject.SetActive(true);
+        _levelLabel.text = $"Lv{level}";
+    }
 
     void Awake()
     {
@@ -57,7 +121,7 @@ public class ProjectileModule : ModuleBase
     }
 
     /// <summary>
-    /// 光球进入：吸收 1 点能量（不超过容量）。
+    /// 光球进入：吸收能量（不超过容量）。
     /// </summary>
     public override void OnBallEnter(EnergyBall ball)
     {
@@ -153,10 +217,32 @@ public class ProjectileModule : ModuleBase
     public override void RefreshVisual()
     {
         EnsureVisual();
+        EnsureEnergyHud();
+
         float fill = energyCapacity > 0 ? (float)currentEnergy / energyCapacity : 0f;
-        _energyBar.transform.localScale = new Vector3(0.8f, Mathf.Max(0.05f, fill) * 0.8f, 1f);
-        _energyBar.transform.localPosition = new Vector3(0f, -0.55f + fill * 0.4f, 0f);
-        _energyBar.color = Color.Lerp(new Color(0.3f, 0.3f, 0.3f), new Color(1f, 0.45f, 0.2f), fill);
+        bool showBar = currentEnergy > 0;
+        if (_energyHud != null)
+        {
+            _energyHud.gameObject.SetActive(showBar);
+        }
+
+        if (showBar && _energyHudFill != null)
+        {
+            const float barWidth = 0.85f;
+            const float barHeight = 0.12f;
+            _energyHudFill.transform.localScale = new Vector3(Mathf.Max(0.04f, barWidth * fill), barHeight, 1f);
+            _energyHudFill.transform.localPosition = new Vector3((-barWidth + barWidth * fill) * 0.5f, 0f, 0f);
+            _energyHudFill.color = Color.Lerp(
+                new Color(0.95f, 0.55f, 0.2f, 1f),
+                new Color(1f, 0.85f, 0.25f, 1f),
+                fill);
+        }
+
+        if (_body != null)
+        {
+            float tint = showBar ? Mathf.Lerp(0.85f, 1f, fill) : 0.9f;
+            _body.color = new Color(0.9f * tint, 0.35f * tint, 0.25f * tint, 1f);
+        }
     }
 
     void EnsureVisual()
@@ -176,12 +262,37 @@ public class ProjectileModule : ModuleBase
         _body.color = new Color(0.9f, 0.35f, 0.25f, 1f);
         _body.sortingOrder = 8;
         transform.localScale = Vector3.one * 0.6f;
+    }
 
-        var barGo = new GameObject("EnergyBar");
-        barGo.transform.SetParent(transform, false);
-        _energyBar = barGo.AddComponent<SpriteRenderer>();
-        _energyBar.sprite = PrototypeSprites.Square;
-        _energyBar.sortingOrder = 9;
+    void EnsureEnergyHud()
+    {
+        if (_energyHud != null)
+        {
+            return;
+        }
+
+        // 抵消父级 0.6 缩放，使头顶条接近世界单位尺寸
+        float inv = 1f / 0.6f;
+        var hudGo = new GameObject("EnergyHud");
+        hudGo.transform.SetParent(transform, false);
+        hudGo.transform.localPosition = new Vector3(0f, 0.95f, 0f);
+        hudGo.transform.localScale = new Vector3(inv, inv, 1f);
+        _energyHud = hudGo.transform;
+
+        var bgGo = new GameObject("Bg");
+        bgGo.transform.SetParent(hudGo.transform, false);
+        bgGo.transform.localPosition = Vector3.zero;
+        bgGo.transform.localScale = new Vector3(0.9f, 0.16f, 1f);
+        _energyHudBg = bgGo.AddComponent<SpriteRenderer>();
+        _energyHudBg.sprite = PrototypeSprites.Square;
+        _energyHudBg.color = new Color(0.08f, 0.08f, 0.1f, 0.85f);
+        _energyHudBg.sortingOrder = 18;
+
+        var fillGo = new GameObject("Fill");
+        fillGo.transform.SetParent(hudGo.transform, false);
+        _energyHudFill = fillGo.AddComponent<SpriteRenderer>();
+        _energyHudFill.sprite = PrototypeSprites.Square;
+        _energyHudFill.sortingOrder = 19;
     }
 
     void EnsureLine()

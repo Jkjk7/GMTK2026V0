@@ -2,18 +2,21 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 
 /// <summary>
-/// 商店货架槽：点击购入；视觉交给 ModuleSlotView。
+/// 商店货架槽：显示价格；买不起灰显；点击购入。
 /// </summary>
 public class ShopSlot : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
 {
     ShopController _shop;
     ModuleSlotView _view;
     int _index;
-    ModuleType _moduleType;
+    ModuleCardData _card;
+    int _price;
     bool _occupied;
 
     public bool IsOccupied => _occupied;
-    public ModuleType ModuleType => _moduleType;
+    public ModuleType ModuleType => _card.Type;
+    public ModuleCardData CardData => _card;
+    public int Price => _price;
 
     public void Setup(ShopController shop, int index, ModuleSlotView view)
     {
@@ -23,17 +26,31 @@ public class ShopSlot : MonoBehaviour, IPointerClickHandler, IPointerEnterHandle
         Clear();
     }
 
-    public void SetOffer(ModuleType type)
+    public void SetOffer(ModuleCardData card, int price)
     {
         _occupied = true;
-        _moduleType = type;
-        _view?.SetModule(type);
-        _view?.SetState(ModuleSlotView.SlotVisualState.Normal);
+        _card = card;
+        _price = price;
+        bool affordable = Economy.Instance == null || Economy.Instance.CanAfford(price);
+        _view?.SetCard(card, price, affordable);
+    }
+
+    public void RefreshAffordability(int gold)
+    {
+        if (!_occupied)
+        {
+            return;
+        }
+
+        bool affordable = gold >= _price;
+        _view?.SetCard(_card, _price, affordable);
     }
 
     public void Clear()
     {
         _occupied = false;
+        _card = default;
+        _price = 0;
         _view?.SetEmpty();
     }
 
@@ -51,15 +68,28 @@ public class ShopSlot : MonoBehaviour, IPointerClickHandler, IPointerEnterHandle
     {
         if (_occupied)
         {
-            _view?.SetState(ModuleSlotView.SlotVisualState.Hover);
+            bool affordable = Economy.Instance == null || Economy.Instance.CanAfford(_price);
+            if (affordable)
+            {
+                _view?.SetState(ModuleSlotView.SlotVisualState.Hover);
+            }
+
+            ModuleTooltipView.BeginHover(this, _card);
         }
     }
 
     public void OnPointerExit(PointerEventData eventData)
     {
+        ModuleTooltipView.EndHover(this);
         if (_occupied)
         {
-            _view?.SetState(ModuleSlotView.SlotVisualState.Normal);
+            int gold = Economy.Instance != null ? Economy.Instance.CurrentGold : 9999;
+            bool affordable = gold >= _price;
+            _view?.SetCard(_card, _price, affordable);
+            if (affordable)
+            {
+                _view?.SetState(ModuleSlotView.SlotVisualState.Normal);
+            }
         }
         else
         {

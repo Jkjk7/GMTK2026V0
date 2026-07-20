@@ -125,26 +125,51 @@ public class GridBoard : MonoBehaviour
 
     public void ClearCell(GridCoord coord)
     {
-        TryRemoveModule(coord, out _);
+        TryRemoveModule(coord, out ModuleType _);
     }
 
-    public bool TryRemoveModule(GridCoord coord, out ModuleType moduleType)
+    /// <summary>取出模块但不销毁（挪位/合成用）。</summary>
+    public bool TryExtractModule(GridCoord coord, out ModuleBase module)
     {
-        moduleType = default;
+        module = null;
         if (!IsInside(coord) || _modules == null)
         {
             return false;
         }
 
-        ModuleBase existing = _modules[coord.Col, coord.Row];
-        if (existing == null)
+        module = _modules[coord.Col, coord.Row];
+        if (module == null)
+        {
+            return false;
+        }
+
+        _modules[coord.Col, coord.Row] = null;
+        return true;
+    }
+
+    public bool TryRemoveModule(GridCoord coord, out ModuleType moduleType)
+    {
+        moduleType = default;
+        if (!TryExtractModule(coord, out ModuleBase existing))
         {
             return false;
         }
 
         moduleType = existing.ModuleType;
         Destroy(existing.gameObject);
-        _modules[coord.Col, coord.Row] = null;
+        return true;
+    }
+
+    public bool TryRemoveModule(GridCoord coord, out ModuleCardData card)
+    {
+        card = default;
+        if (!TryExtractModule(coord, out ModuleBase existing))
+        {
+            return false;
+        }
+
+        card = existing.CardData;
+        Destroy(existing.gameObject);
         return true;
     }
 

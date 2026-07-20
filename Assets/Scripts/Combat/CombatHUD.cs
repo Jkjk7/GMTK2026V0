@@ -189,10 +189,18 @@ public class CombatHUD : MonoBehaviour
         int enemies = _waves != null ? _waves.ActiveEnemyCount : 0;
         int damage = _damageTracker != null ? _damageTracker.TotalDamage : 0;
 
-        if (_session != null && _session.State == GameSessionState.Preparing)
+        if (_session != null && _session.IsPreparing)
         {
-            statusText.color = new Color(0.85f, 0.9f, 1f, 1f);
-            statusText.text = $"准备中… | 敌人 {enemies} | 伤害 {damage}";
+            statusText.color = new Color(0.45f, 0.9f, 0.65f, 1f);
+            int sec = _waves != null ? Mathf.CeilToInt(_waves.PrepRemaining) : 0;
+            statusText.text = $"第 {wave} 波准备 {sec}s | 伤害 {damage}";
+            return;
+        }
+
+        if (_waves != null && _waves.IsCountdownPhase)
+        {
+            statusText.color = new Color(1f, 0.75f, 0.3f, 1f);
+            statusText.text = $"即将开战… | 波次 {wave}/{totalWaves}";
             return;
         }
 

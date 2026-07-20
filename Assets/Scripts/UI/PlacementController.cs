@@ -1,27 +1,54 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 /// <summary>
-/// 放置控制器。
-/// 职责：左键点空格放置；R 旋转收束器；右键 / X 拆除模块回手牌。
-/// 不处理 UI 点击（手牌由 EventSystem 处理）；只在非 UI 区域做棋盘射线。
+/// 放置 / 库存拖拽 / 拆除二次确认 / 分解确认（手牌或战场）。
+/// 准备/战斗均可合成；长悬停显示模块详情（棋盘/手牌/商店）。
 /// </summary>
 public class PlacementController : MonoBehaviour
 {
+    static PlacementController s_instance;
+
     GridBoard _board;
     HandController _hand;
     Transform _moduleRoot;
     GameSession _session;
+    WaveManager _waves;
+    ScrapZone _scrapZone;
+    ConfirmPromptView _confirm;
     Camera _gameplayCamera;
     GameSkin _skin;
     GridCoord? _hoveredCell;
     GridCellView _hoveredCellView;
 
-    /// <summary>放置收束器时的预览朝向 0..3。</summary>
     int _previewOrientation;
 
     RedirectorModule _ghostRedirector;
     ProjectileModule _ghostProjectile;
     ModuleType? _ghostType;
+
+    // 拆除确认
+    GridCoord? _pendingDismantleCell;
+    ModuleBase _pendingDismantleModule;
+    float _pendingTimeout;
+    SpriteRenderer _pendingOutline;
+
+    // 棋盘拖移（确认后移动）
+    bool _boardDragging;
+    ModuleBase _boardDragModule;
+    GridCoord _boardDragFrom;
+    GridCoord? _pendingMoveTo;
+    ModuleBase _pendingMoveModule;
+
+    // 分解确认（来自手牌）
+    int _pendingScrapHandIndex = -1;
+    ModuleCardData _pendingScrapCard;
+
+    // 分解确认（来自战场拖入）
+    ModuleBase _pendingBoardScrapModule;
+    GridCoord _pendingBoardScrapFrom;
+
+    const float PendingTimeoutSeconds = 5f;
 
     public void Initialize(
         GridBoard board,
@@ -29,15 +56,58 @@ public class PlacementController : MonoBehaviour
         Transform moduleRoot,
         GameSession session,
         Camera gameplayCamera = null,
-        GameSkin skin = null)
+        GameSkin skin = null,
+        WaveManager waves = null,
+        ScrapZone scrapZone = null,
+        ConfirmPromptView confirm = null,
+        ModuleTooltipView tooltip = null)
     {
+        s_instance = this;
         _board = board;
         _hand = hand;
         _moduleRoot = moduleRoot;
         _session = session;
         _gameplayCamera = gameplayCamera != null ? gameplayCamera : Camera.main;
         _skin = skin;
+        _waves = waves;
+        _scrapZone = scrapZone;
+        _confirm = confirm;
         _previewOrientation = 0;
+    }
+
+    void OnDestroy()
+    {
+        if (s_instance == this)
+        {
+            s_instance = null;
+        }
+    }
+
+    public static void NotifyHandDrag(ModuleCardData card, Vector2 screenPos)
+    {
+        if (s_instance == null)
+        {
+            return;
+        }
+
+        Vector3 world = s_instance.ScreenToWorld(screenPos);
+        if (s_instance._scrapZone != null && s_instance._scrapZone.ContainsWorldPoint(world))
+        {
+            s_instance._scrapZone.ShowHandPreview(card);
+        }
+        else if (s_instance._hand != null && s_instance._hand.HasSelection)
+        {
+            s_instance._scrapZone?.ShowHandPreview(card);
+        }
+        else
+        {
+            s_instance._scrapZone?.SetIdle();
+        }
+    }
+
+    public static void NotifyHandDrop(HandController hand, int handIndex, Vector2 screenPos)
+    {
+        s_instance?.HandleHandDrop(hand, handIndex, screenPos);
     }
 
     void Update()
@@ -47,30 +117,867 @@ public class PlacementController : MonoBehaviour
             return;
         }
 
-        if (_session != null && !_session.IsPlaying)
+        if (_session != null && !_session.IsRunActive)
         {
             ClearGhost();
+            CancelPendingDismantle();
+            CancelPendingMove(restore: true);
+            CancelPendingBoardScrap(restore: true);
+            HideModuleTooltip();
             return;
+        }
+
+        if (_waves != null && _waves.IsCountdownPhase)
+        {
+            ClearGhost();
+            CancelPendingDismantle();
+            CancelPendingMove(restore: true);
+            CancelPendingBoardScrap(restore: true);
+            HideModuleTooltip();
+            _confirm?.Close();
+            return;
+        }
+
+        HandleRotationInput();
+        TickPendingTimeout();
+        UpdateScrapHighlightFromSelection();
+        UpdateModuleHoverTip();
+
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            CancelPendingDismantle();
+            CancelPendingScrap();
+            CancelPendingBoardScrap(restore: true);
+            CancelPendingMove(restore: true);
+            HideModuleTooltip();
+            _confirm?.Close();
+        }
+
+        if (_boardDragging)
+        {
+            HideModuleTooltip();
+            UpdateBoardDrag();
+            return;
+        }
+
+        if (Input.GetMouseButtonDown(0) && !IsPointerOverUi())
+        {
+            HideModuleTooltip();
+            TryClickScrapZone();
+            if (!_hand.HasSelection)
+            {
+                TryBeginBoardDrag();
+            }
         }
 
         if (IsPointerOverUi())
         {
             ClearGhost();
+            ClearCellHover();
+            HideModuleTooltip();
             return;
         }
 
-        HandleRotationInput();
         UpdateGhost();
 
-        if (Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(0) && _hand.HasSelection)
         {
+            if (_pendingDismantleCell.HasValue)
+            {
+                Vector3 mw = GetMouseWorld();
+                if (!_board.TryWorldToCell(mw, out GridCoord c) ||
+                    !_pendingDismantleCell.Value.Equals(c))
+                {
+                    CancelPendingDismantle();
+                }
+            }
+
             TryPlaceAtMouse();
         }
 
         if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.X))
         {
-            TryDismantleAtMouse();
+            TryDismantleGesture();
         }
+    }
+
+    void TryBeginBoardDrag()
+    {
+        if (_pendingMoveModule != null)
+        {
+            return;
+        }
+
+        Vector3 mouseWorld = GetMouseWorld();
+        if (!_board.TryWorldToCell(mouseWorld, out GridCoord cell))
+        {
+            return;
+        }
+
+        if (_board.GetModule(cell) == null)
+        {
+            return;
+        }
+
+        if (!_board.TryExtractModule(cell, out _boardDragModule) || _boardDragModule == null)
+        {
+            return;
+        }
+
+        CancelPendingDismantle();
+        _boardDragFrom = cell;
+        _boardDragging = true;
+        ClearGhost();
+    }
+
+    void UpdateBoardDrag()
+    {
+        if (_boardDragModule == null)
+        {
+            _boardDragging = false;
+            return;
+        }
+
+        Vector3 mouseWorld = GetMouseWorld();
+        _boardDragModule.transform.position = mouseWorld;
+
+        bool overScrap = _scrapZone != null && _scrapZone.ContainsWorldPoint(mouseWorld);
+        if (overScrap)
+        {
+            ClearCellHover();
+            _scrapZone.ShowHandPreview(_boardDragModule.CardData);
+        }
+        else
+        {
+            _scrapZone?.SetIdle();
+            if (_board.TryWorldToCell(mouseWorld, out GridCoord cell))
+            {
+                ModuleBase occupant = _board.GetModule(cell);
+                bool canDrop = _board.CanPlace(cell) ||
+                               (occupant != null &&
+                                occupant.CardData.CanFuseWith(_boardDragModule.CardData));
+                UpdateCellHover(cell, canDrop);
+            }
+            else
+            {
+                ClearCellHover();
+            }
+        }
+
+        if (!Input.GetMouseButton(0))
+        {
+            FinishBoardDrag(mouseWorld);
+        }
+    }
+
+    void FinishBoardDrag(Vector3 mouseWorld)
+    {
+        _boardDragging = false;
+        ModuleBase mod = _boardDragModule;
+        _boardDragModule = null;
+        ClearCellHover();
+        if (mod == null)
+        {
+            return;
+        }
+
+        // 拖入分解区 → 确认分解
+        if (_scrapZone != null && _scrapZone.ContainsWorldPoint(mouseWorld))
+        {
+            BeginBoardScrapConfirm(mod);
+            return;
+        }
+
+        _scrapZone?.SetIdle();
+
+        if (!_board.TryWorldToCell(mouseWorld, out GridCoord to) || to.Equals(_boardDragFrom))
+        {
+            _board.TryPlaceModule(_boardDragFrom, mod);
+            return;
+        }
+
+        ModuleBase occupant = _board.GetModule(to);
+        if (occupant != null && occupant.CardData.CanFuseWith(mod.CardData))
+        {
+            occupant.ApplyCardData(occupant.CardData.FusedWith(mod.CardData));
+            Destroy(mod.gameObject);
+            return;
+        }
+
+        if (!_board.CanPlace(to))
+        {
+            _board.TryPlaceModule(_boardDragFrom, mod);
+            return;
+        }
+
+        // 准备阶段：直接移动，不弹确认
+        if (_session == null || _session.IsPreparing)
+        {
+            if (!_board.TryPlaceModule(to, mod))
+            {
+                _board.TryPlaceModule(_boardDragFrom, mod);
+            }
+
+            return;
+        }
+
+        // 战斗阶段：预览目标格并确认（按拆除费率扣费）
+        mod.transform.position = _board.CellToWorld(to);
+        BeginMoveConfirm(_boardDragFrom, to, mod);
+    }
+
+    void BeginMoveConfirm(GridCoord from, GridCoord to, ModuleBase mod)
+    {
+        _pendingMoveTo = to;
+        _pendingMoveModule = mod;
+        _boardDragFrom = from;
+        _pendingTimeout = PendingTimeoutSeconds;
+        ShowPendingOutline(mod);
+
+        ModuleCardData card = mod.CardData;
+        bool inCombat = _session != null && _session.IsCombatActive;
+        int wave = _waves != null ? _waves.CurrentWaveDisplay : 1;
+        int cost = ModulePricing.GetDismantleCost(card, wave, inCombat);
+        bool canAfford = cost <= 0 || Economy.Instance == null || Economy.Instance.CanAfford(cost);
+
+        string name = ModuleCatalog.GetDisplayName(card);
+        string feeLine = inCombat
+            ? $"战斗中移动费用：{cost} 金币（同拆除）"
+            : "准备阶段移动：免费";
+        string warn = canAfford ? string.Empty : "金币不足";
+        if (!canAfford)
+        {
+            Economy.Instance?.NotifyInsufficient();
+        }
+
+        string confirmText = cost > 0 ? $"确认移动 -{cost}" : "确认移动";
+        _confirm?.Show(
+            $"拆除并移动「{name}」？",
+            $"{feeLine}\n从 ({from.Col},{from.Row}) → ({to.Col},{to.Row})",
+            confirmText,
+            canAfford,
+            warn,
+            ExecutePendingMove,
+            () => CancelPendingMove(restore: true));
+    }
+
+    void ExecutePendingMove()
+    {
+        if (_pendingMoveModule == null || !_pendingMoveTo.HasValue)
+        {
+            CancelPendingMove(restore: true);
+            return;
+        }
+
+        ModuleBase mod = _pendingMoveModule;
+        GridCoord to = _pendingMoveTo.Value;
+        ModuleCardData card = mod.CardData;
+        bool inCombat = _session != null && _session.IsCombatActive;
+        int wave = _waves != null ? _waves.CurrentWaveDisplay : 1;
+        int cost = ModulePricing.GetDismantleCost(card, wave, inCombat);
+
+        if (cost > 0)
+        {
+            if (Economy.Instance == null || !Economy.Instance.TrySpend(cost))
+            {
+                CancelPendingMove(restore: true);
+                return;
+            }
+        }
+
+        if (!_board.CanPlace(to) || !_board.TryPlaceModule(to, mod))
+        {
+            if (cost > 0)
+            {
+                Economy.Instance?.AddGold(cost, silent: true);
+            }
+
+            CancelPendingMove(restore: true);
+            return;
+        }
+
+        ClearPendingMoveState();
+        _confirm?.Close();
+    }
+
+    void CancelPendingMove(bool restore)
+    {
+        if (restore && _pendingMoveModule != null)
+        {
+            _board.TryPlaceModule(_boardDragFrom, _pendingMoveModule);
+        }
+        else if (_pendingMoveModule != null && restore == false)
+        {
+            // no-op
+        }
+
+        ClearPendingMoveState();
+        _confirm?.Close();
+    }
+
+    void ClearPendingMoveState()
+    {
+        if (_pendingOutline != null)
+        {
+            Destroy(_pendingOutline.gameObject);
+            _pendingOutline = null;
+        }
+
+        _pendingMoveTo = null;
+        _pendingMoveModule = null;
+    }
+
+    void TickPendingTimeout()
+    {
+        if (_pendingDismantleCell.HasValue)
+        {
+            _pendingTimeout -= Time.deltaTime;
+            if (_pendingTimeout <= 0f)
+            {
+                CancelPendingDismantle();
+            }
+        }
+        else if (_pendingMoveModule != null)
+        {
+            _pendingTimeout -= Time.deltaTime;
+            if (_pendingTimeout <= 0f)
+            {
+                CancelPendingMove(restore: true);
+            }
+        }
+        else if (_pendingBoardScrapModule != null)
+        {
+            _pendingTimeout -= Time.deltaTime;
+            if (_pendingTimeout <= 0f)
+            {
+                CancelPendingBoardScrap(restore: true);
+            }
+        }
+    }
+
+    void TryDismantleGesture()
+    {
+        if (_pendingMoveModule != null)
+        {
+            CancelPendingMove(restore: true);
+        }
+
+        Vector3 mouseWorld = GetMouseWorld();
+        if (!_board.TryWorldToCell(mouseWorld, out GridCoord cell))
+        {
+            CancelPendingDismantle();
+            return;
+        }
+
+        ModuleBase mod = _board.GetModule(cell);
+        if (mod == null)
+        {
+            CancelPendingDismantle();
+            return;
+        }
+
+        // 准备阶段：直接拆除回库存，不弹确认
+        if (_session == null || _session.IsPreparing)
+        {
+            CancelPendingDismantle();
+            ExecuteDismantleAt(cell);
+            return;
+        }
+
+        if (_pendingDismantleCell.HasValue && _pendingDismantleCell.Value.Equals(cell))
+        {
+            ExecutePendingDismantle();
+            return;
+        }
+
+        BeginDismantleConfirm(cell, mod);
+    }
+
+    /// <summary>立刻拆除指定格（准备阶段免费直拆）。</summary>
+    void ExecuteDismantleAt(GridCoord cell)
+    {
+        if (_board == null || _hand == null)
+        {
+            return;
+        }
+
+        ModuleBase existing = _board.GetModule(cell);
+        if (existing == null)
+        {
+            return;
+        }
+
+        if (_hand.IsFull)
+        {
+            Debug.Log("[Placement] 库存已满，无法拆除。");
+            return;
+        }
+
+        ModuleCardData card = existing.CardData;
+        bool inCombat = _session != null && _session.IsCombatActive;
+        int wave = _waves != null ? _waves.CurrentWaveDisplay : 1;
+        int cost = ModulePricing.GetDismantleCost(card, wave, inCombat);
+        if (cost > 0)
+        {
+            if (Economy.Instance == null || !Economy.Instance.TrySpend(cost))
+            {
+                return;
+            }
+        }
+
+        if (!_board.TryRemoveModule(cell, out ModuleCardData removed))
+        {
+            if (cost > 0)
+            {
+                Economy.Instance?.AddGold(cost, silent: true);
+            }
+
+            return;
+        }
+
+        if (!_hand.TryAddCard(removed))
+        {
+            if (cost > 0)
+            {
+                Economy.Instance?.AddGold(cost, silent: true);
+            }
+
+            Debug.LogWarning("[Placement] 拆除后无法回手牌。");
+        }
+    }
+
+    void UpdateScrapHighlightFromSelection()
+    {
+        if (_scrapZone == null || _hand == null)
+        {
+            return;
+        }
+
+        if (_boardDragging || _pendingBoardScrapModule != null)
+        {
+            return;
+        }
+
+        if (_hand.HasSelection)
+        {
+            _scrapZone.ShowHandPreview(_hand.SelectedCard);
+        }
+        else if (_pendingScrapHandIndex < 0)
+        {
+            _scrapZone.SetIdle();
+        }
+    }
+
+    void TryClickScrapZone()
+    {
+        if (_scrapZone == null || _hand == null || !_hand.HasSelection)
+        {
+            return;
+        }
+
+        Vector3 world = GetMouseWorld();
+        if (!_scrapZone.ContainsWorldPoint(world))
+        {
+            return;
+        }
+
+        BeginScrapConfirm(_hand.SelectedIndex, _hand.SelectedCard);
+    }
+
+    void BeginScrapConfirm(int handIndex, ModuleCardData card)
+    {
+        CancelPendingBoardScrap(restore: true);
+        _pendingScrapHandIndex = handIndex;
+        _pendingScrapCard = card;
+        int refund = card.ScrapRefund;
+        string name = ModuleCatalog.GetDisplayName(card);
+        _confirm?.Show(
+            $"确定永久分解「{name}」？",
+            $"将返还 {refund} 金币\n此操作无法撤销",
+            "确认分解",
+            true,
+            string.Empty,
+            ExecutePendingScrap,
+            CancelPendingScrap);
+    }
+
+    void BeginBoardScrapConfirm(ModuleBase mod)
+    {
+        if (mod == null)
+        {
+            return;
+        }
+
+        CancelPendingScrap();
+        CancelPendingDismantle();
+        CancelPendingMove(restore: true);
+
+        _pendingBoardScrapModule = mod;
+        _pendingBoardScrapFrom = _boardDragFrom;
+        _pendingTimeout = PendingTimeoutSeconds;
+
+        if (_scrapZone != null)
+        {
+            mod.transform.position = _scrapZone.transform.position;
+            _scrapZone.ShowHandPreview(mod.CardData);
+        }
+
+        ShowPendingOutline(mod);
+
+        ModuleCardData card = mod.CardData;
+        int refund = card.ScrapRefund;
+        string name = ModuleCatalog.GetDisplayName(card);
+        _confirm?.Show(
+            $"确定永久分解「{name}」？",
+            $"将从战场移除并返还 {refund} 金币\n此操作无法撤销",
+            "确认分解",
+            true,
+            string.Empty,
+            ExecutePendingBoardScrap,
+            () => CancelPendingBoardScrap(restore: true));
+    }
+
+    void ExecutePendingScrap()
+    {
+        if (_pendingScrapHandIndex < 0 || _hand == null)
+        {
+            CancelPendingScrap();
+            return;
+        }
+
+        if (!_hand.TryConsumeSlot(_pendingScrapHandIndex, out ModuleCardData card))
+        {
+            CancelPendingScrap();
+            return;
+        }
+
+        Vector3 from = _scrapZone != null ? _scrapZone.transform.position : Vector3.zero;
+        _scrapZone?.TryScrap(card, from);
+        CancelPendingScrap();
+        _confirm?.Close();
+    }
+
+    void ExecutePendingBoardScrap()
+    {
+        ModuleBase mod = _pendingBoardScrapModule;
+        if (mod == null)
+        {
+            CancelPendingBoardScrap(restore: false);
+            return;
+        }
+
+        ModuleCardData card = mod.CardData;
+        Vector3 from = mod.transform.position;
+        ClearPendingBoardScrapState();
+        Destroy(mod.gameObject);
+        _scrapZone?.TryScrap(card, from);
+        _confirm?.Close();
+    }
+
+    void CancelPendingScrap()
+    {
+        _pendingScrapHandIndex = -1;
+        _pendingScrapCard = default;
+        if (_hand == null || !_hand.HasSelection)
+        {
+            if (_pendingBoardScrapModule == null)
+            {
+                _scrapZone?.SetIdle();
+            }
+        }
+
+        _confirm?.Close();
+    }
+
+    void CancelPendingBoardScrap(bool restore)
+    {
+        if (restore && _pendingBoardScrapModule != null && _board != null)
+        {
+            _board.TryPlaceModule(_pendingBoardScrapFrom, _pendingBoardScrapModule);
+        }
+
+        ClearPendingBoardScrapState();
+        if (_hand == null || !_hand.HasSelection)
+        {
+            _scrapZone?.SetIdle();
+        }
+
+        _confirm?.Close();
+    }
+
+    void ClearPendingBoardScrapState()
+    {
+        if (_pendingOutline != null)
+        {
+            Destroy(_pendingOutline.gameObject);
+            _pendingOutline = null;
+        }
+
+        _pendingBoardScrapModule = null;
+    }
+
+    void UpdateModuleHoverTip()
+    {
+        if (_boardDragging ||
+            _pendingMoveModule != null ||
+            _pendingBoardScrapModule != null ||
+            (_confirm != null && _confirm.IsOpen))
+        {
+            ModuleTooltipView.EndHover(this);
+            return;
+        }
+
+        // UI（手牌/商店）自行报悬停；此处只处理棋盘
+        if (IsPointerOverUi())
+        {
+            ModuleTooltipView.EndHover(this);
+            return;
+        }
+
+        Vector3 mouseWorld = GetMouseWorld();
+        if (!_board.TryWorldToCell(mouseWorld, out GridCoord cell))
+        {
+            ModuleTooltipView.EndHover(this);
+            return;
+        }
+
+        ModuleBase mod = _board.GetModule(cell);
+        if (mod == null)
+        {
+            ModuleTooltipView.EndHover(this);
+            return;
+        }
+
+        ModuleTooltipView.BeginHover(this, mod.CardData, mod);
+    }
+
+    void HideModuleTooltip()
+    {
+        ModuleTooltipView.EndHover(this);
+    }
+
+    void BeginDismantleConfirm(GridCoord cell, ModuleBase mod)
+    {
+        CancelPendingDismantle();
+        _pendingDismantleCell = cell;
+        _pendingDismantleModule = mod;
+        _pendingTimeout = PendingTimeoutSeconds;
+        ShowPendingOutline(mod);
+
+        ModuleCardData card = mod.CardData;
+        bool inCombat = _session != null && _session.IsCombatActive;
+        int wave = _waves != null ? _waves.CurrentWaveDisplay : 1;
+        int cost = ModulePricing.GetDismantleCost(card, wave, inCombat);
+        bool handFull = _hand != null && _hand.IsFull;
+        bool canAfford = cost <= 0 || Economy.Instance == null || Economy.Instance.CanAfford(cost);
+        bool canConfirm = !handFull && canAfford;
+
+        string name = ModuleCatalog.GetDisplayName(card);
+        string feeLine = inCombat
+            ? $"战斗中拆除费用：{cost} 金币"
+            : "准备阶段拆除：免费";
+        string stockLine = handFull ? "库存已满，无法拆除" : "拆除后返回库存";
+        string warn = string.Empty;
+        if (handFull)
+        {
+            warn = "库存已满，无法拆除";
+        }
+        else if (!canAfford)
+        {
+            warn = "金币不足";
+            Economy.Instance?.NotifyInsufficient();
+        }
+
+        string confirmText = cost > 0 ? $"确认拆除 -{cost}" : "确认拆除";
+        _confirm?.Show(
+            $"拆除「{name}」？",
+            $"{feeLine}\n{stockLine}",
+            confirmText,
+            canConfirm,
+            warn,
+            ExecutePendingDismantle,
+            CancelPendingDismantle);
+    }
+
+    void ExecutePendingDismantle()
+    {
+        // 二次右键/X 确认时也要关掉弹窗
+        _confirm?.Close();
+
+        if (!_pendingDismantleCell.HasValue || _board == null || _hand == null)
+        {
+            CancelPendingDismantle();
+            return;
+        }
+
+        GridCoord cell = _pendingDismantleCell.Value;
+        ModuleBase existing = _board.GetModule(cell);
+        if (existing == null)
+        {
+            CancelPendingDismantle();
+            return;
+        }
+
+        if (_hand.IsFull)
+        {
+            CancelPendingDismantle();
+            return;
+        }
+
+        ModuleCardData card = existing.CardData;
+        bool inCombat = _session != null && _session.IsCombatActive;
+        int wave = _waves != null ? _waves.CurrentWaveDisplay : 1;
+        int cost = ModulePricing.GetDismantleCost(card, wave, inCombat);
+        if (cost > 0)
+        {
+            if (Economy.Instance == null || !Economy.Instance.TrySpend(cost))
+            {
+                CancelPendingDismantle();
+                return;
+            }
+        }
+
+        if (!_board.TryRemoveModule(cell, out ModuleCardData removed))
+        {
+            if (cost > 0)
+            {
+                Economy.Instance?.AddGold(cost, silent: true);
+            }
+
+            CancelPendingDismantle();
+            return;
+        }
+
+        if (!_hand.TryAddCard(removed))
+        {
+            Economy.Instance?.AddGold(cost, silent: true);
+            Debug.LogWarning("[Placement] 拆除后无法回手牌。");
+        }
+
+        CancelPendingDismantle();
+    }
+
+    void CancelPendingDismantle()
+    {
+        _pendingDismantleCell = null;
+        _pendingDismantleModule = null;
+        if (_pendingOutline != null)
+        {
+            Destroy(_pendingOutline.gameObject);
+            _pendingOutline = null;
+        }
+
+        // 仅在无其他确认时关弹窗，避免误关移动/分解框
+        if (_pendingMoveModule == null && _pendingBoardScrapModule == null)
+        {
+            _confirm?.Close();
+        }
+    }
+
+    void ShowPendingOutline(ModuleBase mod)
+    {
+        if (mod == null)
+        {
+            return;
+        }
+
+        var go = new GameObject("DismantleOutline");
+        go.transform.SetParent(mod.transform, false);
+        go.transform.localPosition = Vector3.zero;
+        go.transform.localScale = Vector3.one * 1.25f;
+        _pendingOutline = go.AddComponent<SpriteRenderer>();
+        _pendingOutline.sprite = PrototypeSprites.Square;
+        _pendingOutline.color = new Color(1f, 0.35f, 0.15f, 0.45f);
+        _pendingOutline.sortingOrder = 15;
+    }
+
+    void HandleHandDrop(HandController hand, int handIndex, Vector2 screenPos)
+    {
+        HandSlot source = hand != null ? hand.GetSlot(handIndex) : null;
+        if (source == null || !source.IsOccupied)
+        {
+            return;
+        }
+
+        ModuleCardData card = source.CardData;
+        Vector3 world = ScreenToWorld(screenPos);
+
+        if (EventSystem.current != null)
+        {
+            var results = new System.Collections.Generic.List<RaycastResult>();
+            var ped = new PointerEventData(EventSystem.current) { position = screenPos };
+            EventSystem.current.RaycastAll(ped, results);
+            for (int i = 0; i < results.Count; i++)
+            {
+                HandSlot target = results[i].gameObject.GetComponentInParent<HandSlot>();
+                if (target == null || target.Index == handIndex)
+                {
+                    continue;
+                }
+
+                if (target.IsOccupied)
+                {
+                    if (target.CardData.CanFuseWith(card) && hand.TryConsumeSlot(handIndex, out card))
+                    {
+                        hand.TryFuseIntoSlot(target.Index, card);
+                        _scrapZone?.SetIdle();
+                        return;
+                    }
+                }
+                else if (hand.TryConsumeSlot(handIndex, out card))
+                {
+                    target.SetCard(card);
+                    _scrapZone?.SetIdle();
+                    return;
+                }
+            }
+        }
+
+        // 拖到分解区 → 确认（不立即销毁）
+        if (_scrapZone != null && _scrapZone.ContainsWorldPoint(world))
+        {
+            BeginScrapConfirm(handIndex, card);
+            return;
+        }
+
+        if (_board != null && _board.TryWorldToCell(world, out GridCoord cell))
+        {
+            ModuleBase occupant = _board.GetModule(cell);
+            if (occupant != null && occupant.CardData.CanFuseWith(card))
+            {
+                if (hand.TryConsumeSlot(handIndex, out card))
+                {
+                    occupant.ApplyCardData(occupant.CardData.FusedWith(card));
+                }
+
+                _scrapZone?.SetIdle();
+                return;
+            }
+
+            if (_board.CanPlace(cell) && hand.TryConsumeSlot(handIndex, out card))
+            {
+                ModuleBase module = CreateModule(card);
+                if (module != null)
+                {
+                    if (module is RedirectorModule redirector)
+                    {
+                        redirector.SetOrientation(_previewOrientation);
+                    }
+
+                    module.transform.SetParent(_moduleRoot, true);
+                    if (_board.TryPlaceModule(cell, module))
+                    {
+                        _scrapZone?.SetIdle();
+                        return;
+                    }
+
+                    Destroy(module.gameObject);
+                    hand.TryAddCard(card);
+                }
+            }
+        }
+
+        _scrapZone?.SetIdle();
     }
 
     void HandleRotationInput()
@@ -102,9 +1009,11 @@ public class PlacementController : MonoBehaviour
         Vector3 mouseWorld = GetMouseWorld();
         if (_board.TryWorldToCell(mouseWorld, out GridCoord cell))
         {
-            bool canPlace = _board.CanPlace(cell);
-            Vector3 pos = _board.CellToWorld(cell);
-            ShowGhostAt(pos, canPlace);
+            ModuleBase occupant = _board.GetModule(cell);
+            bool canFuse = occupant != null &&
+                           occupant.CardData.CanFuseWith(_hand.SelectedCard);
+            bool canPlace = _board.CanPlace(cell) || canFuse;
+            ShowGhostAt(_board.CellToWorld(cell), canPlace);
             UpdateCellHover(cell, canPlace);
         }
         else
@@ -165,8 +1074,6 @@ public class PlacementController : MonoBehaviour
         }
 
         ClearCellHover();
-        ModuleBase module = _board.GetModule(cell);
-        // 格子视觉在 Cells 子物体上
         Transform cells = _board.transform.Find("Cells");
         if (cells == null)
         {
@@ -186,13 +1093,13 @@ public class PlacementController : MonoBehaviour
             return;
         }
 
-        if (module != null || !valid)
+        if (valid)
         {
-            _hoveredCellView.SetInvalid();
+            _hoveredCellView.SetValid();
         }
         else
         {
-            _hoveredCellView.SetValid();
+            _hoveredCellView.SetInvalid();
         }
     }
 
@@ -220,13 +1127,22 @@ public class PlacementController : MonoBehaviour
             return;
         }
 
+        ModuleCardData card = _hand.SelectedCard;
+        ModuleBase occupant = _board.GetModule(cell);
+        if (occupant != null && occupant.CardData.CanFuseWith(card))
+        {
+            occupant.ApplyCardData(occupant.CardData.FusedWith(card));
+            _hand.ConsumeSelected();
+            ClearGhost();
+            return;
+        }
+
         if (!_board.CanPlace(cell))
         {
             return;
         }
 
-        ModuleType type = _hand.SelectedModuleType;
-        ModuleBase module = CreateModule(type);
+        ModuleBase module = CreateModule(card);
         if (module == null)
         {
             return;
@@ -248,33 +1164,9 @@ public class PlacementController : MonoBehaviour
         ClearGhost();
     }
 
-    void TryDismantleAtMouse()
-    {
-        // 预留：将来拆除扣金币
-        if (_hand.IsFull)
-        {
-            Debug.Log("[Placement] 手牌已满，无法拆除。");
-            return;
-        }
+    Vector3 GetMouseWorld() => ScreenToWorld(Input.mousePosition);
 
-        Vector3 mouseWorld = GetMouseWorld();
-        if (!_board.TryWorldToCell(mouseWorld, out GridCoord cell))
-        {
-            return;
-        }
-
-        if (!_board.TryRemoveModule(cell, out ModuleType moduleType))
-        {
-            return;
-        }
-
-        if (!_hand.TryAddCard(moduleType))
-        {
-            Debug.LogWarning("[Placement] 拆除后无法回手牌，模块已移除。");
-        }
-    }
-
-    Vector3 GetMouseWorld()
+    Vector3 ScreenToWorld(Vector2 screen)
     {
         Camera cam = _gameplayCamera != null ? _gameplayCamera : Camera.main;
         if (cam == null)
@@ -282,17 +1174,26 @@ public class PlacementController : MonoBehaviour
             return Vector3.zero;
         }
 
-        Vector3 screen = Input.mousePosition;
-        screen.z = -cam.transform.position.z;
-        Vector3 world = cam.ScreenToWorldPoint(screen);
+        Vector3 s = new Vector3(screen.x, screen.y, -cam.transform.position.z);
+        Vector3 world = cam.ScreenToWorldPoint(s);
         world.z = 0f;
         return world;
     }
 
     static bool IsPointerOverUi()
     {
-        return UnityEngine.EventSystems.EventSystem.current != null &&
-               UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+        return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+    }
+
+    ModuleBase CreateModule(ModuleCardData card)
+    {
+        ModuleBase module = CreateModule(card.Type);
+        if (module != null)
+        {
+            module.ApplyCardData(card);
+        }
+
+        return module;
     }
 
     ModuleBase CreateModule(ModuleType type)
@@ -300,15 +1201,9 @@ public class PlacementController : MonoBehaviour
         switch (type)
         {
             case ModuleType.Redirector:
-            {
-                var go = new GameObject("Redirector");
-                return go.AddComponent<RedirectorModule>();
-            }
+                return new GameObject("Redirector").AddComponent<RedirectorModule>();
             case ModuleType.Projectile:
-            {
-                var go = new GameObject("ProjectileTurret");
-                return go.AddComponent<ProjectileModule>();
-            }
+                return new GameObject("ProjectileTurret").AddComponent<ProjectileModule>();
             default:
                 return null;
         }
@@ -328,7 +1223,6 @@ public class PlacementController : MonoBehaviour
             var go = new GameObject("GhostRedirector");
             go.transform.SetParent(transform, false);
             _ghostRedirector = go.AddComponent<RedirectorModule>();
-            // 禁用逻辑：预览不应吸能；Redirector 无 Update 逻辑，仅视觉即可
             go.SetActive(false);
         }
         else
@@ -336,7 +1230,6 @@ public class PlacementController : MonoBehaviour
             var go = new GameObject("GhostProjectile");
             go.transform.SetParent(transform, false);
             _ghostProjectile = go.AddComponent<ProjectileModule>();
-            // 关闭开火：禁用组件 Update
             _ghostProjectile.enabled = false;
             go.SetActive(false);
         }

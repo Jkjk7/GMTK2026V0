@@ -6,6 +6,6 @@ public enum ModuleType
     /// <summary>收束器：90° 弯道，可旋转。</summary>
     Redirector = 0,
 
-    /// <summary>射弹塔：吸能后向战斗区射击。</summary>
+    /// <summary>查理激光塔：吸能后向最近敌人发射激光。</summary>
     Projectile = 1
 }

@@ -77,4 +77,20 @@ public class EnergyBallManager : MonoBehaviour
     {
         _active.Remove(ball);
     }
+
+    /// <summary>准备阶段：清除场上全部能量球。</summary>
+    public void ClearAllBalls()
+    {
+        _active.RemoveAll(b => b == null);
+        for (int i = _active.Count - 1; i >= 0; i--)
+        {
+            EnergyBall ball = _active[i];
+            if (ball != null)
+            {
+                Destroy(ball.gameObject);
+            }
+        }
+
+        _active.Clear();
+    }
 }

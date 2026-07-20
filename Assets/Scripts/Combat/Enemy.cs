@@ -1,12 +1,13 @@
 using UnityEngine;
 
 /// <summary>
-/// 战斗区移动敌人：向右→左移动，受击死亡，到达魔法师触发漏怪。
+/// 战斗区移动敌人：类型掉落金币；清屏不掉落。
 /// </summary>
 public class Enemy : MonoBehaviour
 {
-    [SerializeField] int maxHitPoints = 40;
+    [SerializeField] int maxHitPoints = 10;
     [SerializeField] float moveSpeed = 1.5f;
+    [SerializeField] EnemyGoldType goldType = EnemyGoldType.Normal;
 
     int _currentHp;
     bool _alive = true;
@@ -17,15 +18,20 @@ public class Enemy : MonoBehaviour
     SpriteRenderer _visual;
 
     public bool IsAlive => _alive;
+    public EnemyGoldType GoldType => goldType;
 
-    /// <summary>
-    /// 由 WaveManager 刷怪时调用。
-    /// </summary>
-    public void Initialize(BattleLane lane, Mage mage, WaveManager waveManager)
+    public void Initialize(BattleLane lane, Mage mage, WaveManager waveManager, EnemyGoldType type = EnemyGoldType.Normal)
     {
         _lane = lane;
         _mage = mage;
         _waveManager = waveManager;
+        goldType = type;
+        if (type == EnemyGoldType.Swarm)
+        {
+            maxHitPoints = 1;
+            moveSpeed = 2.2f;
+        }
+
         _currentHp = maxHitPoints;
         _alive = true;
         EnsureVisual();
@@ -38,7 +44,7 @@ public class Enemy : MonoBehaviour
             return;
         }
 
-        if (GameSession.Instance != null && !GameSession.Instance.IsPlaying)
+        if (GameSession.Instance != null && !GameSession.Instance.IsCombatActive)
         {
             return;
         }
@@ -52,9 +58,6 @@ public class Enemy : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 受到伤害；HP 归零则死亡。
-    /// </summary>
     public void TakeDamage(int amount)
     {
         if (!_alive || amount <= 0)
@@ -76,9 +79,6 @@ public class Enemy : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 漏怪清屏时强制移除，不触发漏怪逻辑。
-    /// </summary>
     public void ForceDespawn()
     {
         if (!_alive)
@@ -99,6 +99,7 @@ public class Enemy : MonoBehaviour
         }
 
         _alive = false;
+        WaveGoldBudget.Instance?.NotifyBreach();
         _mage?.OnEnemyBreach();
         _waveManager?.UnregisterEnemy(this);
         Destroy(gameObject);
@@ -112,6 +113,15 @@ public class Enemy : MonoBehaviour
         }
 
         _alive = false;
+        Vector3 pos = transform.position;
+        int gold = WaveGoldBudget.Instance != null
+            ? WaveGoldBudget.Instance.RollKillGold(goldType)
+            : 0;
+        if (gold > 0 && GoldDropService.Instance != null)
+        {
+            GoldDropService.Instance.GrantGoldWithFly(gold, pos);
+        }
+
         _waveManager?.UnregisterEnemy(this);
         Destroy(gameObject);
     }
@@ -132,7 +142,9 @@ public class Enemy : MonoBehaviour
     {
         if (_visual != null)
         {
-            _visual.color = new Color(0.85f, 0.25f, 0.3f, 1f);
+            _visual.color = goldType == EnemyGoldType.Swarm
+                ? new Color(0.95f, 0.55f, 0.35f, 1f)
+                : new Color(0.85f, 0.25f, 0.3f, 1f);
         }
     }
 
@@ -148,8 +160,9 @@ public class Enemy : MonoBehaviour
         }
 
         _visual.sprite = PrototypeSprites.Square;
-        _visual.color = new Color(0.85f, 0.25f, 0.3f, 1f);
+        RestoreColor();
         _visual.sortingOrder = 10;
-        transform.localScale = new Vector3(0.9f, 0.9f, 1f);
+        float s = goldType == EnemyGoldType.Swarm ? 0.45f : 0.9f;
+        transform.localScale = new Vector3(s, s, 1f);
     }
 }

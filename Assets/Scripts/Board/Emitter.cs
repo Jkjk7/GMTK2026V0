@@ -43,7 +43,8 @@ public class Emitter : MonoBehaviour
             return;
         }
 
-        if (_session != null && !_session.IsPlaying)
+        // 仅战斗阶段发球；准备/胜负停止
+        if (_session != null && !_session.IsCombatActive)
         {
             return;
         }
