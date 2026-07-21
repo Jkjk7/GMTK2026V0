@@ -23,10 +23,16 @@ public class GridBoard : MonoBehaviour
     ModuleBase[,] _modules;
     Transform _cellsRoot;
     Transform _modulesRoot;
+    BoardExpandService _expand;
 
     public float CellSize => cellSize;
     public Vector2 LocalOrigin => localOrigin;
     public Transform ModulesRoot => _modulesRoot;
+
+    public void BindExpandService(BoardExpandService expand)
+    {
+        _expand = expand;
+    }
 
     /// <summary>
     /// 初始化：localOrigin 为本地左下角；可把 ModulesRoot 挂到棋盘下。
@@ -107,7 +113,27 @@ public class GridBoard : MonoBehaviour
 
     public bool CanPlace(GridCoord coord)
     {
-        return IsInside(coord) && GetModule(coord) == null;
+        if (!IsInside(coord) || GetModule(coord) != null)
+        {
+            return false;
+        }
+
+        if (_expand != null && !_expand.IsBuildable(coord))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    public bool IsBuildableCell(GridCoord coord)
+    {
+        if (!IsInside(coord))
+        {
+            return false;
+        }
+
+        return _expand == null || _expand.IsBuildable(coord);
     }
 
     public bool TryPlaceModule(GridCoord coord, ModuleBase module)

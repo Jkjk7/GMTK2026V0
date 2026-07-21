@@ -11,6 +11,9 @@ public class Enemy : MonoBehaviour
 
     int _currentHp;
     bool _alive = true;
+    float _baseMoveSpeed = 1.5f;
+    float _slowPercent;
+    float _slowTimer;
 
     BattleLane _lane;
     Mage _mage;
@@ -26,15 +29,44 @@ public class Enemy : MonoBehaviour
         _mage = mage;
         _waveManager = waveManager;
         goldType = type;
-        if (type == EnemyGoldType.Swarm)
-        {
-            maxHitPoints = 1;
-            moveSpeed = 2.2f;
-        }
-
+        ApplyTypeStats(type);
         _currentHp = maxHitPoints;
         _alive = true;
+        _slowPercent = 0f;
+        _slowTimer = 0f;
         EnsureVisual();
+    }
+
+    void ApplyTypeStats(EnemyGoldType type)
+    {
+        switch (type)
+        {
+            case EnemyGoldType.Swarm:
+                maxHitPoints = 5;
+                _baseMoveSpeed = 3.0f;
+                break;
+            case EnemyGoldType.Tank:
+                maxHitPoints = 40;
+                _baseMoveSpeed = 0.75f;
+                break;
+            default:
+                maxHitPoints = 10;
+                _baseMoveSpeed = 1.5f;
+                break;
+        }
+
+        moveSpeed = _baseMoveSpeed;
+    }
+
+    public void ApplySlow(float percent, float duration)
+    {
+        if (!_alive)
+        {
+            return;
+        }
+
+        _slowPercent = Mathf.Clamp01(Mathf.Max(_slowPercent, percent));
+        _slowTimer = Mathf.Max(_slowTimer, duration);
     }
 
     void Update()
@@ -49,7 +81,17 @@ public class Enemy : MonoBehaviour
             return;
         }
 
-        float newX = transform.position.x - moveSpeed * Time.deltaTime;
+        if (_slowTimer > 0f)
+        {
+            _slowTimer -= Time.deltaTime;
+            if (_slowTimer <= 0f)
+            {
+                _slowPercent = 0f;
+            }
+        }
+
+        float speed = _baseMoveSpeed * (1f - _slowPercent);
+        float newX = transform.position.x - speed * Time.deltaTime;
         transform.position = new Vector3(newX, _lane.LaneY, 0f);
 
         if (newX <= _lane.EndX)
@@ -142,9 +184,20 @@ public class Enemy : MonoBehaviour
     {
         if (_visual != null)
         {
-            _visual.color = goldType == EnemyGoldType.Swarm
-                ? new Color(0.95f, 0.55f, 0.35f, 1f)
-                : new Color(0.85f, 0.25f, 0.3f, 1f);
+            _visual.color = GetTypeColor();
+        }
+    }
+
+    Color GetTypeColor()
+    {
+        switch (goldType)
+        {
+            case EnemyGoldType.Swarm:
+                return new Color(0.95f, 0.85f, 0.2f, 1f);
+            case EnemyGoldType.Tank:
+                return new Color(0.35f, 0.55f, 0.95f, 1f);
+            default:
+                return new Color(0.85f, 0.25f, 0.3f, 1f);
         }
     }
 
@@ -162,7 +215,16 @@ public class Enemy : MonoBehaviour
         _visual.sprite = PrototypeSprites.Square;
         RestoreColor();
         _visual.sortingOrder = 10;
-        float s = goldType == EnemyGoldType.Swarm ? 0.45f : 0.9f;
+        float s = 0.9f;
+        if (goldType == EnemyGoldType.Swarm)
+        {
+            s = 0.4f;
+        }
+        else if (goldType == EnemyGoldType.Tank)
+        {
+            s = 1.25f;
+        }
+
         transform.localScale = new Vector3(s, s, 1f);
     }
 }

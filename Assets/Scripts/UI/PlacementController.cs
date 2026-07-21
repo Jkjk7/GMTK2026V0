@@ -16,6 +16,7 @@ public class PlacementController : MonoBehaviour
     WaveManager _waves;
     ScrapZone _scrapZone;
     ConfirmPromptView _confirm;
+    BoardExpandService _boardExpand;
     Camera _gameplayCamera;
     GameSkin _skin;
     GridCoord? _hoveredCell;
@@ -25,6 +26,7 @@ public class PlacementController : MonoBehaviour
 
     RedirectorModule _ghostRedirector;
     ProjectileModule _ghostProjectile;
+    ModuleBase _ghostOther;
     ModuleType? _ghostType;
 
     // 拆除确认
@@ -60,7 +62,8 @@ public class PlacementController : MonoBehaviour
         WaveManager waves = null,
         ScrapZone scrapZone = null,
         ConfirmPromptView confirm = null,
-        ModuleTooltipView tooltip = null)
+        ModuleTooltipView tooltip = null,
+        BoardExpandService boardExpand = null)
     {
         s_instance = this;
         _board = board;
@@ -72,6 +75,7 @@ public class PlacementController : MonoBehaviour
         _waves = waves;
         _scrapZone = scrapZone;
         _confirm = confirm;
+        _boardExpand = boardExpand;
         _previewOrientation = 0;
     }
 
@@ -127,14 +131,18 @@ public class PlacementController : MonoBehaviour
             return;
         }
 
-        if (_waves != null && _waves.IsCountdownPhase)
+        if (_waves != null && (_waves.IsCountdownPhase || _waves.IsAwaitingDraft))
         {
             ClearGhost();
             CancelPendingDismantle();
             CancelPendingMove(restore: true);
             CancelPendingBoardScrap(restore: true);
             HideModuleTooltip();
-            _confirm?.Close();
+            if (_waves.IsCountdownPhase)
+            {
+                _confirm?.Close();
+            }
+
             return;
         }
 
@@ -166,7 +174,10 @@ public class PlacementController : MonoBehaviour
             TryClickScrapZone();
             if (!_hand.HasSelection)
             {
-                TryBeginBoardDrag();
+                if (!TryClickLockedCellForExpand())
+                {
+                    TryBeginBoardDrag();
+                }
             }
         }
 
@@ -199,6 +210,48 @@ public class PlacementController : MonoBehaviour
         {
             TryDismantleGesture();
         }
+    }
+
+    bool TryClickLockedCellForExpand()
+    {
+        if (_boardExpand == null || _board == null)
+        {
+            return false;
+        }
+
+        Vector3 mouseWorld = GetMouseWorld();
+        if (!_board.TryWorldToCell(mouseWorld, out GridCoord cell))
+        {
+            return false;
+        }
+
+        if (_board.IsBuildableCell(cell))
+        {
+            return false;
+        }
+
+        int cost = _boardExpand.GetNextExpandCost();
+        if (cost <= 0)
+        {
+            return true;
+        }
+
+        int next = _boardExpand.GetNextSize();
+        bool can = Economy.Instance == null || Economy.Instance.CanAfford(cost);
+        if (!can)
+        {
+            Economy.Instance?.NotifyInsufficient();
+        }
+
+        _confirm?.Show(
+            $"扩展棋盘到 {next}×{next}？",
+            $"解锁外围格子\n消耗 {cost} 金币",
+            can ? $"确认 -{cost}" : "金币不足",
+            can,
+            can ? string.Empty : "金币不足",
+            () => _boardExpand.TryExpand(),
+            null);
+        return true;
     }
 
     void TryBeginBoardDrag()
@@ -1042,6 +1095,12 @@ public class PlacementController : MonoBehaviour
             _ghostProjectile.transform.position = pos;
             SetGhostTint(_ghostProjectile.gameObject, tint);
         }
+        else if (_ghostOther != null)
+        {
+            _ghostOther.gameObject.SetActive(true);
+            _ghostOther.transform.position = pos;
+            SetGhostTint(_ghostOther.gameObject, tint);
+        }
     }
 
     void HideGhost()
@@ -1054,6 +1113,11 @@ public class PlacementController : MonoBehaviour
         if (_ghostProjectile != null)
         {
             _ghostProjectile.gameObject.SetActive(false);
+        }
+
+        if (_ghostOther != null)
+        {
+            _ghostOther.gameObject.SetActive(false);
         }
     }
 
@@ -1204,6 +1268,12 @@ public class PlacementController : MonoBehaviour
                 return new GameObject("Redirector").AddComponent<RedirectorModule>();
             case ModuleType.Projectile:
                 return new GameObject("ProjectileTurret").AddComponent<ProjectileModule>();
+            case ModuleType.Bomb:
+                return new GameObject("BombTurret").AddComponent<BombModule>();
+            case ModuleType.IceLaser:
+                return new GameObject("IceLaserTurret").AddComponent<IceLaserModule>();
+            case ModuleType.Miner:
+                return new GameObject("Miner").AddComponent<MinerModule>();
             default:
                 return null;
         }
@@ -1225,12 +1295,36 @@ public class PlacementController : MonoBehaviour
             _ghostRedirector = go.AddComponent<RedirectorModule>();
             go.SetActive(false);
         }
-        else
+        else if (type == ModuleType.Projectile)
         {
             var go = new GameObject("GhostProjectile");
             go.transform.SetParent(transform, false);
             _ghostProjectile = go.AddComponent<ProjectileModule>();
             _ghostProjectile.enabled = false;
+            go.SetActive(false);
+        }
+        else
+        {
+            var go = new GameObject("GhostOther");
+            go.transform.SetParent(transform, false);
+            switch (type)
+            {
+                case ModuleType.Bomb:
+                    _ghostOther = go.AddComponent<BombModule>();
+                    break;
+                case ModuleType.IceLaser:
+                    _ghostOther = go.AddComponent<IceLaserModule>();
+                    break;
+                case ModuleType.Miner:
+                    _ghostOther = go.AddComponent<MinerModule>();
+                    break;
+            }
+
+            if (_ghostOther != null)
+            {
+                _ghostOther.enabled = false;
+            }
+
             go.SetActive(false);
         }
     }
@@ -1247,6 +1341,12 @@ public class PlacementController : MonoBehaviour
         {
             Destroy(_ghostProjectile.gameObject);
             _ghostProjectile = null;
+        }
+
+        if (_ghostOther != null)
+        {
+            Destroy(_ghostOther.gameObject);
+            _ghostOther = null;
         }
 
         _ghostType = null;

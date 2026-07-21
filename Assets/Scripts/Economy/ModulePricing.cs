@@ -8,7 +8,13 @@ public static class ModulePricing
     public const int MaxAttackLevel = 5;
     public const int ProjectileBasePrice = 20;
     public const int RedirectorBasePrice = 15;
+    public const int BombBasePrice = 25;
+    public const int IceLaserBasePrice = 22;
+    public const int MinerBasePrice = 18;
     public const float ScrapRefundRate = 0.30f;
+
+    public const int BoardExpandTo5Cost = 100;
+    public const int BoardExpandTo7Cost = 300;
 
     public static int GetStage(int waveNumber)
     {
@@ -29,19 +35,38 @@ public static class ModulePricing
     public static int GetShopPrice(ModuleType type, int level, int waveNumber)
     {
         int stage = GetStage(waveNumber);
+        int basePrice = GetBasePrice(type);
         if (ModuleCatalog.IsAttackModule(type))
         {
             int lvl = Mathf.Clamp(level, 1, MaxAttackLevel);
-            float price = ProjectileBasePrice
+            float price = basePrice
                           * Mathf.Pow(2.25f, lvl - 1)
                           * Mathf.Pow(1.12f, stage);
             return RoundToFive(Mathf.RoundToInt(price));
         }
 
-        // 功能模块
-        float util = RedirectorBasePrice * Mathf.Pow(1.10f, stage);
-        int capped = Mathf.Min(Mathf.RoundToInt(util), RedirectorBasePrice * 2);
+        if (type == ModuleType.Miner)
+        {
+            int lvl = Mathf.Clamp(level, 1, 3);
+            float price = basePrice * (1f + 0.35f * (lvl - 1)) * Mathf.Pow(1.10f, stage);
+            return RoundToFive(Mathf.RoundToInt(price));
+        }
+
+        float util = basePrice * Mathf.Pow(1.10f, stage);
+        int capped = Mathf.Min(Mathf.RoundToInt(util), basePrice * 2);
         return RoundToFive(capped);
+    }
+
+    static int GetBasePrice(ModuleType type)
+    {
+        switch (type)
+        {
+            case ModuleType.Bomb: return BombBasePrice;
+            case ModuleType.IceLaser: return IceLaserBasePrice;
+            case ModuleType.Miner: return MinerBasePrice;
+            case ModuleType.Redirector: return RedirectorBasePrice;
+            default: return ProjectileBasePrice;
+        }
     }
 
     public static int GetRefreshCost(int waveNumber, int refreshIndexInWave)

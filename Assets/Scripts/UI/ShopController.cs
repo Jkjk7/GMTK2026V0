@@ -66,7 +66,7 @@ public class ShopController : MonoBehaviour
             return;
         }
 
-        if (_waves != null && _waves.IsCountdownPhase)
+        if (_waves != null && (_waves.IsCountdownPhase || _waves.IsAwaitingDraft))
         {
             return;
         }
@@ -92,7 +92,7 @@ public class ShopController : MonoBehaviour
             return;
         }
 
-        if (_waves != null && _waves.IsCountdownPhase)
+        if (_waves != null && (_waves.IsCountdownPhase || _waves.IsAwaitingDraft))
         {
             return;
         }
@@ -124,9 +124,16 @@ public class ShopController : MonoBehaviour
             }
 
             ModuleType type = ModuleCatalog.RollShopSlotType(i);
-            int level = ModuleCatalog.IsAttackModule(type)
-                ? ModulePricing.RollAttackLevel(wave)
-                : 1;
+            int level = 1;
+            if (ModuleCatalog.IsAttackModule(type))
+            {
+                level = ModulePricing.RollAttackLevel(wave);
+            }
+            else if (type == ModuleType.Miner)
+            {
+                int rolled = ModulePricing.RollAttackLevel(wave);
+                level = Mathf.Clamp(rolled, 1, 3);
+            }
             int price = ModulePricing.GetShopPrice(type, level, wave);
             var offer = ModuleCardData.Create(type, level, 0);
             _slots[i].SetOffer(offer, price);
@@ -173,7 +180,7 @@ public class ShopController : MonoBehaviour
             return false;
         }
 
-        if (_waves != null && _waves.IsCountdownPhase)
+        if (_waves != null && (_waves.IsCountdownPhase || _waves.IsAwaitingDraft))
         {
             return false;
         }
