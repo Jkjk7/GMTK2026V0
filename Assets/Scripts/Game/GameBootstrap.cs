@@ -122,7 +122,7 @@ public class GameBootstrap : MonoBehaviour
         var waveManager = wavesGo.AddComponent<WaveManager>();
 
         mage.Initialize(mageAnchor.position, waveManager, session);
-        waveManager.Initialize(lane, mage, session, enemyRoot, ballManager);
+        // WaveManager.Initialize 延后到解锁池/草稿 UI 就绪后
 
         CreateBattleBackdrop(battleRoot, boardBounds, laneY, worldCam);
 
@@ -162,9 +162,24 @@ public class GameBootstrap : MonoBehaviour
         economyGo.transform.SetParent(layoutGo.transform, false);
         economyGo.AddComponent<Economy>();
         economyGo.AddComponent<WaveGoldBudget>();
+        economyGo.AddComponent<RunModulePool>();
         var dropService = economyGo.AddComponent<GoldDropService>();
         GoldPanel goldPanel = CreateGoldPanel(canvas.transform, font);
         dropService.Initialize(goldPanel, layoutGo.transform);
+
+        var expandGo = new GameObject("BoardExpand");
+        expandGo.transform.SetParent(layoutGo.transform, false);
+        var boardExpand = expandGo.AddComponent<BoardExpandService>();
+        boardExpand.Initialize(board, BoardExpandService.Size3);
+        board.BindExpandService(boardExpand);
+
+        DraftChoiceView draftUi = CreateDraftChoiceView(canvas.transform, font);
+        var unlockGo = new GameObject("ModuleUnlockDirector");
+        unlockGo.transform.SetParent(layoutGo.transform, false);
+        var unlockDirector = unlockGo.AddComponent<ModuleUnlockDirector>();
+        unlockDirector.Initialize(RunModulePool.Instance, draftUi);
+
+        waveManager.Initialize(lane, mage, session, enemyRoot, ballManager, unlockDirector);
 
         HandController hand = CreateHand(sidebar, font, _skin);
         var shop = CreateShopPanel(sidebar, font, hand, session, waveManager, _skin);
@@ -175,7 +190,6 @@ public class GameBootstrap : MonoBehaviour
         var scrapGo = new GameObject("ScrapZone");
         scrapGo.transform.SetParent(worldRoot, false);
         var scrap = scrapGo.AddComponent<ScrapZone>();
-        // 棋盘外框左下角（不压格子、不挡发射器）
         scrap.Initialize(new Vector3(
             scrapBounds.min.x - cellSize * 1.15f,
             scrapBounds.min.y - cellSize * 0.15f,
@@ -189,12 +203,14 @@ public class GameBootstrap : MonoBehaviour
         placementGo.transform.SetParent(layoutGo.transform, false);
         var placement = placementGo.AddComponent<PlacementController>();
         placement.Initialize(
-            board, hand, board.ModulesRoot, session, worldCam, _skin, waveManager, scrap, confirm, tooltip);
+            board, hand, board.ModulesRoot, session, worldCam, _skin, waveManager, scrap, confirm, tooltip,
+            boardExpand);
 
         CreateHintLabel(canvas.transform, font);
+        CreateBoardExpandHint(canvas.transform, font, boardExpand);
 
         ValidateRedirectorTable();
-        Debug.Log("[GameBootstrap] 准备/拆除确认 / 战场可拖分解 / 储能条 / 悬停详情。");
+        Debug.Log("[GameBootstrap] Roguelike15：解锁池 / 点数刷怪 / 棋盘扩展 / 新模块。");
     }
 
     void BuildHudAndWire(
@@ -668,8 +684,115 @@ public class GameBootstrap : MonoBehaviour
         text.fontSize = 18;
         text.color = new Color(0.85f, 0.88f, 0.95f, 1f);
         text.alignment = TextAnchor.MiddleLeft;
-        text.text = "拖棋盘可移动/合成/分解 | 右键/X拆除 | 悬停看详情 | Space准备完毕 | F刷新";
+        text.text = "拖棋盘可移动/合成/分解 | 点灰格扩展棋盘 | 悬停详情 | Space准备 | F刷新";
         return text;
+    }
+
+    Text CreateBoardExpandHint(Transform canvas, Font font, BoardExpandService expand)
+    {
+        var go = new GameObject("BoardExpandHint");
+        go.transform.SetParent(canvas, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.05f, 0.045f);
+        rt.anchorMax = new Vector2(0.45f, 0.075f);
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+        var text = go.AddComponent<Text>();
+        text.font = font;
+        text.fontSize = 16;
+        text.color = new Color(0.7f, 0.85f, 0.75f, 1f);
+        text.alignment = TextAnchor.MiddleLeft;
+        text.raycastTarget = false;
+
+        void Refresh()
+        {
+            if (expand == null)
+            {
+                return;
+            }
+
+            int cost = expand.GetNextExpandCost();
+            if (cost <= 0)
+            {
+                text.text = $"棋盘：{expand.UnlockedSize}×{expand.UnlockedSize}（已满）";
+            }
+            else
+            {
+                text.text = $"棋盘：{expand.UnlockedSize}×{expand.UnlockedSize} → {expand.GetNextSize()}×{expand.GetNextSize()}（{cost}金，点灰格）";
+            }
+        }
+
+        Refresh();
+        if (Economy.Instance != null)
+        {
+            Economy.Instance.OnGoldChanged += _ => Refresh();
+        }
+
+        return text;
+    }
+
+    DraftChoiceView CreateDraftChoiceView(Transform canvas, Font font)
+    {
+        var root = new GameObject("DraftChoice");
+        root.transform.SetParent(canvas, false);
+        var rt = root.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.18f, 0.28f);
+        rt.anchorMax = new Vector2(0.72f, 0.72f);
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+        var group = root.AddComponent<CanvasGroup>();
+
+        var bg = root.AddComponent<Image>();
+        bg.color = new Color(0.07f, 0.08f, 0.12f, 0.96f);
+
+        var titleGo = new GameObject("Title");
+        titleGo.transform.SetParent(root.transform, false);
+        var titleRt = titleGo.AddComponent<RectTransform>();
+        titleRt.anchorMin = new Vector2(0.05f, 0.82f);
+        titleRt.anchorMax = new Vector2(0.95f, 0.96f);
+        titleRt.offsetMin = Vector2.zero;
+        titleRt.offsetMax = Vector2.zero;
+        var title = titleGo.AddComponent<Text>();
+        title.font = font;
+        title.fontSize = 22;
+        title.alignment = TextAnchor.MiddleCenter;
+        title.color = new Color(1f, 0.9f, 0.5f, 1f);
+        title.raycastTarget = false;
+
+        var buttons = new Button[3];
+        var labels = new Text[3];
+        float[] x0 = { 0.04f, 0.36f, 0.68f };
+        float[] x1 = { 0.32f, 0.64f, 0.96f };
+        for (int i = 0; i < 3; i++)
+        {
+            var btnGo = new GameObject($"Choice{i}");
+            btnGo.transform.SetParent(root.transform, false);
+            var brt = btnGo.AddComponent<RectTransform>();
+            brt.anchorMin = new Vector2(x0[i], 0.12f);
+            brt.anchorMax = new Vector2(x1[i], 0.78f);
+            brt.offsetMin = Vector2.zero;
+            brt.offsetMax = Vector2.zero;
+            var img = btnGo.AddComponent<Image>();
+            img.color = new Color(0.18f, 0.22f, 0.28f, 1f);
+            buttons[i] = btnGo.AddComponent<Button>();
+
+            var lg = new GameObject("Label");
+            lg.transform.SetParent(btnGo.transform, false);
+            var lrt = lg.AddComponent<RectTransform>();
+            StretchFull(lrt);
+            labels[i] = lg.AddComponent<Text>();
+            labels[i].font = font;
+            labels[i].fontSize = 16;
+            labels[i].alignment = TextAnchor.MiddleCenter;
+            labels[i].color = Color.white;
+            labels[i].raycastTarget = false;
+            labels[i].horizontalOverflow = HorizontalWrapMode.Wrap;
+            labels[i].verticalOverflow = VerticalWrapMode.Overflow;
+        }
+
+        var view = root.AddComponent<DraftChoiceView>();
+        view.Bind(group, title, buttons, labels);
+        return view;
     }
 
     PrepPhasePanel CreatePrepPhasePanel(Transform canvas, Font font, WaveManager waves, GameSession session)

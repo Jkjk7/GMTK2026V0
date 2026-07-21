@@ -3,15 +3,16 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 波次：每波正式准备 → 3-2-1 → 刷怪 → 清场结算 → 下一波准备。
+/// 波次：准备 → 3-2-1 → 按点数预算刷怪 → 清场 →（可选解锁草稿）→ 下一波准备。
 /// </summary>
 public class WaveManager : MonoBehaviour
 {
     [Serializable]
     public struct WaveConfig
     {
-        public int count;
+        public int pointBudget;
         public float spawnInterval;
+        public int guaranteedTanks;
     }
 
     enum Phase
@@ -20,29 +21,25 @@ public class WaveManager : MonoBehaviour
         Countdown,
         Spawning,
         WaitingClear,
+        AwaitingDraft,
         Complete
     }
 
-    [Header("Waves")]
-    [SerializeField] WaveConfig[] waves =
-    {
-        new WaveConfig { count = 4, spawnInterval = 1.2f },
-        new WaveConfig { count = 6, spawnInterval = 1.0f },
-        new WaveConfig { count = 8, spawnInterval = 0.9f },
-        new WaveConfig { count = 10, spawnInterval = 0.8f },
-        new WaveConfig { count = 12, spawnInterval = 0.7f }
-    };
+    [Header("Waves (15)")]
+    [SerializeField] WaveConfig[] waves;
 
     [Header("Countdown")]
     [SerializeField] float countdownStepSeconds = 0.5f;
 
     readonly List<Enemy> _activeEnemies = new List<Enemy>();
+    readonly List<EnemyGoldType> _spawnQueue = new List<EnemyGoldType>();
 
     BattleLane _lane;
     Mage _mage;
     GameSession _session;
     Transform _enemyRoot;
     EnergyBallManager _ballManager;
+    ModuleUnlockDirector _unlockDirector;
 
     Phase _phase = Phase.Preparing;
     int _waveIndex;
@@ -59,6 +56,7 @@ public class WaveManager : MonoBehaviour
     public bool IsCombatPhase => _phase == Phase.Spawning || _phase == Phase.WaitingClear;
     public bool IsPreparingPhase => _phase == Phase.Preparing;
     public bool IsCountdownPhase => _phase == Phase.Countdown;
+    public bool IsAwaitingDraft => _phase == Phase.AwaitingDraft;
     public float PrepRemaining => _phase == Phase.Preparing ? Mathf.Max(0f, _timer) : 0f;
     public float PrepDuration => _prepDuration;
     public int CountdownDigit => _countdownDigit;
@@ -75,20 +73,39 @@ public class WaveManager : MonoBehaviour
         Mage mage,
         GameSession session,
         Transform enemyRoot,
-        EnergyBallManager ballManager = null)
+        EnergyBallManager ballManager = null,
+        ModuleUnlockDirector unlockDirector = null)
     {
         _lane = lane;
         _mage = mage;
         _session = session;
         _enemyRoot = enemyRoot;
         _ballManager = ballManager;
+        _unlockDirector = unlockDirector;
+        EnsureDefaultWaves();
         _waveIndex = 0;
         BeginPrepForWave(0);
     }
 
+    void EnsureDefaultWaves()
+    {
+        // Roguelike15：始终使用 15 波点数表（忽略旧序列化的 count 波次）
+        waves = new WaveConfig[15];
+        for (int i = 0; i < 15; i++)
+        {
+            int display = i + 1;
+            waves[i] = new WaveConfig
+            {
+                pointBudget = WaveSpawnBudget.GetDefaultBudget(display),
+                spawnInterval = WaveSpawnBudget.GetSpawnInterval(display),
+                guaranteedTanks = WaveSpawnBudget.GetGuaranteedTanks(display)
+            };
+        }
+    }
+
     void Update()
     {
-        if (_session != null && !_session.IsRunActive && _phase != Phase.Complete)
+        if (_session != null && !_session.IsRunActive && _phase != Phase.Complete && _phase != Phase.AwaitingDraft)
         {
             return;
         }
@@ -121,6 +138,7 @@ public class WaveManager : MonoBehaviour
         _waveIndex = index;
         _spawnedThisWave = 0;
         _waveRewardsGranted = false;
+        _spawnQueue.Clear();
         _phase = Phase.Preparing;
         _prepDuration = ModulePricing.GetPrepSeconds(CurrentWaveDisplay);
         _timer = _prepDuration;
@@ -136,13 +154,33 @@ public class WaveManager : MonoBehaviour
     void PrepareBoardForPrepPhase()
     {
         _ballManager?.ClearAllBalls();
-        ProjectileModule[] turrets = FindObjectsOfType<ProjectileModule>();
-        for (int i = 0; i < turrets.Length; i++)
+        ClearEnergyOnBoard();
+    }
+
+    static void ClearEnergyOnBoard()
+    {
+        ProjectileModule[] lasers = FindObjectsOfType<ProjectileModule>();
+        for (int i = 0; i < lasers.Length; i++)
         {
-            if (turrets[i] != null && turrets[i].enabled)
-            {
-                turrets[i].ClearEnergy();
-            }
+            lasers[i]?.ClearEnergy();
+        }
+
+        BombModule[] bombs = FindObjectsOfType<BombModule>();
+        for (int i = 0; i < bombs.Length; i++)
+        {
+            bombs[i]?.ClearEnergy();
+        }
+
+        IceLaserModule[] ices = FindObjectsOfType<IceLaserModule>();
+        for (int i = 0; i < ices.Length; i++)
+        {
+            ices[i]?.ClearEnergy();
+        }
+
+        MinerModule[] miners = FindObjectsOfType<MinerModule>();
+        for (int i = 0; i < miners.Length; i++)
+        {
+            miners[i]?.ClearEnergy();
         }
     }
 
@@ -158,7 +196,6 @@ public class WaveManager : MonoBehaviour
         StartCountdown();
     }
 
-    /// <summary>准备完毕：跳过剩余准备，进入 3-2-1。</summary>
     public void RequestReady()
     {
         if (_phase != Phase.Preparing)
@@ -201,21 +238,23 @@ public class WaveManager : MonoBehaviour
     {
         _phase = Phase.Spawning;
         _timer = 0f;
-        _session?.EnterCombat();
+        _spawnedThisWave = 0;
         WaveConfig config = waves[_waveIndex];
-        WaveGoldBudget.Instance?.BeginWave(CurrentWaveDisplay, config.count, EnemyGoldType.Normal);
+        _spawnQueue.Clear();
+        _spawnQueue.AddRange(WaveSpawnBudget.BuildQueue(
+            CurrentWaveDisplay,
+            config.pointBudget > 0 ? config.pointBudget : WaveSpawnBudget.GetDefaultBudget(CurrentWaveDisplay),
+            config.guaranteedTanks));
+
+        int enemyCount = _spawnQueue.Count;
+        _session?.EnterCombat();
+        WaveGoldBudget.Instance?.BeginWave(CurrentWaveDisplay, Mathf.Max(1, enemyCount), EnemyGoldType.Normal);
         OnCombatStarted?.Invoke();
     }
 
     void TickSpawning()
     {
-        if (waves == null || _waveIndex >= waves.Length)
-        {
-            return;
-        }
-
-        WaveConfig config = waves[_waveIndex];
-        if (_spawnedThisWave >= config.count)
+        if (_spawnedThisWave >= _spawnQueue.Count)
         {
             _phase = Phase.WaitingClear;
             return;
@@ -227,14 +266,27 @@ public class WaveManager : MonoBehaviour
             return;
         }
 
-        SpawnEnemy();
+        SpawnEnemy(_spawnQueue[_spawnedThisWave]);
         _spawnedThisWave++;
-        _timer = config.spawnInterval;
+        float interval = waves[_waveIndex].spawnInterval;
+        if (interval <= 0.01f)
+        {
+            interval = WaveSpawnBudget.GetSpawnInterval(CurrentWaveDisplay);
+        }
+
+        // 黄潮稍密
+        if (_spawnedThisWave > 0 && _spawnedThisWave <= _spawnQueue.Count &&
+            _spawnQueue[_spawnedThisWave - 1] == EnemyGoldType.Swarm)
+        {
+            interval *= 0.55f;
+        }
+
+        _timer = interval;
     }
 
     void TickWaitingClear()
     {
-        if (_spawnedThisWave < waves[_waveIndex].count || _activeEnemies.Count > 0)
+        if (_spawnedThisWave < _spawnQueue.Count || _activeEnemies.Count > 0)
         {
             return;
         }
@@ -244,6 +296,26 @@ public class WaveManager : MonoBehaviour
         if (_waveIndex >= waves.Length - 1)
         {
             CompleteAllWaves();
+            return;
+        }
+
+        int finishedWave = CurrentWaveDisplay;
+        if (_unlockDirector != null && _unlockDirector.ShouldOfferAfterWave(finishedWave))
+        {
+            _session?.EnterPreparing();
+            PrepareBoardForPrepPhase();
+            _phase = Phase.AwaitingDraft;
+            _unlockDirector.BeginDraft(finishedWave, OnDraftFinished);
+            return;
+        }
+
+        BeginPrepForWave(_waveIndex + 1);
+    }
+
+    void OnDraftFinished()
+    {
+        if (_phase != Phase.AwaitingDraft)
+        {
             return;
         }
 
@@ -284,18 +356,18 @@ public class WaveManager : MonoBehaviour
         }
     }
 
-    void SpawnEnemy()
+    void SpawnEnemy(EnemyGoldType type)
     {
         if (_lane == null || _enemyRoot == null)
         {
             return;
         }
 
-        var go = new GameObject($"Enemy_W{_waveIndex + 1}_{_spawnedThisWave + 1}");
+        var go = new GameObject($"Enemy_W{_waveIndex + 1}_{_spawnedThisWave + 1}_{type}");
         go.transform.SetParent(_enemyRoot, false);
         go.transform.position = _lane.GetSpawnPosition();
         var enemy = go.AddComponent<Enemy>();
-        enemy.Initialize(_lane, _mage, this, EnemyGoldType.Normal);
+        enemy.Initialize(_lane, _mage, this, type);
         RegisterEnemy(enemy);
     }
 

@@ -22,12 +22,30 @@ public struct ModuleCardData
 
     public static ModuleCardData FromShopPurchase(ModuleType type, int level, int pricePaid)
     {
-        int lvl = ModuleCatalog.IsAttackModule(type) ? Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel) : 1;
+        int lvl;
+        if (ModuleCatalog.IsAttackModule(type))
+        {
+            lvl = Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel);
+        }
+        else if (type == ModuleType.Miner)
+        {
+            lvl = Mathf.Clamp(level, 1, 3);
+        }
+        else
+        {
+            lvl = 1;
+        }
+
         return Create(type, lvl, pricePaid);
     }
 
     public bool CanFuseWith(ModuleCardData other)
     {
+        if (Type == ModuleType.Miner)
+        {
+            return Type == other.Type && Level == other.Level && Level < 3;
+        }
+
         return ModuleCatalog.IsAttackModule(Type)
                && Type == other.Type
                && Level == other.Level

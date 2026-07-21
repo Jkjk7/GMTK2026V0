@@ -178,7 +178,37 @@ public class ModuleTooltipView : MonoBehaviour
 
     static string BuildStats(ModuleCardData card, ModuleBase live)
     {
-        if (ModuleCatalog.IsAttackModule(card.Type))
+        if (card.Type == ModuleType.Bomb)
+        {
+            int dmg = live is BombModule b ? b.DamagePerShot : ModuleCatalog.GetBombDamage(card.Level);
+            float radius = live is BombModule b2 ? b2.AoeRadius : ModuleCatalog.GetBombRadius(card.Level);
+            string energy = live is BombModule liveB
+                ? $"储能：{liveB.CurrentEnergy}/{liveB.EnergyCapacity}"
+                : "储能上限：20";
+            return $"伤害：{dmg}\n射速：1.5/秒\n范围：{radius:0.#}\n{energy}";
+        }
+
+        if (card.Type == ModuleType.IceLaser)
+        {
+            int dmg = live is IceLaserModule ice ? ice.DamagePerShot : 5;
+            float interval = live is IceLaserModule ice2 ? ice2.FireInterval : 0.12f;
+            float rps = interval > 0.0001f ? 1f / interval : 0f;
+            string energy = live is IceLaserModule liveI
+                ? $"储能：{liveI.CurrentEnergy}/{liveI.EnergyCapacity}"
+                : "储能上限：8";
+            return $"伤害：{dmg}\n射速：{rps:0.#}/秒\n减速：30%\n{energy}";
+        }
+
+        if (card.Type == ModuleType.Miner)
+        {
+            int cost = live is MinerModule m ? m.EnergyCost : ModuleCatalog.GetMinerEnergyCost(card.Level);
+            string energy = live is MinerModule liveM
+                ? $"储能：{liveM.CurrentEnergy}/{liveM.EnergyCapacity}"
+                : $"储能上限：{Mathf.Max(10, cost)}";
+            return $"产出：{cost} 能 → 1 金\n冷却：3 秒\n{energy}";
+        }
+
+        if (card.Type == ModuleType.Projectile || ModuleCatalog.IsAttackModule(card.Type))
         {
             int dmg = live is ProjectileModule p
                 ? p.DamagePerShot
