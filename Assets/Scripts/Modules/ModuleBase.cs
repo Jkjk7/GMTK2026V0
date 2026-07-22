@@ -36,4 +36,17 @@ public abstract class ModuleBase : MonoBehaviour
     public virtual void RefreshVisual()
     {
     }
+
+    /// <summary>拿起/预览时是否可用 R 旋转（收束器等）。</summary>
+    public virtual bool CanRotate => false;
+
+    public virtual int OrientationIndex => 0;
+
+    public virtual void RotateClockwise()
+    {
+    }
+
+    public virtual void SetOrientationIndex(int value)
+    {
+    }
 }

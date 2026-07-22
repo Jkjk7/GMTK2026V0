@@ -42,6 +42,13 @@ public class PlacementController : MonoBehaviour
     GridCoord? _pendingMoveTo;
     ModuleBase _pendingMoveModule;
 
+    // 商店拖到棋盘：购买并放置
+    bool _shopDragging;
+    ShopController _shopDragShop;
+    int _shopDragIndex = -1;
+    ModuleCardData _shopDragCard;
+    int _shopDragPrice;
+
     // 分解确认（来自手牌）
     int _pendingScrapHandIndex = -1;
     ModuleCardData _pendingScrapCard;
@@ -114,6 +121,32 @@ public class PlacementController : MonoBehaviour
         s_instance?.HandleHandDrop(hand, handIndex, screenPos);
     }
 
+    public static void NotifyShopDragBegin(ShopController shop, int slotIndex, ModuleCardData card, int price)
+    {
+        if (s_instance == null)
+        {
+            return;
+        }
+
+        s_instance._shopDragging = true;
+        s_instance._shopDragShop = shop;
+        s_instance._shopDragIndex = slotIndex;
+        s_instance._shopDragCard = card;
+        s_instance._shopDragPrice = price;
+        s_instance._previewOrientation = 0;
+        ModuleTooltipView.HideAll();
+    }
+
+    public static void NotifyShopDrag(Vector2 screenPos)
+    {
+        s_instance?.UpdateShopDrag(screenPos);
+    }
+
+    public static void NotifyShopDrop(Vector2 screenPos)
+    {
+        s_instance?.FinishShopDrag(screenPos);
+    }
+
     void Update()
     {
         if (_board == null || _hand == null)
@@ -124,6 +157,7 @@ public class PlacementController : MonoBehaviour
         if (_session != null && !_session.IsRunActive)
         {
             ClearGhost();
+            CancelShopDrag();
             CancelPendingDismantle();
             CancelPendingMove(restore: true);
             CancelPendingBoardScrap(restore: true);
@@ -134,6 +168,7 @@ public class PlacementController : MonoBehaviour
         if (_waves != null && (_waves.IsCountdownPhase || _waves.IsAwaitingDraft))
         {
             ClearGhost();
+            CancelShopDrag();
             CancelPendingDismantle();
             CancelPendingMove(restore: true);
             CancelPendingBoardScrap(restore: true);
@@ -157,6 +192,7 @@ public class PlacementController : MonoBehaviour
             CancelPendingScrap();
             CancelPendingBoardScrap(restore: true);
             CancelPendingMove(restore: true);
+            CancelShopDrag();
             HideModuleTooltip();
             _confirm?.Close();
         }
@@ -165,6 +201,13 @@ public class PlacementController : MonoBehaviour
         {
             HideModuleTooltip();
             UpdateBoardDrag();
+            return;
+        }
+
+        if (_shopDragging)
+        {
+            HideModuleTooltip();
+            UpdateShopDrag(Input.mousePosition);
             return;
         }
 
@@ -280,6 +323,11 @@ public class PlacementController : MonoBehaviour
         CancelPendingDismantle();
         _boardDragFrom = cell;
         _boardDragging = true;
+        if (_boardDragModule.CanRotate)
+        {
+            _previewOrientation = _boardDragModule.OrientationIndex;
+        }
+
         ClearGhost();
     }
 
@@ -1040,11 +1088,131 @@ public class PlacementController : MonoBehaviour
             return;
         }
 
+        // 棋盘拿起的可旋转模块：直接转实体
+        if (_boardDragging && _boardDragModule != null && _boardDragModule.CanRotate)
+        {
+            _boardDragModule.RotateClockwise();
+            _previewOrientation = _boardDragModule.OrientationIndex;
+            return;
+        }
+
+        // 手牌选中 / 商店拖拽：转预览朝向
+        bool previewRotate = _shopDragging;
+        if (!previewRotate && _hand != null && _hand.HasSelection)
+        {
+            previewRotate = ModuleCatalog.IsRotatable(_hand.SelectedModuleType);
+        }
+
+        if (!previewRotate)
+        {
+            return;
+        }
+
         _previewOrientation = (_previewOrientation + 1) % 4;
         if (_ghostRedirector != null && _ghostType == ModuleType.Redirector)
         {
             _ghostRedirector.SetOrientation(_previewOrientation);
         }
+    }
+
+    void UpdateShopDrag(Vector2 screenPos)
+    {
+        if (!_shopDragging)
+        {
+            return;
+        }
+
+        EnsureGhost(_shopDragCard.Type);
+        Vector3 mouseWorld = ScreenToWorld(screenPos);
+        if (_board != null && _board.TryWorldToCell(mouseWorld, out GridCoord cell))
+        {
+            ModuleBase occupant = _board.GetModule(cell);
+            bool canFuse = occupant != null && occupant.CardData.CanFuseWith(_shopDragCard);
+            bool canPlace = _board.CanPlace(cell) || canFuse;
+            bool canAfford = Economy.Instance == null || Economy.Instance.CanAfford(_shopDragPrice);
+            ShowGhostAt(_board.CellToWorld(cell), canPlace && canAfford);
+            UpdateCellHover(cell, canPlace && canAfford);
+        }
+        else
+        {
+            HideGhost();
+            ClearCellHover();
+        }
+    }
+
+    void FinishShopDrag(Vector2 screenPos)
+    {
+        if (!_shopDragging)
+        {
+            return;
+        }
+
+        ShopController shop = _shopDragShop;
+        int index = _shopDragIndex;
+        ModuleCardData card = _shopDragCard;
+        int orient = _previewOrientation;
+        CancelShopDrag();
+
+        if (shop == null || _board == null)
+        {
+            return;
+        }
+
+        Vector3 world = ScreenToWorld(screenPos);
+        if (!_board.TryWorldToCell(world, out GridCoord cell))
+        {
+            return;
+        }
+
+        ModuleBase occupant = _board.GetModule(cell);
+        bool canFuse = occupant != null && occupant.CardData.CanFuseWith(card);
+        if (!canFuse && !_board.CanPlace(cell))
+        {
+            return;
+        }
+
+        if (!shop.TryPurchaseForBoard(index, out ModuleCardData purchased, out int pricePaid))
+        {
+            return;
+        }
+
+        if (canFuse && occupant != null)
+        {
+            occupant.ApplyCardData(occupant.CardData.FusedWith(purchased));
+            return;
+        }
+
+        ModuleBase module = CreateModule(purchased);
+        if (module == null)
+        {
+            Economy.Instance?.AddGold(pricePaid, silent: true);
+            shop.RestoreOffer(index, purchased, pricePaid);
+            return;
+        }
+
+        if (module.CanRotate)
+        {
+            module.SetOrientationIndex(orient);
+        }
+
+        module.transform.SetParent(_moduleRoot, true);
+        if (!_board.TryPlaceModule(cell, module))
+        {
+            Destroy(module.gameObject);
+            Economy.Instance?.AddGold(pricePaid, silent: true);
+            shop.RestoreOffer(index, purchased, pricePaid);
+        }
+    }
+
+    void CancelShopDrag()
+    {
+        _shopDragging = false;
+        _shopDragShop = null;
+        _shopDragIndex = -1;
+        _shopDragCard = default;
+        _shopDragPrice = 0;
+        ClearGhost();
+        ClearCellHover();
     }
 
     void UpdateGhost()

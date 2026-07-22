@@ -57,13 +57,24 @@ public class Emitter : MonoBehaviour
             transform.localScale = _baseScale * pulse;
         }
 
-        if (_timer < fireInterval)
+        float interval = GetFireInterval();
+        if (_timer < interval)
         {
             return;
         }
 
         _timer = 0f;
         TryFire();
+    }
+
+    float GetFireInterval()
+    {
+        if (EmitterRunUpgrades.Instance != null)
+        {
+            return EmitterRunUpgrades.Instance.FireInterval;
+        }
+
+        return fireInterval > 0.01f ? fireInterval : 2f;
     }
 
     public void SnapToOffBoardPosition()

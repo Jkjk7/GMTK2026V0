@@ -2,10 +2,49 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 波次怪物点数：红=5，黄=1，蓝=20（5 黄 = 1 红）。
+/// V0.1 固定波次表：每波红/黄/蓝配额固定，仅随机出场顺序。
+/// HP 每 5 波提升一档；数量与短间隔制造怪潮，避免循环激光逐个消化。
 /// </summary>
 public static class WaveSpawnBudget
 {
+    const int WaveCount = 15;
+
+    static readonly int[] NormalCounts =
+    {
+        6, 8, 10, 14, 12,
+        14, 16, 18, 20, 24,
+        26, 28, 30, 32, 36
+    };
+
+    static readonly int[] SwarmCounts =
+    {
+        0, 0, 0, 0, 10,
+        12, 16, 20, 26, 36,
+        40, 44, 48, 52, 60
+    };
+
+    static readonly int[] TankCounts =
+    {
+        0, 0, 0, 0, 0,
+        0, 0, 2, 3, 5,
+        5, 6, 7, 8, 10
+    };
+
+    static readonly int[] NormalHitPoints =
+    {
+        10, 10, 10, 10, 10,
+        25, 25, 25, 25, 25,
+        50, 50, 50, 50, 50
+    };
+
+    static readonly float[] SpawnIntervals =
+    {
+        0.65f, 0.60f, 0.55f, 0.48f, 0.30f,
+        0.50f, 0.42f, 0.34f, 0.26f, 0.16f,
+        0.38f, 0.30f, 0.24f, 0.18f, 0.12f
+    };
+
+    // 保留点数常量供旧存档/调试显示使用；刷怪队列不再按点数随机抽型。
     public const int PointRed = 5;
     public const int PointYellow = 1;
     public const int PointBlue = 20;
@@ -20,94 +59,31 @@ public static class WaveSpawnBudget
         }
     }
 
-    /// <summary>为指定波次生成刷怪队列（waveDisplay 从 1 起）。</summary>
-    public static List<EnemyGoldType> BuildQueue(int waveDisplay, int pointBudget, int guaranteedTanks)
+    /// <summary>为指定波次生成固定配额队列（waveDisplay 从 1 起）。</summary>
+    public static List<EnemyGoldType> BuildQueue(int waveDisplay)
     {
-        var queue = new List<EnemyGoldType>();
-        int remaining = Mathf.Max(0, pointBudget);
-
-        for (int i = 0; i < guaranteedTanks && remaining >= PointBlue; i++)
-        {
-            queue.Add(EnemyGoldType.Tank);
-            remaining -= PointBlue;
-        }
-
-        bool allowYellow = waveDisplay >= 5;
-        bool allowBlue = waveDisplay >= 8;
-
-        while (remaining > 0)
-        {
-            EnemyGoldType pick = PickType(waveDisplay, remaining, allowYellow, allowBlue);
-            int cost = GetPointCost(pick);
-            if (cost > remaining)
-            {
-                // 剩余不足以放红怪时，尽量塞黄怪
-                if (allowYellow && remaining >= PointYellow)
-                {
-                    queue.Add(EnemyGoldType.Swarm);
-                    remaining -= PointYellow;
-                    continue;
-                }
-
-                break;
-            }
-
-            queue.Add(pick);
-            remaining -= cost;
-        }
-
-        // 打乱顺序，但保底坦克可偏后
+        int index = GetWaveIndex(waveDisplay);
+        int total = NormalCounts[index] + SwarmCounts[index] + TankCounts[index];
+        var queue = new List<EnemyGoldType>(total);
+        AddType(queue, EnemyGoldType.Normal, NormalCounts[index]);
+        AddType(queue, EnemyGoldType.Swarm, SwarmCounts[index]);
+        AddType(queue, EnemyGoldType.Tank, TankCounts[index]);
         Shuffle(queue);
         return queue;
     }
 
-    static EnemyGoldType PickType(int wave, int remaining, bool allowYellow, bool allowBlue)
+    /// <summary>兼容旧调用；V0.1 固定表会忽略点数预算和保底蓝参数。</summary>
+    public static List<EnemyGoldType> BuildQueue(int waveDisplay, int pointBudget, int guaranteedTanks)
     {
-        float r = Random.value;
-        if (wave <= 4)
+        return BuildQueue(waveDisplay);
+    }
+
+    static void AddType(List<EnemyGoldType> queue, EnemyGoldType type, int count)
+    {
+        for (int i = 0; i < count; i++)
         {
-            return EnemyGoldType.Normal;
+            queue.Add(type);
         }
-
-        if (wave <= 7)
-        {
-            // 红 70% / 黄 30%
-            if (allowYellow && r < 0.30f && remaining >= PointYellow)
-            {
-                return EnemyGoldType.Swarm;
-            }
-
-            return remaining >= PointRed ? EnemyGoldType.Normal : EnemyGoldType.Swarm;
-        }
-
-        if (wave <= 10)
-        {
-            // 红50 黄30 蓝20
-            if (allowBlue && r < 0.20f && remaining >= PointBlue)
-            {
-                return EnemyGoldType.Tank;
-            }
-
-            if (allowYellow && r < 0.50f && remaining >= PointYellow)
-            {
-                return EnemyGoldType.Swarm;
-            }
-
-            return remaining >= PointRed ? EnemyGoldType.Normal : EnemyGoldType.Swarm;
-        }
-
-        // 11-15：红35 黄35 蓝30
-        if (allowBlue && r < 0.30f && remaining >= PointBlue)
-        {
-            return EnemyGoldType.Tank;
-        }
-
-        if (allowYellow && r < 0.65f && remaining >= PointYellow)
-        {
-            return EnemyGoldType.Swarm;
-        }
-
-        return remaining >= PointRed ? EnemyGoldType.Normal : EnemyGoldType.Swarm;
     }
 
     static void Shuffle(List<EnemyGoldType> list)
@@ -121,29 +97,70 @@ public static class WaveSpawnBudget
 
     public static int GetDefaultBudget(int waveDisplay)
     {
-        int w = Mathf.Clamp(waveDisplay, 1, 15);
-        // 渐进：约 20 → 90 点（红怪等价 4 → 18）
-        return Mathf.RoundToInt(15f + w * 5f + (w >= 10 ? 10f : 0f));
+        int index = GetWaveIndex(waveDisplay);
+        return NormalCounts[index] * PointRed
+            + SwarmCounts[index] * PointYellow
+            + TankCounts[index] * PointBlue;
     }
 
     public static int GetGuaranteedTanks(int waveDisplay)
     {
-        if (waveDisplay == 10 || waveDisplay == 15)
-        {
-            return 2;
-        }
-
-        if (waveDisplay == 8 || waveDisplay == 12)
-        {
-            return 1;
-        }
-
-        return 0;
+        return TankCounts[GetWaveIndex(waveDisplay)];
     }
 
     public static float GetSpawnInterval(int waveDisplay)
     {
-        int w = Mathf.Clamp(waveDisplay, 1, 15);
-        return Mathf.Max(0.35f, 1.15f - (w - 1) * 0.05f);
+        return SpawnIntervals[GetWaveIndex(waveDisplay)];
+    }
+
+    public static int GetNormalCount(int waveDisplay)
+    {
+        return NormalCounts[GetWaveIndex(waveDisplay)];
+    }
+
+    public static int GetSwarmCount(int waveDisplay)
+    {
+        return SwarmCounts[GetWaveIndex(waveDisplay)];
+    }
+
+    public static int GetTankCount(int waveDisplay)
+    {
+        return TankCounts[GetWaveIndex(waveDisplay)];
+    }
+
+    public static int GetEnemyCount(int waveDisplay)
+    {
+        int index = GetWaveIndex(waveDisplay);
+        return NormalCounts[index] + SwarmCounts[index] + TankCounts[index];
+    }
+
+    public static int GetHitPoints(int waveDisplay, EnemyGoldType type)
+    {
+        int normalHp = NormalHitPoints[GetWaveIndex(waveDisplay)];
+        switch (type)
+        {
+            case EnemyGoldType.Swarm:
+                return Mathf.CeilToInt(normalHp * 0.5f);
+            case EnemyGoldType.Tank:
+                return normalHp * 4;
+            default:
+                return normalHp;
+        }
+    }
+
+    public static int GetTotalHitPoints(int waveDisplay)
+    {
+        int index = GetWaveIndex(waveDisplay);
+        int normalHp = NormalHitPoints[index];
+        int swarmHp = Mathf.CeilToInt(normalHp * 0.5f);
+        int tankHp = normalHp * 4;
+        return NormalCounts[index] * normalHp
+            + SwarmCounts[index] * swarmHp
+            + TankCounts[index] * tankHp;
+    }
+
+    static int GetWaveIndex(int waveDisplay)
+    {
+        return Mathf.Clamp(waveDisplay, 1, WaveCount) - 1;
     }
 }

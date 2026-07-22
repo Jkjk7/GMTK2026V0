@@ -1,15 +1,17 @@
 using UnityEngine;
 
 /// <summary>
-/// 比特币采矿机：耗能换金币；全图最多 3 台同时产出。
+/// 比特币采矿机：固定能耗换金币；升级提高产金量；全图最多 3 台同时产出。
 /// </summary>
 public class MinerModule : ModuleBase
 {
     public const int MaxActiveProducers = 3;
+    public const int FixedEnergyCost = 10;
 
     [SerializeField] int energyCapacity = 10;
     [SerializeField] int currentEnergy;
-    [SerializeField] int energyCost = 10;
+    [SerializeField] int energyCost = FixedEnergyCost;
+    [SerializeField] int goldPerCycle = 1;
     [SerializeField] float cooldownSeconds = 3f;
 
     float _cooldown;
@@ -22,6 +24,7 @@ public class MinerModule : ModuleBase
     public int CurrentEnergy => currentEnergy;
     public int EnergyCapacity => energyCapacity;
     public int EnergyCost => energyCost;
+    public int GoldPerCycle => goldPerCycle;
 
     public void ClearEnergy()
     {
@@ -38,8 +41,9 @@ public class MinerModule : ModuleBase
     void ApplyLevelStats(int level)
     {
         int lvl = Mathf.Clamp(level, 1, 3);
-        energyCost = ModuleCatalog.GetMinerEnergyCost(lvl);
-        energyCapacity = Mathf.Max(10, energyCost);
+        energyCost = FixedEnergyCost;
+        goldPerCycle = ModuleCatalog.GetMinerGoldAmount(lvl);
+        energyCapacity = FixedEnergyCost;
         currentEnergy = Mathf.Min(currentEnergy, energyCapacity);
         EnsureLevelLabel(lvl);
         RefreshVisual();
@@ -103,13 +107,14 @@ public class MinerModule : ModuleBase
 
         currentEnergy -= energyCost;
         _cooldown = cooldownSeconds;
+        int gold = Mathf.Max(1, goldPerCycle);
         if (GoldDropService.Instance != null)
         {
-            GoldDropService.Instance.GrantGoldWithFly(1, transform.position);
+            GoldDropService.Instance.GrantGoldWithFly(gold, transform.position);
         }
         else if (Economy.Instance != null)
         {
-            Economy.Instance.AddGold(1);
+            Economy.Instance.AddGold(gold);
         }
 
         RefreshVisual();

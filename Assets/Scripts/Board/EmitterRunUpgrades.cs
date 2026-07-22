@@ -1,0 +1,131 @@
+using UnityEngine;
+
+public enum EmitterUpgradeKind
+{
+    FireRate = 0,
+    BallSpeed = 1,
+    Mass = 2,
+    Lifetime = 3
+}
+
+/// <summary>
+/// 本局发射器四维升级。档位偏保守，避免后期球洪水。
+/// 质量 = 球能量值（进入模块时加算）。
+/// </summary>
+public class EmitterRunUpgrades : MonoBehaviour
+{
+    public const int TierCount = 4;
+    public const int MaxLevel = TierCount - 1;
+
+    public static readonly float[] FireRatePerSec = { 0.50f, 0.70f, 0.95f, 1.25f };
+    public static readonly float[] BallSpeedCells = { 4.0f, 5.5f, 7.0f, 8.5f };
+    public static readonly int[] MassEnergy = { 1, 2, 5, 10 };
+    public static readonly float[] LifetimeSeconds = { 12f, 20f, 32f, 50f };
+
+    public static EmitterRunUpgrades Instance { get; private set; }
+
+    int _fireRateLevel;
+    int _ballSpeedLevel;
+    int _massLevel;
+    int _lifetimeLevel;
+
+    public int FireRateLevel => _fireRateLevel;
+    public int BallSpeedLevel => _ballSpeedLevel;
+    public int MassLevel => _massLevel;
+    public int LifetimeLevel => _lifetimeLevel;
+
+    public float FireInterval => 1f / Mathf.Max(0.01f, FireRatePerSec[_fireRateLevel]);
+    public float BallSpeed => BallSpeedCells[_ballSpeedLevel];
+    public int Mass => MassEnergy[_massLevel];
+    public float Lifetime => LifetimeSeconds[_lifetimeLevel];
+
+    void Awake()
+    {
+        Instance = this;
+        ResetRun();
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+    }
+
+    public void ResetRun()
+    {
+        _fireRateLevel = 0;
+        _ballSpeedLevel = 0;
+        _massLevel = 0;
+        _lifetimeLevel = 0;
+    }
+
+    public int GetLevel(EmitterUpgradeKind kind)
+    {
+        switch (kind)
+        {
+            case EmitterUpgradeKind.FireRate: return _fireRateLevel;
+            case EmitterUpgradeKind.BallSpeed: return _ballSpeedLevel;
+            case EmitterUpgradeKind.Mass: return _massLevel;
+            default: return _lifetimeLevel;
+        }
+    }
+
+    public bool CanUpgrade(EmitterUpgradeKind kind) => GetLevel(kind) < MaxLevel;
+
+    public bool TryUpgrade(EmitterUpgradeKind kind)
+    {
+        if (!CanUpgrade(kind))
+        {
+            return false;
+        }
+
+        switch (kind)
+        {
+            case EmitterUpgradeKind.FireRate:
+                _fireRateLevel++;
+                break;
+            case EmitterUpgradeKind.BallSpeed:
+                _ballSpeedLevel++;
+                break;
+            case EmitterUpgradeKind.Mass:
+                _massLevel++;
+                break;
+            case EmitterUpgradeKind.Lifetime:
+                _lifetimeLevel++;
+                break;
+        }
+
+        return true;
+    }
+
+    public string GetDisplayName(EmitterUpgradeKind kind)
+    {
+        switch (kind)
+        {
+            case EmitterUpgradeKind.FireRate: return "射速";
+            case EmitterUpgradeKind.BallSpeed: return "球速";
+            case EmitterUpgradeKind.Mass: return "质量";
+            default: return "存活";
+        }
+    }
+
+    public string FormatOptionLabel(EmitterUpgradeKind kind)
+    {
+        int lv = GetLevel(kind);
+        int next = lv + 1;
+        string name = GetDisplayName(kind);
+        switch (kind)
+        {
+            case EmitterUpgradeKind.FireRate:
+                return $"{name}\n{FireRatePerSec[lv]:0.##} → {FireRatePerSec[next]:0.##}/秒\n更频繁发球";
+            case EmitterUpgradeKind.BallSpeed:
+                return $"{name}\n{BallSpeedCells[lv]:0.#} → {BallSpeedCells[next]:0.#} 格/秒\n球飞得更快";
+            case EmitterUpgradeKind.Mass:
+                return $"{name}\n能量 {MassEnergy[lv]} → {MassEnergy[next]}\n单球充能更多";
+            default:
+                return $"{name}\n{LifetimeSeconds[lv]:0} → {LifetimeSeconds[next]:0} 秒\n球更耐用";
+        }
+    }
+}

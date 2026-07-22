@@ -190,22 +190,35 @@ public class ModuleTooltipView : MonoBehaviour
 
         if (card.Type == ModuleType.IceLaser)
         {
-            int dmg = live is IceLaserModule ice ? ice.DamagePerShot : 5;
-            float interval = live is IceLaserModule ice2 ? ice2.FireInterval : 0.12f;
+            int dmg = live is IceLaserModule ice
+                ? ice.DamagePerShot
+                : ModuleCatalog.GetDamagePerShot(card.Level);
+            float interval = live is IceLaserModule ice2
+                ? ice2.FireInterval
+                : ModuleCatalog.GetFireInterval(card.Level);
             float rps = interval > 0.0001f ? 1f / interval : 0f;
+            float slowDur = live is IceLaserModule ice3
+                ? ice3.SlowDuration
+                : ModuleCatalog.GetIceSlowDuration(card.Level);
+            int cap = live is IceLaserModule ice4
+                ? ice4.EnergyCapacity
+                : ModuleCatalog.GetEnergyCapacity(card.Level);
             string energy = live is IceLaserModule liveI
                 ? $"储能：{liveI.CurrentEnergy}/{liveI.EnergyCapacity}"
-                : "储能上限：8";
-            return $"伤害：{dmg}\n射速：{rps:0.#}/秒\n减速：30%\n{energy}";
+                : $"储能上限：{cap}";
+            return $"伤害：{dmg}\n射速：{rps:0.#}/秒\n寒冷：{ModuleCatalog.IceSlowPercent * 100f:0}% / {slowDur:0.#}秒\n{energy}";
         }
 
         if (card.Type == ModuleType.Miner)
         {
-            int cost = live is MinerModule m ? m.EnergyCost : ModuleCatalog.GetMinerEnergyCost(card.Level);
+            int cost = MinerModule.FixedEnergyCost;
+            int gold = live is MinerModule m
+                ? m.GoldPerCycle
+                : ModuleCatalog.GetMinerGoldAmount(card.Level);
             string energy = live is MinerModule liveM
                 ? $"储能：{liveM.CurrentEnergy}/{liveM.EnergyCapacity}"
-                : $"储能上限：{Mathf.Max(10, cost)}";
-            return $"产出：{cost} 能 → 1 金\n冷却：3 秒\n{energy}";
+                : $"储能上限：{cost}";
+            return $"产出：{cost} 能 → {gold} 金\n冷却：3 秒\n{energy}";
         }
 
         if (card.Type == ModuleType.Projectile || ModuleCatalog.IsAttackModule(card.Type))

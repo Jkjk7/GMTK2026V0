@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 波次：准备 → 3-2-1 → 按点数预算刷怪 → 清场 →（可选解锁草稿）→ 下一波准备。
+/// 波次：准备 → 3-2-1 → 按固定配额刷怪 → 清场 →（可选解锁草稿）→ 下一波准备。
 /// </summary>
 public class WaveManager : MonoBehaviour
 {
@@ -40,6 +40,7 @@ public class WaveManager : MonoBehaviour
     Transform _enemyRoot;
     EnergyBallManager _ballManager;
     ModuleUnlockDirector _unlockDirector;
+    EmitterUpgradeDirector _emitterDirector;
 
     Phase _phase = Phase.Preparing;
     int _waveIndex;
@@ -74,7 +75,8 @@ public class WaveManager : MonoBehaviour
         GameSession session,
         Transform enemyRoot,
         EnergyBallManager ballManager = null,
-        ModuleUnlockDirector unlockDirector = null)
+        ModuleUnlockDirector unlockDirector = null,
+        EmitterUpgradeDirector emitterDirector = null)
     {
         _lane = lane;
         _mage = mage;
@@ -82,6 +84,7 @@ public class WaveManager : MonoBehaviour
         _enemyRoot = enemyRoot;
         _ballManager = ballManager;
         _unlockDirector = unlockDirector;
+        _emitterDirector = emitterDirector;
         EnsureDefaultWaves();
         _waveIndex = 0;
         BeginPrepForWave(0);
@@ -89,7 +92,7 @@ public class WaveManager : MonoBehaviour
 
     void EnsureDefaultWaves()
     {
-        // Roguelike15：始终使用 15 波点数表（忽略旧序列化的 count 波次）
+        // Roguelike15：始终使用 15 波固定配额表（忽略旧序列化的 count 波次）
         waves = new WaveConfig[15];
         for (int i = 0; i < 15; i++)
         {
@@ -239,16 +242,11 @@ public class WaveManager : MonoBehaviour
         _phase = Phase.Spawning;
         _timer = 0f;
         _spawnedThisWave = 0;
-        WaveConfig config = waves[_waveIndex];
         _spawnQueue.Clear();
-        _spawnQueue.AddRange(WaveSpawnBudget.BuildQueue(
-            CurrentWaveDisplay,
-            config.pointBudget > 0 ? config.pointBudget : WaveSpawnBudget.GetDefaultBudget(CurrentWaveDisplay),
-            config.guaranteedTanks));
+        _spawnQueue.AddRange(WaveSpawnBudget.BuildQueue(CurrentWaveDisplay));
 
-        int enemyCount = _spawnQueue.Count;
         _session?.EnterCombat();
-        WaveGoldBudget.Instance?.BeginWave(CurrentWaveDisplay, Mathf.Max(1, enemyCount), EnemyGoldType.Normal);
+        WaveGoldBudget.Instance?.BeginWave(CurrentWaveDisplay, _spawnQueue);
         OnCombatStarted?.Invoke();
     }
 
@@ -300,12 +298,48 @@ public class WaveManager : MonoBehaviour
         }
 
         int finishedWave = CurrentWaveDisplay;
-        if (_unlockDirector != null && _unlockDirector.ShouldOfferAfterWave(finishedWave))
+        if (TryBeginDraftChain(finishedWave))
         {
-            _session?.EnterPreparing();
-            PrepareBoardForPrepPhase();
-            _phase = Phase.AwaitingDraft;
-            _unlockDirector.BeginDraft(finishedWave, OnDraftFinished);
+            return;
+        }
+
+        BeginPrepForWave(_waveIndex + 1);
+    }
+
+    bool TryBeginDraftChain(int finishedWave)
+    {
+        bool module = _unlockDirector != null && _unlockDirector.ShouldOfferAfterWave(finishedWave);
+        bool emitter = _emitterDirector != null && _emitterDirector.ShouldOfferAfterWave(finishedWave);
+        if (!module && !emitter)
+        {
+            return false;
+        }
+
+        _session?.EnterPreparing();
+        PrepareBoardForPrepPhase();
+        _phase = Phase.AwaitingDraft;
+
+        if (module)
+        {
+            _unlockDirector.BeginDraft(finishedWave, OnModuleDraftFinished);
+            return true;
+        }
+
+        _emitterDirector.BeginDraft(finishedWave, OnDraftFinished);
+        return true;
+    }
+
+    void OnModuleDraftFinished()
+    {
+        if (_phase != Phase.AwaitingDraft)
+        {
+            return;
+        }
+
+        int finishedWave = CurrentWaveDisplay;
+        if (_emitterDirector != null && _emitterDirector.ShouldOfferAfterWave(finishedWave))
+        {
+            _emitterDirector.BeginDraft(finishedWave, OnDraftFinished);
             return;
         }
 
@@ -367,7 +401,7 @@ public class WaveManager : MonoBehaviour
         go.transform.SetParent(_enemyRoot, false);
         go.transform.position = _lane.GetSpawnPosition();
         var enemy = go.AddComponent<Enemy>();
-        enemy.Initialize(_lane, _mage, this, type);
+        enemy.Initialize(_lane, _mage, this, CurrentWaveDisplay, type);
         RegisterEnemy(enemy);
     }
 

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -14,6 +15,7 @@ public enum EnemyGoldType
 
 /// <summary>
 /// 波次金币预算与击杀分摊。
+/// V0.1：预算随波指数上涨以匹配怪潮；击杀按类型在固定区间内随机，再受击杀池封顶。
 /// </summary>
 public class WaveGoldBudget : MonoBehaviour
 {
@@ -32,6 +34,7 @@ public class WaveGoldBudget : MonoBehaviour
     public int WaveClearReward => _waveClearReward;
     public int PerfectReward => _perfectReward;
     public bool BreachThisWave => _breachThisWave;
+    public int Budget => _budget;
 
     void Awake()
     {
@@ -46,22 +49,55 @@ public class WaveGoldBudget : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// V0.1 波金币总预算。约：波1=20、波5=40、波10=100、波15=250（5 的倍数）。
+    /// 与怪潮 6→106、商店每 5 波跳价对齐。
+    /// </summary>
     public static int ComputeBudget(int waveNumber)
     {
-        int w = Mathf.Max(1, waveNumber);
-        return Mathf.RoundToInt(14f * Mathf.Pow(1.065f, w - 1) + 6f);
+        int w = Mathf.Clamp(waveNumber, 1, 15);
+        float raw = 18f * Mathf.Pow(1.205f, w - 1f);
+        return Mathf.Max(20, ModulePricing.RoundToFive(Mathf.RoundToInt(raw)));
     }
 
     public static float GetWeight(EnemyGoldType type)
     {
         switch (type)
         {
-            case EnemyGoldType.Swarm: return 0.25f;
+            case EnemyGoldType.Swarm: return 0.35f;
             case EnemyGoldType.Normal: return 1f;
-            case EnemyGoldType.Tank: return 1.6f;
+            case EnemyGoldType.Tank: return 2.2f;
             case EnemyGoldType.Elite: return 3f;
             case EnemyGoldType.Boss: return 10f;
             default: return 1f;
+        }
+    }
+
+    /// <summary>类型掉落闭区间 [min,max]（含端点）。</summary>
+    public static void GetDropRange(EnemyGoldType type, out int min, out int max)
+    {
+        switch (type)
+        {
+            case EnemyGoldType.Swarm:
+                min = 0;
+                max = 1;
+                break;
+            case EnemyGoldType.Tank:
+                min = 3;
+                max = 7;
+                break;
+            case EnemyGoldType.Elite:
+                min = 5;
+                max = 12;
+                break;
+            case EnemyGoldType.Boss:
+                min = 15;
+                max = 30;
+                break;
+            default: // Normal
+                min = 1;
+                max = 3;
+                break;
         }
     }
 
@@ -70,11 +106,36 @@ public class WaveGoldBudget : MonoBehaviour
         _waveNumber = Mathf.Max(1, waveNumber);
         _breachThisWave = false;
         _enemiesPlanned = Mathf.Max(1, enemyCount);
+        ApplyBudgetSplit();
+        _totalWeightPlanned = GetWeight(defaultType) * _enemiesPlanned;
+    }
+
+    /// <summary>按实际刷怪队列规划权重。</summary>
+    public void BeginWave(int waveNumber, IList<EnemyGoldType> spawnQueue)
+    {
+        _waveNumber = Mathf.Max(1, waveNumber);
+        _breachThisWave = false;
+        _enemiesPlanned = spawnQueue != null ? Mathf.Max(1, spawnQueue.Count) : 1;
+        ApplyBudgetSplit();
+
+        float totalWeight = 0f;
+        if (spawnQueue != null)
+        {
+            for (int i = 0; i < spawnQueue.Count; i++)
+            {
+                totalWeight += GetWeight(spawnQueue[i]);
+            }
+        }
+
+        _totalWeightPlanned = Mathf.Max(0.01f, totalWeight);
+    }
+
+    void ApplyBudgetSplit()
+    {
         _budget = ComputeBudget(_waveNumber);
         _killPoolRemaining = Mathf.RoundToInt(_budget * 0.70f);
         _waveClearReward = Mathf.RoundToInt(_budget * 0.20f);
         _perfectReward = Mathf.Max(0, _budget - _killPoolRemaining - _waveClearReward);
-        _totalWeightPlanned = GetWeight(defaultType) * _enemiesPlanned;
     }
 
     public void NotifyBreach()
@@ -83,38 +144,33 @@ public class WaveGoldBudget : MonoBehaviour
     }
 
     /// <summary>
-    /// 击杀掉落金额（清屏怪应不调用）。0 表示不掉。
+    /// 击杀掉落：先在类型区间内随机，再与击杀池取小；池尽则 0。
+    /// 清屏怪应不调用。
     /// </summary>
     public int RollKillGold(EnemyGoldType type)
     {
-        if (_killPoolRemaining <= 0 || _totalWeightPlanned <= 0f)
+        if (_killPoolRemaining <= 0)
         {
-            return ClampForType(type, 0);
+            return 0;
         }
 
-        float weight = GetWeight(type);
-        float expected = _killPoolRemaining * (weight / Mathf.Max(0.01f, _totalWeightPlanned));
-        // 消耗规划权重，避免后期怪吃光预算时期望失真
-        _totalWeightPlanned = Mathf.Max(0.01f, _totalWeightPlanned - weight);
+        GetDropRange(type, out int min, out int max);
+        int roll = Random.Range(min, max + 1);
 
-        int roll = Mathf.RoundToInt(expected + Random.Range(-1.2f, 1.2f));
-        roll = ClampForType(type, roll);
+        // 池将尽时略向期望靠拢，避免最后几只全被钳成 0 或打穿预算观感
+        if (_totalWeightPlanned > 0.01f)
+        {
+            float weight = GetWeight(type);
+            float expected = _killPoolRemaining * (weight / _totalWeightPlanned);
+            _totalWeightPlanned = Mathf.Max(0.01f, _totalWeightPlanned - weight);
+            // 区间随机为主，期望只做轻微牵引
+            roll = Mathf.RoundToInt(Mathf.Lerp(roll, expected, 0.25f));
+            roll = Mathf.Clamp(roll, min, max);
+        }
+
         roll = Mathf.Clamp(roll, 0, _killPoolRemaining);
         _killPoolRemaining -= roll;
         return roll;
-    }
-
-    static int ClampForType(EnemyGoldType type, int value)
-    {
-        switch (type)
-        {
-            case EnemyGoldType.Swarm:
-                return Mathf.Clamp(value, 0, 1);
-            case EnemyGoldType.Normal:
-                return Mathf.Max(0, value);
-            default:
-                return Mathf.Max(0, value);
-        }
     }
 
     public int TakeWaveClearReward()

@@ -26,6 +26,10 @@ public class RedirectorModule : ModuleBase
 
     public override ModuleType ModuleType => global::ModuleType.Redirector;
 
+    public override bool CanRotate => true;
+
+    public override int OrientationIndex => orientation;
+
     /// <summary>当前朝向 0..3。</summary>
     public int Orientation => orientation;
 
@@ -34,14 +38,19 @@ public class RedirectorModule : ModuleBase
     /// </summary>
     public void SetOrientation(int value)
     {
+        SetOrientationIndex(value);
+    }
+
+    public override void SetOrientationIndex(int value)
+    {
         orientation = ((value % 4) + 4) % 4;
         RefreshVisual();
     }
 
     /// <summary>
-    /// 顺时针旋转 90°（放置预览或已放置后按 R）。
+    /// 顺时针旋转 90°（手牌预览 / 棋盘拿起时按 R）。
     /// </summary>
-    public void RotateClockwise()
+    public override void RotateClockwise()
     {
         SetOrientation(orientation + 1);
     }

@@ -22,14 +22,21 @@ public class Enemy : MonoBehaviour
 
     public bool IsAlive => _alive;
     public EnemyGoldType GoldType => goldType;
+    public int MaxHitPoints => maxHitPoints;
+    public int CurrentHitPoints => _currentHp;
 
-    public void Initialize(BattleLane lane, Mage mage, WaveManager waveManager, EnemyGoldType type = EnemyGoldType.Normal)
+    public void Initialize(
+        BattleLane lane,
+        Mage mage,
+        WaveManager waveManager,
+        int waveDisplay,
+        EnemyGoldType type = EnemyGoldType.Normal)
     {
         _lane = lane;
         _mage = mage;
         _waveManager = waveManager;
         goldType = type;
-        ApplyTypeStats(type);
+        ApplyTypeStats(type, waveDisplay);
         _currentHp = maxHitPoints;
         _alive = true;
         _slowPercent = 0f;
@@ -37,20 +44,18 @@ public class Enemy : MonoBehaviour
         EnsureVisual();
     }
 
-    void ApplyTypeStats(EnemyGoldType type)
+    void ApplyTypeStats(EnemyGoldType type, int waveDisplay)
     {
+        maxHitPoints = WaveSpawnBudget.GetHitPoints(waveDisplay, type);
         switch (type)
         {
             case EnemyGoldType.Swarm:
-                maxHitPoints = 5;
                 _baseMoveSpeed = 3.0f;
                 break;
             case EnemyGoldType.Tank:
-                maxHitPoints = 40;
                 _baseMoveSpeed = 0.75f;
                 break;
             default:
-                maxHitPoints = 10;
                 _baseMoveSpeed = 1.5f;
                 break;
         }
@@ -65,8 +70,13 @@ public class Enemy : MonoBehaviour
             return;
         }
 
+        bool wasSlowed = _slowTimer > 0f && _slowPercent > 0f;
         _slowPercent = Mathf.Clamp01(Mathf.Max(_slowPercent, percent));
         _slowTimer = Mathf.Max(_slowTimer, duration);
+        if (!wasSlowed)
+        {
+            RefreshDisplayColor();
+        }
     }
 
     void Update()
@@ -87,6 +97,7 @@ public class Enemy : MonoBehaviour
             if (_slowTimer <= 0f)
             {
                 _slowPercent = 0f;
+                RefreshDisplayColor();
             }
         }
 
@@ -176,15 +187,15 @@ public class Enemy : MonoBehaviour
         }
 
         _visual.color = Color.white;
-        CancelInvoke(nameof(RestoreColor));
-        Invoke(nameof(RestoreColor), 0.05f);
+        CancelInvoke(nameof(RefreshDisplayColor));
+        Invoke(nameof(RefreshDisplayColor), 0.05f);
     }
 
-    void RestoreColor()
+    void RefreshDisplayColor()
     {
         if (_visual != null)
         {
-            _visual.color = GetTypeColor();
+            _visual.color = GetDisplayColor();
         }
     }
 
@@ -201,6 +212,19 @@ public class Enemy : MonoBehaviour
         }
     }
 
+    Color GetDisplayColor()
+    {
+        Color baseColor = GetTypeColor();
+        if (_slowTimer <= 0f || _slowPercent <= 0f)
+        {
+            return baseColor;
+        }
+
+        // 冰蓝叠色：黄/红怪变化最明显；蓝坦也偏青白
+        Color ice = new Color(0.35f, 0.95f, 1f, 1f);
+        return Color.Lerp(baseColor, ice, 0.72f);
+    }
+
     void EnsureVisual()
     {
         if (_visual == null)
@@ -213,7 +237,7 @@ public class Enemy : MonoBehaviour
         }
 
         _visual.sprite = PrototypeSprites.Square;
-        RestoreColor();
+        RefreshDisplayColor();
         _visual.sortingOrder = 10;
         float s = 0.9f;
         if (goldType == EnemyGoldType.Swarm)

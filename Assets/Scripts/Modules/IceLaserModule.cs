@@ -1,16 +1,16 @@
 using UnityEngine;
 
 /// <summary>
-/// 查理寒冰塔：伤害 5、耗能 2、减速目标（刷新不叠加）。
+/// 查理寒冰塔：伤害/射速/储能同激光升级；固定 30% 寒冷减速，升级加时长。
 /// </summary>
 public class IceLaserModule : ModuleBase
 {
-    [SerializeField] int energyCapacity = 8;
+    [SerializeField] int energyCapacity = 10;
     [SerializeField] int currentEnergy;
-    [SerializeField] float fireInterval = 0.12f;
+    [SerializeField] float fireInterval = 0.1f;
     [SerializeField] int energyPerShot = 2;
     [SerializeField] int damagePerShot = 5;
-    [SerializeField] float slowPercent = 0.30f;
+    [SerializeField] float slowPercent = ModuleCatalog.IceSlowPercent;
     [SerializeField] float slowDuration = 2f;
     [SerializeField] float trailVisibleSeconds = 0.1f;
 
@@ -27,6 +27,8 @@ public class IceLaserModule : ModuleBase
     public int EnergyCapacity => energyCapacity;
     public int DamagePerShot => damagePerShot;
     public float FireInterval => fireInterval;
+    public float SlowPercent => slowPercent;
+    public float SlowDuration => slowDuration;
 
     public void ClearEnergy()
     {
@@ -43,20 +45,11 @@ public class IceLaserModule : ModuleBase
     void ApplyLevelStats(int level)
     {
         int lvl = Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel);
-        damagePerShot = 5;
-        energyCapacity = 8 + (lvl - 1);
-        fireInterval = Mathf.Max(0.08f, 0.12f / (1f + 0.08f * (lvl - 1)));
-        if (lvl >= 2)
-        {
-            slowPercent = 0.40f;
-            slowDuration = 3f;
-        }
-        else
-        {
-            slowPercent = 0.30f;
-            slowDuration = 2f;
-        }
-
+        damagePerShot = ModuleCatalog.GetDamagePerShot(lvl);
+        energyCapacity = ModuleCatalog.GetEnergyCapacity(lvl);
+        fireInterval = ModuleCatalog.GetFireInterval(lvl);
+        slowPercent = ModuleCatalog.IceSlowPercent;
+        slowDuration = ModuleCatalog.GetIceSlowDuration(lvl);
         currentEnergy = Mathf.Min(currentEnergy, energyCapacity);
         EnsureLevelLabel(lvl);
         RefreshVisual();

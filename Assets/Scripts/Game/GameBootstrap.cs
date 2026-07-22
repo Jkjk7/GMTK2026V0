@@ -179,7 +179,13 @@ public class GameBootstrap : MonoBehaviour
         var unlockDirector = unlockGo.AddComponent<ModuleUnlockDirector>();
         unlockDirector.Initialize(RunModulePool.Instance, draftUi);
 
-        waveManager.Initialize(lane, mage, session, enemyRoot, ballManager, unlockDirector);
+        var emitterUpgrades = economyGo.AddComponent<EmitterRunUpgrades>();
+        var emitterDraftGo = new GameObject("EmitterUpgradeDirector");
+        emitterDraftGo.transform.SetParent(layoutGo.transform, false);
+        var emitterDirector = emitterDraftGo.AddComponent<EmitterUpgradeDirector>();
+        emitterDirector.Initialize(emitterUpgrades, draftUi);
+
+        waveManager.Initialize(lane, mage, session, enemyRoot, ballManager, unlockDirector, emitterDirector);
 
         HandController hand = CreateHand(sidebar, font, _skin);
         var shop = CreateShopPanel(sidebar, font, hand, session, waveManager, _skin);
@@ -210,7 +216,7 @@ public class GameBootstrap : MonoBehaviour
         CreateBoardExpandHint(canvas.transform, font, boardExpand);
 
         ValidateRedirectorTable();
-        Debug.Log("[GameBootstrap] Roguelike15：解锁池 / 点数刷怪 / 棋盘扩展 / 新模块。");
+        Debug.Log("[GameBootstrap] Roguelike15：解锁池 / 固定配额波次 / 棋盘扩展 / 发射器升级。");
     }
 
     void BuildHudAndWire(

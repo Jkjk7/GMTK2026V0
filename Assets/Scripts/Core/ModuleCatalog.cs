@@ -26,6 +26,8 @@ public static class ModuleCatalog
 
     public static bool IsPathModule(ModuleType type) => type == ModuleType.Redirector;
 
+    public static bool IsRotatable(ModuleType type) => type == ModuleType.Redirector;
+
     public static ModuleType[] GetSellableTypes() => AllTypes;
 
     public static ModuleType RollRandomType()
@@ -113,9 +115,9 @@ public static class ModuleCatalog
             case ModuleType.Bomb:
                 return "向最左敌人投掷炸弹，落地后造成范围爆炸伤害";
             case ModuleType.IceLaser:
-                return "发射寒冰激光造成少量伤害并减速目标";
+                return "发射寒冰激光（伤害/射速同激光塔），施加固定 30% 寒冷减速；升级延长减速时长";
             case ModuleType.Miner:
-                return "消耗能量开采比特币，为你提供金币";
+                return "消耗固定能量开采比特币；升级大幅提高每次产金";
             default:
                 return string.Empty;
         }
@@ -170,13 +172,26 @@ public static class ModuleCatalog
         return 1.5f * (1f + 0.30f * (lvl - 1));
     }
 
-    public static int GetMinerEnergyCost(int level)
+    /// <summary>寒冷减速比例固定 30%；升级只加持续时间。</summary>
+    public static float GetIceSlowDuration(int level)
+    {
+        int lvl = Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel);
+        return 2f + (lvl - 1);
+    }
+
+    public const float IceSlowPercent = 0.30f;
+
+    /// <summary>采矿能耗固定；升级不加吞吐、只加产金。</summary>
+    public static int GetMinerEnergyCost(int level) => 10;
+
+    /// <summary>采矿产金：Lv1=1，Lv2=3，Lv3=8（跨越式）。</summary>
+    public static int GetMinerGoldAmount(int level)
     {
         switch (Mathf.Clamp(level, 1, 3))
         {
-            case 1: return 10;
-            case 2: return 8;
-            default: return 5;
+            case 1: return 1;
+            case 2: return 3;
+            default: return 8;
         }
     }
 

@@ -35,26 +35,29 @@ public static class ModulePricing
     public static int GetShopPrice(ModuleType type, int level, int waveNumber)
     {
         int stage = GetStage(waveNumber);
+        // 每 5 波一大跳：stage0=1、stage1≈1.8、stage2≈3.2
+        float stageMult = Mathf.Pow(1.80f, stage);
         int basePrice = GetBasePrice(type);
+
         if (ModuleCatalog.IsAttackModule(type))
         {
             int lvl = Mathf.Clamp(level, 1, MaxAttackLevel);
             float price = basePrice
                           * Mathf.Pow(2.25f, lvl - 1)
-                          * Mathf.Pow(1.12f, stage);
+                          * stageMult;
             return RoundToFive(Mathf.RoundToInt(price));
         }
 
         if (type == ModuleType.Miner)
         {
             int lvl = Mathf.Clamp(level, 1, 3);
-            float price = basePrice * (1f + 0.35f * (lvl - 1)) * Mathf.Pow(1.10f, stage);
+            float price = basePrice * (1f + 0.35f * (lvl - 1)) * stageMult;
             return RoundToFive(Mathf.RoundToInt(price));
         }
 
-        float util = basePrice * Mathf.Pow(1.10f, stage);
-        int capped = Mathf.Min(Mathf.RoundToInt(util), basePrice * 2);
-        return RoundToFive(capped);
+        // 功能模块：同阶段跳价，不再用 2× 基础价硬顶死（否则后期跳价无效）
+        float util = basePrice * stageMult;
+        return RoundToFive(Mathf.RoundToInt(util));
     }
 
     static int GetBasePrice(ModuleType type)
@@ -69,30 +72,16 @@ public static class ModulePricing
         }
     }
 
-    public static int GetRefreshCost(int waveNumber, int refreshIndexInWave)
+    /// <summary>刷新费随商店阶段跳变，同阶段恒定。</summary>
+    public static int GetRefreshCost(int waveNumber)
     {
         int stage = GetStage(waveNumber);
-        int bas = 3 + 2 * stage;
-        float mult = 1f;
-        if (refreshIndexInWave <= 0)
-        {
-            mult = 1f;
-        }
-        else if (refreshIndexInWave == 1)
-        {
-            mult = 1.75f;
-        }
-        else if (refreshIndexInWave == 2)
-        {
-            mult = 2.5f;
-        }
-        else
-        {
-            mult = 3.25f;
-        }
-
-        return Mathf.Max(1, Mathf.RoundToInt(bas * mult));
+        // 波1–5:5；6–10:12；11–15:22
+        return 5 + stage * (7 + stage);
     }
+
+    // 兼容旧调用：忽略 refreshIndex
+    public static int GetRefreshCost(int waveNumber, int refreshIndexInWave) => GetRefreshCost(waveNumber);
 
     public static int GetDismantleCost(ModuleCardData card, int waveNumber, bool inCombat)
     {
