@@ -23,7 +23,7 @@ public struct ModuleCardData
     public static ModuleCardData FromShopPurchase(ModuleType type, int level, int pricePaid)
     {
         int lvl;
-        if (ModuleCatalog.IsAttackModule(type))
+        if (ModuleCatalog.IsAttackModule(type) || type == ModuleType.FlameAmp)
         {
             lvl = Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel);
         }
@@ -44,6 +44,13 @@ public struct ModuleCardData
         if (Type == ModuleType.Miner)
         {
             return Type == other.Type && Level == other.Level && Level < 3;
+        }
+
+        if (Type == ModuleType.FlameAmp)
+        {
+            return Type == other.Type
+                   && Level == other.Level
+                   && Level < ModulePricing.MaxAttackLevel;
         }
 
         return ModuleCatalog.IsAttackModule(Type)

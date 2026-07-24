@@ -26,6 +26,7 @@ public class EnergyBall : MonoBehaviour
     int _energy = DefaultEnergy;
     SpriteRenderer _visual;
     Vector3 _previousPosition;
+    TextMesh _lifeLabel;
 
     /// <summary>当前飞行方向。</summary>
     public GridDirection Direction => _direction;
@@ -35,6 +36,9 @@ public class EnergyBall : MonoBehaviour
 
     /// <summary>是否仍在场上有效。</summary>
     public bool IsAlive => _alive;
+
+    /// <summary>剩余寿命（秒）。</summary>
+    public float RemainingLifetime => Mathf.Max(0f, lifetimeSeconds - _age);
 
     /// <summary>
     /// 由 EnergyBallManager 在生成时调用。
@@ -76,6 +80,8 @@ public class EnergyBall : MonoBehaviour
         transform.position = worldPosition;
         _previousPosition = worldPosition;
         EnsureVisual();
+        EnsureLifeLabel();
+        RefreshLifeLabel();
     }
 
     /// <summary>
@@ -103,6 +109,7 @@ public class EnergyBall : MonoBehaviour
         }
 
         _age += Time.deltaTime;
+        RefreshLifeLabel();
         if (_age >= lifetimeSeconds)
         {
             Despawn();
@@ -234,11 +241,50 @@ public class EnergyBall : MonoBehaviour
         }
 
         _visual.sprite = PrototypeSprites.Circle;
-        // 质量越高略偏暖、略大（质量档 1/2/5/10）
-        float t = Mathf.Clamp01((_energy - 1) / 9f);
+        // 质量越高略偏暖、略大（质量档 1/2/3/4）
+        float t = Mathf.Clamp01((_energy - 1) / 3f);
         _visual.color = Color.Lerp(new Color(0.55f, 0.95f, 1f, 1f), new Color(1f, 0.82f, 0.35f, 1f), t);
         _visual.sortingOrder = 20;
-        float scale = 0.32f + 0.028f * Mathf.Clamp(_energy, 1, 10);
+        float scale = 0.32f + 0.07f * Mathf.Clamp(_energy, 1, 4);
         transform.localScale = Vector3.one * scale;
+    }
+
+    void EnsureLifeLabel()
+    {
+        if (_lifeLabel != null)
+        {
+            return;
+        }
+
+        var go = new GameObject("LifeLabel");
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = new Vector3(0f, 0.85f, 0f);
+        float inv = 1f / Mathf.Max(0.05f, transform.localScale.x);
+        go.transform.localScale = new Vector3(0.09f * inv, 0.09f * inv, 1f);
+        _lifeLabel = go.AddComponent<TextMesh>();
+        _lifeLabel.anchor = TextAnchor.MiddleCenter;
+        _lifeLabel.alignment = TextAlignment.Center;
+        _lifeLabel.fontSize = 42;
+        _lifeLabel.color = new Color(1f, 0.95f, 0.75f, 1f);
+        var mr = go.GetComponent<MeshRenderer>();
+        if (mr != null)
+        {
+            mr.sortingOrder = 25;
+        }
+    }
+
+    void RefreshLifeLabel()
+    {
+        EnsureLifeLabel();
+        if (_lifeLabel == null)
+        {
+            return;
+        }
+
+        float rem = RemainingLifetime;
+        _lifeLabel.text = rem >= 10f ? rem.ToString("0") : rem.ToString("0.0");
+        _lifeLabel.color = rem <= 3f
+            ? new Color(1f, 0.45f, 0.35f, 1f)
+            : new Color(1f, 0.95f, 0.75f, 1f);
     }
 }

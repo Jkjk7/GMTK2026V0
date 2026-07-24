@@ -20,7 +20,7 @@ public class ModuleUnlockDirector : MonoBehaviour
 
     public bool ShouldOfferAfterWave(int waveDisplay)
     {
-        return waveDisplay > 0 && waveDisplay % 3 == 0 && waveDisplay < 15;
+        return waveDisplay > 0 && waveDisplay % 3 == 0 && waveDisplay < 25;
     }
 
     public void BeginDraft(int waveDisplay, Action onFinished)
@@ -88,11 +88,20 @@ public class ModuleUnlockDirector : MonoBehaviour
     List<ModuleType> GetCandidatesForWave(int waveDisplay)
     {
         var list = new List<ModuleType>();
-        // 波3：炸弹、寒冰为主
         list.Add(ModuleType.Bomb);
-        list.Add(ModuleType.IceLaser);
         list.Add(ModuleType.Miner);
-        // 波段仅影响「优先展示」，三者都进候选；已拥有的会被过滤
+        // 寒冰/火花已在开局池，不再进解锁候选
+        if (waveDisplay >= 6)
+        {
+            list.Add(ModuleType.FlameAmp);
+        }
+
+        // 史诗黑洞：偏后期才进解锁池
+        if (waveDisplay >= 9)
+        {
+            list.Add(ModuleType.BlackHole);
+        }
+
         return list;
     }
 

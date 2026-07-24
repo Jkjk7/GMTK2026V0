@@ -48,17 +48,26 @@ public class BoardExpandService : MonoBehaviour
 
     public int GetNextExpandCost()
     {
+        int baseCost;
         if (_unlockedSize < Size5)
         {
-            return ModulePricing.BoardExpandTo5Cost;
+            baseCost = ModulePricing.BoardExpandTo5Cost;
         }
-
-        if (_unlockedSize < Size7)
+        else if (_unlockedSize < Size7)
         {
-            return ModulePricing.BoardExpandTo7Cost;
+            baseCost = ModulePricing.BoardExpandTo7Cost;
+        }
+        else
+        {
+            return 0;
         }
 
-        return 0;
+        if (RunModifiers.Instance != null && RunModifiers.Instance.NextExpandHalfPrice)
+        {
+            return Mathf.Max(1, baseCost / 2);
+        }
+
+        return baseCost;
     }
 
     public int GetNextSize()
@@ -89,6 +98,7 @@ public class BoardExpandService : MonoBehaviour
             return false;
         }
 
+        RunModifiers.Instance?.TryConsumeExpandHalfPrice();
         _unlockedSize = GetNextSize();
         RefreshLockVisuals();
         return true;

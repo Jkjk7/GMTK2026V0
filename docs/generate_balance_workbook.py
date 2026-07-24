@@ -30,11 +30,11 @@ def laser_dmg(lv: int) -> int:
 
 
 def laser_cap(lv: int) -> int:
-    return 10 + (lv - 1) * 2
+    return 5 + (lv - 1) * 2  # 削弱：基础 10 → 5
 
 
 def laser_interval(lv: int) -> float:
-    return max(0.05, 0.1 / (1 + 0.10 * (lv - 1)))
+    return max(0.05, 0.2 / (1 + 0.10 * (lv - 1)))  # 削弱：基础射速 10/s → 5/s
 
 
 def bomb_dmg(lv: int) -> int:
@@ -50,23 +50,27 @@ def bomb_cap(lv: int) -> int:
 
 
 def ice_cap(lv: int) -> int:
-    return 8 + (lv - 1)
+    return laser_cap(lv)  # 与激光同储能
 
 
 def ice_interval(lv: int) -> float:
-    return max(0.08, 0.12 / (1 + 0.08 * (lv - 1)))
+    return laser_interval(lv)  # 与激光同射速
 
 
 def ice_slow(lv: int) -> float:
-    return 0.40 if lv >= 3 else 0.30
+    return 0.30  # 固定 30%
 
 
 def ice_slow_dur(lv: int) -> float:
-    return 3.0 if lv >= 3 else 2.0
+    return 2.0 + (lv - 1)  # 升级只延长时长
 
 
 def miner_cost(lv: int) -> int:
-    return {1: 10, 2: 8, 3: 5}[lv]
+    return 10  # 固定能耗
+
+
+def miner_gold(lv: int) -> int:
+    return {1: 1, 2: 3, 3: 8}[min(max(lv, 1), 3)]
 
 
 def stage(w: int) -> int:
@@ -82,14 +86,24 @@ def round5(v: int) -> int:
 def shop_price(kind: str, lv: int, wave: int) -> int:
     st = stage(wave)
     stage_mult = 1.80 ** st
-    base = {"laser": 20, "redirector": 15, "bomb": 25, "ice": 22, "miner": 18}[kind]
-    if kind in ("laser", "bomb", "ice"):
-        price = base * (2.25 ** (lv - 1)) * stage_mult
+    base = {
+        "laser": 10, "redirector": 15, "bomb": 25, "ice": 22, "miner": 18, "blackhole": 45,
+    }[kind]
+    rarity_mult = {
+        "laser": 1.0, "bomb": 1.0, "ice": 1.0,
+        "redirector": 1.5, "miner": 1.5, "blackhole": 2.5,
+    }[kind]
+    lv_exp = {
+        "laser": 2.25, "bomb": 2.25, "ice": 2.25,
+        "redirector": 2.35, "miner": 2.35, "blackhole": 2.6,
+    }[kind]
+    if kind in ("laser", "bomb", "ice", "blackhole"):
+        price = base * (lv_exp ** (lv - 1)) * stage_mult * rarity_mult
         return round5(round(price))
     if kind == "miner":
-        price = base * (1 + 0.35 * (lv - 1)) * stage_mult
+        price = base * (1 + 0.35 * (lv - 1)) * stage_mult * rarity_mult
         return round5(round(price))
-    return round5(round(base * stage_mult))
+    return round5(round(base * stage_mult * rarity_mult))
 
 
 def refresh_cost(wave: int) -> int:
@@ -97,24 +111,40 @@ def refresh_cost(wave: int) -> int:
     return 5 + st * (7 + st)
 
 
-WAVE_NORMAL_COUNTS = [6, 8, 10, 14, 12, 14, 16, 18, 20, 24, 26, 28, 30, 32, 36]
-WAVE_SWARM_COUNTS = [0, 0, 0, 0, 10, 12, 16, 20, 26, 36, 40, 44, 48, 52, 60]
-WAVE_TANK_COUNTS = [0, 0, 0, 0, 0, 0, 0, 2, 3, 5, 5, 6, 7, 8, 10]
-WAVE_NORMAL_HP = [10, 10, 10, 10, 10, 25, 25, 25, 25, 25, 50, 50, 50, 50, 50]
+WAVE_NORMAL_COUNTS = [
+    5, 7, 9, 12, 10, 14, 16, 18, 20, 24, 26, 28, 30, 32, 36,
+    40, 44, 48, 52, 58, 62, 66, 72, 78, 88,
+]
+WAVE_SWARM_COUNTS = [
+    0, 0, 0, 0, 9, 12, 16, 20, 26, 36, 40, 44, 48, 52, 60,
+    68, 76, 84, 92, 104, 112, 120, 130, 140, 160,
+]
+WAVE_TANK_COUNTS = [
+    0, 0, 0, 0, 0, 0, 0, 2, 3, 5, 5, 6, 7, 8, 10,
+    11, 12, 14, 16, 18, 20, 22, 24, 26, 30,
+]
+WAVE_NORMAL_HP = [
+    10, 10, 10, 10, 10, 25, 25, 25, 25, 25, 50, 50, 50, 50, 50,
+    80, 80, 80, 80, 80, 130, 130, 130, 130, 130,
+]
 WAVE_SPAWN_INTERVALS = [
-    0.65, 0.60, 0.55, 0.48, 0.30,
+    0.75, 0.69, 0.63, 0.55, 0.35,
     0.50, 0.42, 0.34, 0.26, 0.16,
     0.38, 0.30, 0.24, 0.18, 0.12,
+    0.32, 0.26, 0.20, 0.15, 0.10,
+    0.28, 0.22, 0.16, 0.12, 0.08,
 ]
 TARGET_COMBAT_SECONDS = [
     (8, 12), (10, 14), (12, 16), (14, 20), (18, 25),
     (20, 30), (22, 32), (25, 35), (28, 40), (30, 45),
     (35, 50), (40, 55), (45, 60), (50, 65), (55, 75),
+    (60, 85), (65, 95), (70, 105), (75, 115), (80, 130),
+    (90, 145), (100, 160), (110, 175), (120, 190), (130, 210),
 ]
 
 
 def wave_index(w: int) -> int:
-    return max(1, min(15, w)) - 1
+    return max(1, min(25, w)) - 1
 
 
 def wave_counts(w: int) -> tuple[int, int, int]:
@@ -178,7 +208,7 @@ def prep_seconds(w: int) -> float:
 
 
 def gold_budget(w: int) -> int:
-    w = max(1, min(15, w))
+    w = max(1, min(25, w))
     return max(20, round5(round(18 * (1.205 ** (w - 1)))))
 
 
@@ -186,7 +216,7 @@ def dismantle_cost(kind: str, lv: int, wave: int, combat: bool) -> int:
     if not combat:
         return 0
     ref = shop_price(kind, lv, wave)
-    rate = 0.12 if kind in ("laser", "bomb", "ice") else 0.06
+    rate = 0.12 if kind in ("laser", "bomb", "ice", "blackhole") else 0.06
     return max(1, round(ref * rate))
 
 
@@ -251,10 +281,11 @@ def main():
         ["能量瓶颈", "有效输出 ≈ 能量到达攻击模块速率 × 伤害/能；塔射速通常不是瓶颈"],
         ["索敌", "全体打最左敌人"],
         ["刷怪模型", "每波固定红/黄/蓝配额，仅随机打乱顺序；点数只保留作旧版等价显示"],
-        ["HP模型", "黄=向上取整(红×50%)；蓝=红×4；红HP仅在波6/11换档：10→25→50"],
-        ["商店阶段", "stage = (wave-1)//5 → 波1-5=0，6-10=1，11-15=2"],
-        ["发射器升级时机", "波5、10结束后三选一"],
-        ["模块解锁时机", "波3/6/9/12 三选一"],
+        ["HP模型", "黄=向上取整(红×50%)；蓝=红×4；红HP在波6/11/16/21换档：10→25→50→80→130"],
+        ["商店阶段", "stage = (wave-1)//5 → 波1-5=0 … 波21-25=4；价含稀有度倍率"],
+        ["发射器升级时机", "波5/10/15/20 结束后三选一"],
+        ["模块解锁时机", "每3波（至24）；波≥9 可抽黑洞"],
+        ["祝福束缚", "波5/10/15/20：祝福+束缚组合三选一"],
         [""],
         ["工作表"],
         ["01_全局常量", "开局资源、棋盘、返还率等"],
@@ -265,8 +296,8 @@ def main():
         ["06_模块_采矿", "Lv1-3 能耗与金产出"],
         ["07_收束器", "路径模块"],
         ["08_发射器", "四维升级档位与能量/秒"],
-        ["09_波次曲线", "15波固定配额/HP/总HP/间隔/刷怪段/验收时长"],
-        ["10_商店价格", "各模块在波1/6/11 的标价"],
+        ["09_波次曲线", "25波固定配额/HP/总HP/间隔/刷怪段/验收时长"],
+        ["10_商店价格", "各模块（含黑洞）在关键波标价"],
         ["11_能量DPS对照", "无环理论DPS vs 波次总HP粗估"],
         ["12_拆除费", "战斗中移动/拆除费用示例"],
     ]
@@ -290,7 +321,7 @@ def main():
         ["攻击最高等级", 5, "ModulePricing.MaxAttackLevel"],
         ["采矿最高等级", 3, "Miner"],
         ["本局商店池上限", 12, "RunModulePool.MaxSize"],
-        ["开局解锁", "激光+收束器", ""],
+        ["开局解锁", "激光+收束器+寒冰+火花", ""],
         ["分解返还率", 0.30, "invested×30%，至少1"],
         ["棋盘逻辑尺寸", "7×7", ""],
         ["可建造起步", "3×3", "BoardExpandService"],
@@ -384,7 +415,7 @@ def main():
     rows = []
     for lv in range(1, 4):
         cost = miner_cost(lv)
-        gold_per = 1
+        gold_per = miner_gold(lv)
         cd = 3.0
         # theoretical gold/s if energy infinite
         gps = gold_per / cd
@@ -409,7 +440,7 @@ def main():
     ws = wb.create_sheet("08_发射器")
     fire = [0.50, 0.70, 0.95, 1.25]
     speed = [4.0, 5.5, 7.0, 8.5]
-    mass = [1, 2, 5, 10]
+    mass = [1, 2, 3, 4]  # 削弱：原 1/2/5/10
     life = [12, 20, 32, 50]
     rows = []
     for i in range(4):
@@ -430,8 +461,8 @@ def main():
     combos = [
         ["全开局", 0.5 * 1, "0.50"],
         ["满射速+开局质量", 1.25 * 1, "1.25"],
-        ["开局射速+满质量", 0.5 * 10, "5.00"],
-        ["满射速+满质量", 1.25 * 10, "12.50"],
+        ["开局射速+满质量", 0.5 * 4, "2.00"],
+        ["满射速+满质量", 1.25 * 4, "5.00"],
     ]
     write_table(ws, end2 + 1, ["情景", "能量/秒", "验算"], combos)
     autosize(ws)
@@ -440,7 +471,7 @@ def main():
     ws = wb.create_sheet("09_波次曲线")
     rows = []
     previous_total_hp = None
-    for w in range(1, 16):
+    for w in range(1, 26):
         normal_count, swarm_count, tank_count = wave_counts(w)
         normal_hp, swarm_hp, tank_hp = enemy_hp(w)
         enemy_count = normal_count + swarm_count + tank_count
@@ -455,10 +486,11 @@ def main():
         clear = round(gb * 0.20)
         perfect = max(0, gb - kill - clear)
         unlock = ""
-        if w in (3, 6, 9, 12):
+        if w % 3 == 0 and w < 25:
             unlock = "模块Draft"
-        if w in (5, 10):
-            unlock = (unlock + "+" if unlock else "") + "发射器升级"
+        if w % 5 == 0 and w < 25:
+            unlock = (unlock + "+" if unlock else "") + "发射器"
+            unlock += "+祝福束缚"
         rows.append(
             [
                 w,
@@ -515,24 +547,26 @@ def main():
         ],
         rows,
     )
-    for row in range(2, 17):
+    for row in range(2, 27):
         ws.cell(row, 11).number_format = "0%"
     autosize(ws, max_w=22)
 
     # --- 10 商店价格 ---
     ws = wb.create_sheet("10_商店价格")
-    headers = ["模块", "等级"] + [f"波{w}价" for w in (1, 3, 5, 6, 8, 10, 11, 13, 15)]
+    price_waves = (1, 3, 5, 6, 8, 10, 11, 13, 15, 16, 20, 21, 25)
+    headers = ["模块", "等级"] + [f"波{w}价" for w in price_waves]
     rows = []
     for kind, name, max_lv in [
         ("laser", "查理激光塔", 5),
         ("bomb", "大卫炸弹塔", 5),
         ("ice", "查理寒冰塔", 5),
+        ("blackhole", "黑洞发射器", 5),
         ("miner", "比特币采矿机", 3),
         ("redirector", "收束器", 1),
     ]:
         for lv in range(1, max_lv + 1):
             row = [name, lv]
-            for w in (1, 3, 5, 6, 8, 10, 11, 13, 15):
+            for w in price_waves:
                 row.append(shop_price(kind, lv, w))
             rows.append(row)
     write_table(ws, 1, headers, rows)
@@ -551,27 +585,27 @@ def main():
         "激光Lv",
         "伤/能",
         "理论DPS(无环)",
-        "波10混合HP",
-        "波10清场秒(无环)",
         "波15混合HP",
         "波15清场秒(无环)",
+        "波25混合HP",
+        "波25清场秒(无环)",
         "备注",
     ]
     scenarios = [
         ("开局 0.5×1", 0.5),
         ("射速满×质量1", 1.25),
-        ("射速0.5×质量满", 5.0),
-        ("双满 1.25×10", 12.5),
+        ("射速0.5×质量满", 2.0),
+        ("双满 1.25×4", 5.0),
     ]
-    hp10 = wave_total_hp(10)
     hp15 = wave_total_hp(15)
+    hp25 = wave_total_hp(25)
     rows = []
     for name, eps in scenarios:
         for lv in (1, 3, 5):
             dpe = laser_dmg(lv)  # 1 energy per shot
             dps = eps * dpe
-            t10 = hp10 / dps if dps > 0 else None
             t15 = hp15 / dps if dps > 0 else None
+            t25 = hp25 / dps if dps > 0 else None
             rows.append(
                 [
                     name,
@@ -579,10 +613,10 @@ def main():
                     lv,
                     dpe,
                     round(dps, 1),
-                    round(hp10),
-                    round(t10, 1) if t10 else "-",
                     round(hp15),
                     round(t15, 1) if t15 else "-",
+                    round(hp25),
+                    round(t25, 1) if t25 else "-",
                     "环路会把有效投能倍率抬高；实机校准",
                 ]
             )
@@ -633,10 +667,17 @@ def main():
     ws = wb.create_sheet("12_拆除费")
     headers = ["模块", "等级", "波", "准备拆除", "战斗拆除/移动"]
     rows = []
-    for kind, name in [("laser", "激光"), ("redirector", "收束器"), ("bomb", "炸弹"), ("ice", "寒冰"), ("miner", "采矿")]:
+    for kind, name in [
+        ("laser", "激光"),
+        ("redirector", "收束器"),
+        ("bomb", "炸弹"),
+        ("ice", "寒冰"),
+        ("miner", "采矿"),
+        ("blackhole", "黑洞"),
+    ]:
         max_lv = 3 if kind == "miner" else (1 if kind == "redirector" else 5)
         for lv in range(1, min(3, max_lv) + 1):
-            for w in (5, 10, 15):
+            for w in (5, 10, 15, 20, 25):
                 rows.append([name, lv, w, 0, dismantle_cost(kind, lv, w, True)])
     write_table(ws, 1, headers, rows)
     autosize(ws)
@@ -645,12 +686,14 @@ def main():
     check = load_workbook(OUT, read_only=True, data_only=True)
     wave_sheet = check["09_波次曲线"]
     for wave, expected_count, expected_hp in (
-        (1, 6, 60),
-        (5, 22, 170),
+        (1, 5, 50),
+        (5, 19, 145),
         (6, 26, 506),
         (10, 65, 1568),
         (11, 71, 3300),
         (15, 106, 5300),
+        (20, 180, wave_total_hp(20)),
+        (25, 278, wave_total_hp(25)),
     ):
         row = wave + 1
         actual_count = wave_sheet.cell(row, 6).value

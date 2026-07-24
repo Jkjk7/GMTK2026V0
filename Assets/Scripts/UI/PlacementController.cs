@@ -310,7 +310,8 @@ public class PlacementController : MonoBehaviour
             return;
         }
 
-        if (_board.GetModule(cell) == null)
+        ModuleBase existing = _board.GetModule(cell);
+        if (existing == null || existing.IsPermanentlyLocked)
         {
             return;
         }
@@ -356,6 +357,7 @@ public class PlacementController : MonoBehaviour
                 ModuleBase occupant = _board.GetModule(cell);
                 bool canDrop = _board.CanPlace(cell) ||
                                (occupant != null &&
+                                !occupant.IsPermanentlyLocked &&
                                 occupant.CardData.CanFuseWith(_boardDragModule.CardData));
                 UpdateCellHover(cell, canDrop);
             }
@@ -398,7 +400,9 @@ public class PlacementController : MonoBehaviour
         }
 
         ModuleBase occupant = _board.GetModule(to);
-        if (occupant != null && occupant.CardData.CanFuseWith(mod.CardData))
+        if (occupant != null &&
+            !occupant.IsPermanentlyLocked &&
+            occupant.CardData.CanFuseWith(mod.CardData))
         {
             occupant.ApplyCardData(occupant.CardData.FusedWith(mod.CardData));
             Destroy(mod.gameObject);
@@ -603,7 +607,7 @@ public class PlacementController : MonoBehaviour
         }
 
         ModuleBase existing = _board.GetModule(cell);
-        if (existing == null)
+        if (existing == null || existing.IsPermanentlyLocked)
         {
             return;
         }
@@ -704,8 +708,13 @@ public class PlacementController : MonoBehaviour
 
     void BeginBoardScrapConfirm(ModuleBase mod)
     {
-        if (mod == null)
+        if (mod == null || mod.IsPermanentlyLocked)
         {
+            if (mod != null && mod.IsPermanentlyLocked && _board != null)
+            {
+                _board.TryPlaceModule(_boardDragFrom, mod);
+            }
+
             return;
         }
 
@@ -843,13 +852,14 @@ public class PlacementController : MonoBehaviour
         }
 
         ModuleBase mod = _board.GetModule(cell);
-        if (mod == null)
+        CellEnchant enchant = _board.GetEnchant(cell);
+        if (mod == null && enchant == CellEnchant.None)
         {
             ModuleTooltipView.EndHover(this);
             return;
         }
 
-        ModuleTooltipView.BeginHover(this, mod.CardData, mod);
+        ModuleTooltipView.BeginBoardHover(this, mod, enchant);
     }
 
     void HideModuleTooltip()
@@ -859,6 +869,11 @@ public class PlacementController : MonoBehaviour
 
     void BeginDismantleConfirm(GridCoord cell, ModuleBase mod)
     {
+        if (mod != null && mod.IsPermanentlyLocked)
+        {
+            return;
+        }
+
         CancelPendingDismantle();
         _pendingDismantleCell = cell;
         _pendingDismantleModule = mod;
@@ -1044,7 +1059,9 @@ public class PlacementController : MonoBehaviour
         if (_board != null && _board.TryWorldToCell(world, out GridCoord cell))
         {
             ModuleBase occupant = _board.GetModule(cell);
-            if (occupant != null && occupant.CardData.CanFuseWith(card))
+            if (occupant != null &&
+                !occupant.IsPermanentlyLocked &&
+                occupant.CardData.CanFuseWith(card))
             {
                 if (hand.TryConsumeSlot(handIndex, out card))
                 {
@@ -1127,7 +1144,9 @@ public class PlacementController : MonoBehaviour
         if (_board != null && _board.TryWorldToCell(mouseWorld, out GridCoord cell))
         {
             ModuleBase occupant = _board.GetModule(cell);
-            bool canFuse = occupant != null && occupant.CardData.CanFuseWith(_shopDragCard);
+            bool canFuse = occupant != null &&
+                           !occupant.IsPermanentlyLocked &&
+                           occupant.CardData.CanFuseWith(_shopDragCard);
             bool canPlace = _board.CanPlace(cell) || canFuse;
             bool canAfford = Economy.Instance == null || Economy.Instance.CanAfford(_shopDragPrice);
             ShowGhostAt(_board.CellToWorld(cell), canPlace && canAfford);
@@ -1165,7 +1184,9 @@ public class PlacementController : MonoBehaviour
         }
 
         ModuleBase occupant = _board.GetModule(cell);
-        bool canFuse = occupant != null && occupant.CardData.CanFuseWith(card);
+        bool canFuse = occupant != null &&
+                       !occupant.IsPermanentlyLocked &&
+                       occupant.CardData.CanFuseWith(card);
         if (!canFuse && !_board.CanPlace(cell))
         {
             return;
@@ -1232,6 +1253,7 @@ public class PlacementController : MonoBehaviour
         {
             ModuleBase occupant = _board.GetModule(cell);
             bool canFuse = occupant != null &&
+                           !occupant.IsPermanentlyLocked &&
                            occupant.CardData.CanFuseWith(_hand.SelectedCard);
             bool canPlace = _board.CanPlace(cell) || canFuse;
             ShowGhostAt(_board.CellToWorld(cell), canPlace);
@@ -1361,7 +1383,9 @@ public class PlacementController : MonoBehaviour
 
         ModuleCardData card = _hand.SelectedCard;
         ModuleBase occupant = _board.GetModule(cell);
-        if (occupant != null && occupant.CardData.CanFuseWith(card))
+        if (occupant != null &&
+            !occupant.IsPermanentlyLocked &&
+            occupant.CardData.CanFuseWith(card))
         {
             occupant.ApplyCardData(occupant.CardData.FusedWith(card));
             _hand.ConsumeSelected();
@@ -1442,6 +1466,12 @@ public class PlacementController : MonoBehaviour
                 return new GameObject("IceLaserTurret").AddComponent<IceLaserModule>();
             case ModuleType.Miner:
                 return new GameObject("Miner").AddComponent<MinerModule>();
+            case ModuleType.BlackHole:
+                return new GameObject("BlackHoleTurret").AddComponent<BlackHoleModule>();
+            case ModuleType.FlameAmp:
+                return new GameObject("FlameAmp").AddComponent<FlameAmpModule>();
+            case ModuleType.Spark:
+                return new GameObject("SparkTurret").AddComponent<SparkModule>();
             default:
                 return null;
         }
@@ -1485,6 +1515,15 @@ public class PlacementController : MonoBehaviour
                     break;
                 case ModuleType.Miner:
                     _ghostOther = go.AddComponent<MinerModule>();
+                    break;
+                case ModuleType.BlackHole:
+                    _ghostOther = go.AddComponent<BlackHoleModule>();
+                    break;
+                case ModuleType.FlameAmp:
+                    _ghostOther = go.AddComponent<FlameAmpModule>();
+                    break;
+                case ModuleType.Spark:
+                    _ghostOther = go.AddComponent<SparkModule>();
                     break;
             }
 

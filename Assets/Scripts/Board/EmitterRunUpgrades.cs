@@ -9,7 +9,8 @@ public enum EmitterUpgradeKind
 }
 
 /// <summary>
-/// 本局发射器四维升级。档位偏保守，避免后期球洪水。
+/// 本局熔炉四维升级。档位偏保守，避免后期球洪水。
+/// FireRate 档 = 熔炉容量（毫秒）：容量越小攒沙越快出球。
 /// 质量 = 球能量值（进入模块时加算）。
 /// </summary>
 public class EmitterRunUpgrades : MonoBehaviour
@@ -17,9 +18,10 @@ public class EmitterRunUpgrades : MonoBehaviour
     public const int TierCount = 4;
     public const int MaxLevel = TierCount - 1;
 
-    public static readonly float[] FireRatePerSec = { 0.50f, 0.70f, 0.95f, 1.25f };
+    // 熔炉容量（毫秒）：2000/1400/1050/800 ≈ 0.5/0.7/0.95/1.25 球每秒
+    public static readonly int[] FurnaceCapsMs = { 2000, 1400, 1050, 800 };
     public static readonly float[] BallSpeedCells = { 4.0f, 5.5f, 7.0f, 8.5f };
-    public static readonly int[] MassEnergy = { 1, 2, 5, 10 };
+    public static readonly int[] MassEnergy = { 1, 2, 3, 4 }; // 削弱：原 1/2/5/10 太强
     public static readonly float[] LifetimeSeconds = { 12f, 20f, 32f, 50f };
 
     public static EmitterRunUpgrades Instance { get; private set; }
@@ -34,7 +36,7 @@ public class EmitterRunUpgrades : MonoBehaviour
     public int MassLevel => _massLevel;
     public int LifetimeLevel => _lifetimeLevel;
 
-    public float FireInterval => 1f / Mathf.Max(0.01f, FireRatePerSec[_fireRateLevel]);
+    public int FurnaceCapMs => FurnaceCapsMs[_fireRateLevel];
     public float BallSpeed => BallSpeedCells[_ballSpeedLevel];
     public int Mass => MassEnergy[_massLevel];
     public float Lifetime => LifetimeSeconds[_lifetimeLevel];
@@ -104,7 +106,7 @@ public class EmitterRunUpgrades : MonoBehaviour
     {
         switch (kind)
         {
-            case EmitterUpgradeKind.FireRate: return "射速";
+            case EmitterUpgradeKind.FireRate: return "熔炉容量";
             case EmitterUpgradeKind.BallSpeed: return "球速";
             case EmitterUpgradeKind.Mass: return "质量";
             default: return "存活";
@@ -119,7 +121,7 @@ public class EmitterRunUpgrades : MonoBehaviour
         switch (kind)
         {
             case EmitterUpgradeKind.FireRate:
-                return $"{name}\n{FireRatePerSec[lv]:0.##} → {FireRatePerSec[next]:0.##}/秒\n更频繁发球";
+                return $"{name}\n{FurnaceCapsMs[lv]} → {FurnaceCapsMs[next]}ms\n攒沙更快结晶出球";
             case EmitterUpgradeKind.BallSpeed:
                 return $"{name}\n{BallSpeedCells[lv]:0.#} → {BallSpeedCells[next]:0.#} 格/秒\n球飞得更快";
             case EmitterUpgradeKind.Mass:

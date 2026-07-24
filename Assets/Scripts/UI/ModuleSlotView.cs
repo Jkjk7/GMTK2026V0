@@ -18,6 +18,7 @@ public sealed class ModuleSlotView : MonoBehaviour
     [SerializeField] Image background;
     [SerializeField] Image icon;
     [SerializeField] Image selectionFrame;
+    [SerializeField] Image rarityBar;
     [SerializeField] Text nameText;
     [SerializeField] Text priceText;
 
@@ -31,13 +32,21 @@ public sealed class ModuleSlotView : MonoBehaviour
     static readonly Color SelectedBg = new Color(0.28f, 0.48f, 0.28f, 0.98f);
     static readonly Color DisabledBg = new Color(0.1f, 0.1f, 0.1f, 0.7f);
 
-    public void Bind(Image bg, Image iconImage, Text label, Image frame = null, GameSkin skin = null, Text priceLabel = null)
+    public void Bind(
+        Image bg,
+        Image iconImage,
+        Text label,
+        Image frame = null,
+        GameSkin skin = null,
+        Text priceLabel = null,
+        Image rarity = null)
     {
         background = bg;
         icon = iconImage;
         nameText = label;
         selectionFrame = frame;
         priceText = priceLabel;
+        rarityBar = rarity;
         _skin = skin;
         ApplyState();
     }
@@ -61,6 +70,11 @@ public sealed class ModuleSlotView : MonoBehaviour
         if (priceText != null)
         {
             priceText.text = string.Empty;
+        }
+
+        if (rarityBar != null)
+        {
+            rarityBar.enabled = false;
         }
 
         if (icon != null)
@@ -90,14 +104,23 @@ public sealed class ModuleSlotView : MonoBehaviour
 
         if (nameText != null)
         {
+            ModuleRarity rarity = ModuleCatalog.GetRarity(card.Type);
             nameText.text = ModuleCatalog.GetDisplayName(card);
-            nameText.color = Color.white;
+            nameText.color = ModuleCatalog.GetRarityColor(rarity);
         }
 
         if (icon != null)
         {
             icon.sprite = _skin != null ? _skin.GetModuleIcon(card.Type) : PrototypeSprites.Square;
             icon.color = ModuleCatalog.GetDisplayColor(card.Type);
+        }
+
+        if (rarityBar != null)
+        {
+            rarityBar.enabled = true;
+            Color rc = ModuleCatalog.GetRarityColor(ModuleCatalog.GetRarity(card.Type));
+            rc.a = 0.95f;
+            rarityBar.color = rc;
         }
 
         if (priceText != null)

@@ -20,7 +20,7 @@ public class EmitterUpgradeDirector : MonoBehaviour
 
     public bool ShouldOfferAfterWave(int waveDisplay)
     {
-        return waveDisplay > 0 && waveDisplay % 5 == 0 && waveDisplay < 15;
+        return waveDisplay > 0 && waveDisplay % 5 == 0 && waveDisplay < 25;
     }
 
     public void BeginDraft(int waveDisplay, Action onFinished)

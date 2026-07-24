@@ -142,9 +142,9 @@ public class ShopController : MonoBehaviour
                 continue;
             }
 
-            ModuleType type = ModuleCatalog.RollShopSlotType(i);
+            ModuleType type = ModuleCatalog.RollShopSlotType(i, wave);
             int level = 1;
-            if (ModuleCatalog.IsAttackModule(type))
+            if (ModuleCatalog.IsAttackModule(type) || type == ModuleType.FlameAmp)
             {
                 level = ModulePricing.RollAttackLevel(wave);
             }

@@ -50,12 +50,12 @@ public class WaveGoldBudget : MonoBehaviour
     }
 
     /// <summary>
-    /// V0.1 波金币总预算。约：波1=20、波5=40、波10=100、波15=250（5 的倍数）。
-    /// 与怪潮 6→106、商店每 5 波跳价对齐。
+    /// V0.1 波金币总预算。约：波1=20、波5=40、波10=100、波15=250、波25≈1635（5 的倍数）。
+    /// 与怪潮、商店每 5 波跳价对齐（25 波）。
     /// </summary>
     public static int ComputeBudget(int waveNumber)
     {
-        int w = Mathf.Clamp(waveNumber, 1, 15);
+        int w = Mathf.Clamp(waveNumber, 1, 25);
         float raw = 18f * Mathf.Pow(1.205f, w - 1f);
         return Mathf.Max(20, ModulePricing.RoundToFive(Mathf.RoundToInt(raw)));
     }
@@ -111,6 +111,25 @@ public class WaveGoldBudget : MonoBehaviour
     }
 
     /// <summary>按实际刷怪队列规划权重。</summary>
+    public void BeginWave(int waveNumber, IList<WaveSpawnBudget.SpawnEntry> spawnQueue)
+    {
+        _waveNumber = Mathf.Max(1, waveNumber);
+        _breachThisWave = false;
+        _enemiesPlanned = spawnQueue != null ? Mathf.Max(1, spawnQueue.Count) : 1;
+        ApplyBudgetSplit();
+
+        float totalWeight = 0f;
+        if (spawnQueue != null)
+        {
+            for (int i = 0; i < spawnQueue.Count; i++)
+            {
+                totalWeight += GetWeight(spawnQueue[i].Type);
+            }
+        }
+
+        _totalWeightPlanned = Mathf.Max(0.01f, totalWeight);
+    }
+
     public void BeginWave(int waveNumber, IList<EnemyGoldType> spawnQueue)
     {
         _waveNumber = Mathf.Max(1, waveNumber);

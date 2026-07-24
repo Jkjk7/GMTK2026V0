@@ -11,6 +11,16 @@ public class GameBootstrap : MonoBehaviour
     [Header("Board")]
     [SerializeField] float cellSize = 1f;
 
+    /// <summary>棋盘在棋盘窗内的视觉放大倍率（相机拉近）。</summary>
+    const float BoardVisualScale = 1.2f;
+
+    // 金币 / 分解区：适量缩小后同尺寸（宽×高 视口比例）
+    const float GoldScrapX0 = 0.455f;
+    const float GoldScrapX1 = 0.575f;
+    const float GoldY0 = 0.075f;
+    const float GoldY1 = 0.125f;
+    const float ScrapTopY1 = 0.595f;
+
     GameSkin _skin;
 
     static bool s_autoSpawnChecked;
@@ -76,20 +86,23 @@ public class GameBootstrap : MonoBehaviour
         layout.emitterAnchor = emitterGo.transform;
         var emitter = emitterGo.AddComponent<Emitter>();
 
-        Bounds boardBounds = board.GetWorldBounds();
+        // 沙漏位置固定在视口 ~0.08；只把棋盘往左挪，使熔炉落在沙漏正下方同列
+        const float sandViewportX = 0.08f;
+        FitCameraToBoardWindow(board.GetWorldBounds());
+        AlignBoardLeftUnderSand(boardRoot, board, worldCam, sandViewportX);
+        FitCameraToBoardWindow(board.GetWorldBounds());
+        AlignBoardLeftUnderSand(boardRoot, board, worldCam, sandViewportX);
 
-        // 先按「棋盘窗」对齐相机，再算战斗锚点世界坐标（避免棋盘顶穿进战斗窗）
-        FitCameraToBoardWindow(boardBounds);
+        Bounds boardBounds = board.GetWorldBounds();
 
         var battleRoot = new GameObject("BattleRoot").transform;
         battleRoot.SetParent(worldRoot, false);
         layout.battleRoot = battleRoot;
 
         float laneY = ViewportToWorldY(worldCam, 0.82f);
-        float endX = ViewportToWorldX(worldCam, 0.08f);
+        // 沙漏原位不变（不要跟着熔炉跑）
+        float endX = ViewportToWorldX(worldCam, sandViewportX);
         float spawnX = ViewportToWorldX(worldCam, 0.72f);
-        // 保证路线覆盖棋盘左右外延
-        endX = Mathf.Min(endX, boardBounds.min.x - cellSize * 0.4f);
         spawnX = Mathf.Max(spawnX, boardBounds.max.x + cellSize * 1.2f);
 
         var spawnAnchor = CreateAnchor(battleRoot, "EnemySpawnAnchor", new Vector3(spawnX, laneY, 0f));
@@ -107,7 +120,12 @@ public class GameBootstrap : MonoBehaviour
         sessionGo.transform.SetParent(layoutGo.transform, false);
         var session = sessionGo.AddComponent<GameSession>();
 
-        emitter.Initialize(board, ballManager, session);
+        var sandClockGo = new GameObject("SandClock");
+        sandClockGo.transform.SetParent(layoutGo.transform, false);
+        var sandClock = sandClockGo.AddComponent<SandClock>();
+        sandClock.Initialize(session);
+
+        emitter.Initialize(board, ballManager, session, sandClock);
 
         var lane = battleRoot.gameObject.AddComponent<BattleLane>();
         lane.Initialize(spawnAnchor, endAnchor);
@@ -121,7 +139,13 @@ public class GameBootstrap : MonoBehaviour
         wavesGo.transform.SetParent(battleRoot, false);
         var waveManager = wavesGo.AddComponent<WaveManager>();
 
-        mage.Initialize(mageAnchor.position, waveManager, session);
+        mage.Initialize(mageAnchor.position);
+        // 沙漏 UI 覆盖在法师位上，隐藏蓝块避免叠两套视觉
+        var mageSr = mage.GetComponent<SpriteRenderer>();
+        if (mageSr != null)
+        {
+            mageSr.enabled = false;
+        }
         // WaveManager.Initialize 延后到解锁池/草稿 UI 就绪后
 
         CreateBattleBackdrop(battleRoot, boardBounds, laneY, worldCam);
@@ -144,16 +168,22 @@ public class GameBootstrap : MonoBehaviour
         var uiAudio = audioGo.AddComponent<UIAudioFeedback>();
         uiAudio.EnsureSource();
 
+        // 沙漏覆盖在 Mage（蓝块）正中：取世界坐标转视口
+        Vector3 mageVp = worldCam != null
+            ? worldCam.WorldToViewportPoint(mageAnchor.position)
+            : new Vector3(0.08f, 0.82f, 0f);
+
         BuildHudAndWire(
             canvas.transform,
             font,
             layout,
             layoutGo.transform,
-            mage,
+            sandClock,
             waveManager,
             session,
             tracker,
-            uiAudio);
+            uiAudio,
+            mageVp);
 
         Transform sidebar = CreateSidebar(canvas.transform, font);
 
@@ -163,6 +193,7 @@ public class GameBootstrap : MonoBehaviour
         economyGo.AddComponent<Economy>();
         economyGo.AddComponent<WaveGoldBudget>();
         economyGo.AddComponent<RunModulePool>();
+        economyGo.AddComponent<RunModifiers>();
         var dropService = economyGo.AddComponent<GoldDropService>();
         GoldPanel goldPanel = CreateGoldPanel(canvas.transform, font);
         dropService.Initialize(goldPanel, layoutGo.transform);
@@ -185,25 +216,31 @@ public class GameBootstrap : MonoBehaviour
         var emitterDirector = emitterDraftGo.AddComponent<EmitterUpgradeDirector>();
         emitterDirector.Initialize(emitterUpgrades, draftUi);
 
-        waveManager.Initialize(lane, mage, session, enemyRoot, ballManager, unlockDirector, emitterDirector);
-
         HandController hand = CreateHand(sidebar, font, _skin);
+
+        var blessGo = new GameObject("BlessingCurseDirector");
+        blessGo.transform.SetParent(layoutGo.transform, false);
+        var blessDirector = blessGo.AddComponent<BlessingCurseDirector>();
+        blessDirector.Initialize(draftUi, board, hand, boardExpand, RunModulePool.Instance);
+
+        waveManager.Initialize(
+            lane, mage, session, enemyRoot, ballManager, unlockDirector, emitterDirector, blessDirector);
+
         var shop = CreateShopPanel(sidebar, font, hand, session, waveManager, _skin);
         layout.handController = hand;
         layout.shopController = shop;
 
-        Bounds scrapBounds = board.GetWorldBounds();
         var scrapGo = new GameObject("ScrapZone");
         scrapGo.transform.SetParent(worldRoot, false);
         var scrap = scrapGo.AddComponent<ScrapZone>();
-        scrap.Initialize(new Vector3(
-            scrapBounds.min.x - cellSize * 1.15f,
-            scrapBounds.min.y - cellSize * 0.15f,
-            0f));
+        // 与金币区同比例：金币在棋盘窗右下 (0.42~0.575, 0.07~0.14)，分解区镜像到右上
+        PlaceScrapMatchingGoldPanel(scrap, worldCam);
 
         ConfirmPromptView confirm = CreateConfirmPrompt(canvas.transform, font);
         ModuleTooltipView tooltip = CreateModuleTooltip(canvas.transform, font, _skin);
         PrepPhasePanel prepPanel = CreatePrepPhasePanel(canvas.transform, font, waveManager, session);
+        CreateWaveCountdownHud(canvas.transform, font, waveManager);
+        CreateRunStatsHud(canvas.transform, font, board);
 
         var placementGo = new GameObject("PlacementController");
         placementGo.transform.SetParent(layoutGo.transform, false);
@@ -216,7 +253,7 @@ public class GameBootstrap : MonoBehaviour
         CreateBoardExpandHint(canvas.transform, font, boardExpand);
 
         ValidateRedirectorTable();
-        Debug.Log("[GameBootstrap] Roguelike15：解锁池 / 固定配额波次 / 棋盘扩展 / 发射器升级。");
+        Debug.Log("[GameBootstrap] Roguelike25：稀有度 / 黑洞 / 祝福束缚 / 25 波。");
     }
 
     void BuildHudAndWire(
@@ -224,29 +261,37 @@ public class GameBootstrap : MonoBehaviour
         Font font,
         GameLayoutView layout,
         Transform layoutRoot,
-        Mage mage,
+        SandClock sandClock,
         WaveManager waveManager,
         GameSession session,
         DamageTracker tracker,
-        UIAudioFeedback uiAudio)
+        UIAudioFeedback uiAudio,
+        Vector3 mageViewport)
     {
         Text statusLabel = CreateCombatStatusLabel(canvas, font);
-        Text livesLabel = CreateLivesLabel(canvas, font);
+        SandClockPanel sandPanel = CreateSandClockPanel(canvas, font, sandClock, mageViewport);
         Text breachLabel = CreateBreachLabel(canvas, font);
         Image flash = CreateBreachFlash(canvas);
         ResultOverlayView overlay = CreateResultOverlay(canvas, font);
         layout.resultOverlay = overlay.GetComponent<CanvasGroup>();
+
+        var sandVfxGo = new GameObject("SandVfxService");
+        sandVfxGo.transform.SetParent(layoutRoot, false);
+        var sandVfx = sandVfxGo.AddComponent<SandVfxService>();
+        Emitter emitter = layout.emitterAnchor != null
+            ? layout.emitterAnchor.GetComponent<Emitter>()
+            : null;
+        sandVfx.Initialize(sandPanel, emitter, layoutRoot);
 
         var hudGo = new GameObject("CombatHUD");
         hudGo.transform.SetParent(layoutRoot, false);
         var combatHud = hudGo.AddComponent<CombatHUD>();
         combatHud.Initialize(
             statusLabel,
-            livesLabel,
             breachLabel,
             flash,
             overlay,
-            mage,
+            sandClock,
             waveManager,
             session,
             tracker,
@@ -341,6 +386,53 @@ public class GameBootstrap : MonoBehaviour
     }
 
     /// <summary>
+    /// 分解区与金币面板同视口宽高，摆在棋盘窗右上角（金币在右下的垂直镜像）。
+    /// </summary>
+    void PlaceScrapMatchingGoldPanel(ScrapZone scrap, Camera cam)
+    {
+        if (scrap == null || cam == null)
+        {
+            return;
+        }
+
+        // 与 CreateGoldPanel 共用常量（已适量缩小）
+        float x0 = GoldScrapX0;
+        float x1 = GoldScrapX1;
+        float h = GoldY1 - GoldY0;
+        float topY1 = ScrapTopY1;
+        float topY0 = topY1 - h;
+
+        float cx = ViewportToWorldX(cam, (x0 + x1) * 0.5f);
+        float cy = ViewportToWorldY(cam, (topY0 + topY1) * 0.5f);
+        float halfW = Mathf.Abs(ViewportToWorldX(cam, x1) - ViewportToWorldX(cam, x0)) * 0.5f;
+        float halfH = Mathf.Abs(ViewportToWorldY(cam, topY1) - ViewportToWorldY(cam, topY0)) * 0.5f;
+        scrap.Initialize(new Vector3(cx, cy, 0f), halfW, halfH);
+    }
+
+    /// <summary>
+    /// 只平移棋盘向左/向右，使熔炉（入口左侧）落到沙漏列正下方。
+    /// 沙漏/法师锚点本身不动；入口格仍为 (0,3)、向右发射。
+    /// </summary>
+    void AlignBoardLeftUnderSand(Transform boardRoot, GridBoard board, Camera cam, float sandViewportX)
+    {
+        if (boardRoot == null || board == null || cam == null)
+        {
+            return;
+        }
+
+        float sandWorldX = ViewportToWorldX(cam, sandViewportX);
+        Vector3 entry = board.CellToWorld(new GridCoord(0, 3));
+        float furnaceX = entry.x - 0.85f * cellSize;
+        float dx = sandWorldX - furnaceX;
+        if (Mathf.Abs(dx) < 0.001f)
+        {
+            return;
+        }
+
+        boardRoot.position += new Vector3(dx, 0f, 0f);
+    }
+
+    /// <summary>
     /// 只把棋盘（含发射器余量）装进棋盘透明窗，顶边不超过分隔线（约 y=0.64）。
     /// 战斗区另用视口锚点放置，避免棋盘顶穿框。
     /// </summary>
@@ -363,9 +455,9 @@ public class GameBootstrap : MonoBehaviour
         float contentCX = (contentMinX + contentMaxX) * 0.5f;
         float contentCY = (contentMinY + contentMaxY) * 0.5f;
 
-        // 与 ui_game_frame 棋盘窗对齐（底栏上沿约 0.03，分隔线下沿约 0.64）
+        // 下方分区约 60/40：棋盘窗到 0.58，侧栏从 0.60 起留缝
         const float viewX0 = 0.05f;
-        const float viewX1 = 0.75f;
+        const float viewX1 = 0.58f;
         const float viewY0 = 0.06f;
         const float viewY1 = 0.60f;
         float viewW = viewX1 - viewX0;
@@ -374,7 +466,8 @@ public class GameBootstrap : MonoBehaviour
         float aspect = cam.aspect > 0.1f ? cam.aspect : 16f / 9f;
         float sizeFromWidth = contentW / (2f * viewW * aspect);
         float sizeFromHeight = contentH / (2f * viewH);
-        float orthoSize = Mathf.Max(sizeFromWidth, sizeFromHeight) * 1.04f;
+        // 先按窗口装下，再按 BoardVisualScale 拉近，使棋盘视觉放大
+        float orthoSize = Mathf.Max(sizeFromWidth, sizeFromHeight) * 1.04f / BoardVisualScale;
         cam.orthographicSize = orthoSize;
 
         float targetVx = (viewX0 + viewX1) * 0.5f;
@@ -425,39 +518,45 @@ public class GameBootstrap : MonoBehaviour
     }
 
     /// <summary>
-    /// 加载透明窗口外框；缺失时用程序化边框兜底，避免不透明图挡住棋盘。
+    /// 外框背景。旧 ui_game_frame 按 80/20 布局绘制，与 60/40 新布局错位并遮挡棋盘，
+    /// 暂时禁用（useLegacyFrame=false），先用程序化纯色分区验证布局；新背景资源就绪后再开回。
     /// </summary>
     void CreateGameShell(Transform canvas)
     {
-        Sprite frameSprite = Resources.Load<Sprite>("UI/ui_game_frame");
-        if (frameSprite != null)
+        const bool useLegacyFrame = false; // 新背景美术就绪前保持 false
+
+#pragma warning disable CS0162
+        if (useLegacyFrame)
         {
-            var shellGo = new GameObject("GameShell");
-            shellGo.transform.SetParent(canvas, false);
+            Sprite frameSprite = Resources.Load<Sprite>("UI/ui_game_frame");
+            if (frameSprite != null)
+            {
+                var shellGo = new GameObject("GameShell");
+                shellGo.transform.SetParent(canvas, false);
 
-            var rectTransform = shellGo.AddComponent<RectTransform>();
-            rectTransform.anchorMin = Vector2.zero;
-            rectTransform.anchorMax = Vector2.one;
-            rectTransform.offsetMin = Vector2.zero;
-            rectTransform.offsetMax = Vector2.zero;
-            rectTransform.localScale = Vector3.one;
+                var rectTransform = shellGo.AddComponent<RectTransform>();
+                rectTransform.anchorMin = Vector2.zero;
+                rectTransform.anchorMax = Vector2.one;
+                rectTransform.offsetMin = Vector2.zero;
+                rectTransform.offsetMax = Vector2.zero;
+                rectTransform.localScale = Vector3.one;
 
-            var image = shellGo.AddComponent<Image>();
-            image.sprite = frameSprite;
-            image.color = Color.white;
-            image.type = Image.Type.Simple;
-            image.preserveAspect = false;
-            image.raycastTarget = false;
+                var image = shellGo.AddComponent<Image>();
+                image.sprite = frameSprite;
+                image.color = Color.white;
+                image.type = Image.Type.Simple;
+                image.preserveAspect = false;
+                image.raycastTarget = false;
 
-            shellGo.transform.SetAsFirstSibling();
-            Debug.Log("[GameBootstrap] UI 外框加载成功：Resources/UI/ui_game_frame");
-            return;
+                shellGo.transform.SetAsFirstSibling();
+                Debug.Log("[GameBootstrap] UI 外框加载成功：Resources/UI/ui_game_frame");
+                return;
+            }
         }
 
-        Debug.LogWarning(
-            "[GameBootstrap] 未找到 Assets/Resources/UI/ui_game_frame.png，使用程序化边框。" +
-            "请使用带透明窗口的 PNG（不要用 JPG）。");
+        Debug.Log("[GameBootstrap] 旧 ui_game_frame 已禁用（80/20 布局不匹配 60/40），使用程序化分区背景。");
         CreateProceduralShell(canvas);
+#pragma warning restore CS0162
     }
 
     /// <summary>
@@ -472,7 +571,6 @@ public class GameBootstrap : MonoBehaviour
         root.transform.SetAsFirstSibling();
 
         Color frame = new Color(0.14f, 0.12f, 0.22f, 0.95f);
-        Color accent = new Color(0.35f, 0.65f, 0.9f, 0.7f);
         Color sidebar = new Color(0.07f, 0.06f, 0.11f, 0.92f);
 
         CreateShellBar(root.transform, "TopBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
@@ -484,12 +582,8 @@ public class GameBootstrap : MonoBehaviour
         CreateShellBar(root.transform, "RightBar", new Vector2(1f, 0f), new Vector2(1f, 1f),
             new Vector2(1f, 0.5f), new Vector2(-30f, 30f), new Vector2(0f, -30f), frame);
 
-        // 战斗 / 棋盘分隔（仅左侧，侧栏上方战斗窗保持贯通）
-        CreateShellBar(root.transform, "BattleDivider", new Vector2(0.02f, 0.65f), new Vector2(0.78f, 0.66f),
-            new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, accent);
-
-        // 右下侧栏底板
-        CreateShellBar(root.transform, "SidebarPlate", new Vector2(0.78f, 0.03f), new Vector2(0.985f, 0.64f),
+        // 不做局部蓝分隔线（只画一侧会显得怪）；侧栏用底板与棋盘区分即可
+        CreateShellBar(root.transform, "SidebarPlate", new Vector2(0.60f, 0.03f), new Vector2(0.985f, 0.64f),
             new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, sidebar);
     }
 
@@ -533,8 +627,8 @@ public class GameBootstrap : MonoBehaviour
         var go = new GameObject("Sidebar");
         go.transform.SetParent(canvas, false);
         var rt = go.AddComponent<RectTransform>();
-        // 与 ui_game_frame 右下侧栏镂空/底板对齐
-        rt.anchorMin = new Vector2(0.78f, 0.03f);
+        // 侧栏：与棋盘窗留缝，避免手牌穿进战斗/棋盘区
+        rt.anchorMin = new Vector2(0.60f, 0.03f);
         rt.anchorMax = new Vector2(0.985f, 0.64f);
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
@@ -549,7 +643,7 @@ public class GameBootstrap : MonoBehaviour
         headerRt.sizeDelta = new Vector2(0f, 28f);
         var headerText = header.AddComponent<Text>();
         headerText.font = font;
-        headerText.fontSize = 18;
+        headerText.fontSize = 20;
         headerText.alignment = TextAnchor.MiddleCenter;
         headerText.color = new Color(0.75f, 0.8f, 0.95f, 1f);
         headerText.text = "模块仓";
@@ -586,22 +680,89 @@ public class GameBootstrap : MonoBehaviour
         return text;
     }
 
-    Text CreateLivesLabel(Transform canvas, Font font)
+    SandClockPanel CreateSandClockPanel(Transform canvas, Font font, SandClock sandClock, Vector3 mageViewport)
     {
-        var go = new GameObject("LivesLabel");
+        // 沙漏 = 原法师：面板中心对齐蓝块（Mage）的视口坐标
+        const float halfW = 0.045f;
+        const float halfH = 0.07f;
+        float cx = Mathf.Clamp(mageViewport.x, halfW + 0.01f, 1f - halfW - 0.01f);
+        float cy = Mathf.Clamp(mageViewport.y, halfH + 0.02f, 1f - halfH - 0.02f);
+
+        var go = new GameObject("SandClockPanel");
         go.transform.SetParent(canvas, false);
         var rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0.56f, 0.92f);
-        rt.anchorMax = new Vector2(0.78f, 0.99f);
+        rt.anchorMin = new Vector2(cx - halfW, cy - halfH);
+        rt.anchorMax = new Vector2(cx + halfW, cy + halfH);
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
-        var text = go.AddComponent<Text>();
-        text.font = font;
-        text.fontSize = 28;
-        text.alignment = TextAnchor.MiddleLeft;
-        text.color = new Color(0.7f, 0.85f, 1f, 1f);
-        text.text = "机会 ◆◆◆";
-        return text;
+
+        // 背板
+        var bgGo = new GameObject("Bg");
+        bgGo.transform.SetParent(go.transform, false);
+        var bgRt = bgGo.AddComponent<RectTransform>();
+        StretchFull(bgRt);
+        var bg = bgGo.AddComponent<Image>();
+        bg.color = new Color(0f, 0f, 0f, 0.45f);
+        bg.raycastTarget = false;
+
+        // 沙漏上方：毫秒倒计时
+        var cdGo = new GameObject("Countdown");
+        cdGo.transform.SetParent(go.transform, false);
+        var cdRt = cdGo.AddComponent<RectTransform>();
+        cdRt.anchorMin = new Vector2(0.02f, 0.72f);
+        cdRt.anchorMax = new Vector2(0.98f, 0.98f);
+        cdRt.offsetMin = Vector2.zero;
+        cdRt.offsetMax = Vector2.zero;
+        var cd = cdGo.AddComponent<Text>();
+        cd.font = font;
+        cd.fontSize = 24;
+        cd.fontStyle = FontStyle.Bold;
+        cd.alignment = TextAnchor.MiddleCenter;
+        cd.color = new Color(0.95f, 0.88f, 0.62f, 1f);
+        cd.text = "01:40.000";
+        cd.raycastTarget = false;
+        cd.resizeTextForBestFit = true;
+        cd.resizeTextMinSize = 10;
+        cd.resizeTextMaxSize = 26;
+
+        // 占位沙漏：上下两腔（暂不做沙子颗粒动画）
+        Image MakeGlass(string name, Vector2 aMin, Vector2 aMax)
+        {
+            var g = new GameObject(name);
+            g.transform.SetParent(go.transform, false);
+            var grt = g.AddComponent<RectTransform>();
+            grt.anchorMin = aMin;
+            grt.anchorMax = aMax;
+            grt.offsetMin = Vector2.zero;
+            grt.offsetMax = Vector2.zero;
+            var img = g.AddComponent<Image>();
+            img.sprite = PrototypeSprites.Square;
+            img.raycastTarget = false;
+            return img;
+        }
+
+        Image glassTop = MakeGlass("GlassTop", new Vector2(0.36f, 0.40f), new Vector2(0.64f, 0.66f));
+        Image glassBottom = MakeGlass("GlassBottom", new Vector2(0.36f, 0.08f), new Vector2(0.64f, 0.34f));
+
+        // 罚沙/补沙浮动提示（面板右侧探出）
+        var floatGo = new GameObject("FloatDelta");
+        floatGo.transform.SetParent(go.transform, false);
+        var floatRt = floatGo.AddComponent<RectTransform>();
+        floatRt.anchorMin = new Vector2(0.66f, 0.36f);
+        floatRt.anchorMax = new Vector2(1.6f, 0.70f);
+        floatRt.offsetMin = Vector2.zero;
+        floatRt.offsetMax = Vector2.zero;
+        var floatText = floatGo.AddComponent<Text>();
+        floatText.font = font;
+        floatText.fontSize = 22;
+        floatText.fontStyle = FontStyle.Bold;
+        floatText.alignment = TextAnchor.MiddleLeft;
+        floatText.raycastTarget = false;
+        floatGo.SetActive(false);
+
+        var panel = go.AddComponent<SandClockPanel>();
+        panel.Bind(sandClock, cd, floatText, glassTop, glassBottom);
+        return panel;
     }
 
     Text CreateBreachLabel(Transform canvas, Font font)
@@ -806,8 +967,9 @@ public class GameBootstrap : MonoBehaviour
         var root = new GameObject("PrepPhasePanel");
         root.transform.SetParent(canvas, false);
         var rootRt = root.AddComponent<RectTransform>();
-        rootRt.anchorMin = new Vector2(0.18f, 0.78f);
-        rootRt.anchorMax = new Vector2(0.62f, 0.98f);
+        // 战斗区横向占满全屏（100%）；准备窗口保持原尺寸宽0.44×高0.20，整屏水平居中
+        rootRt.anchorMin = new Vector2(0.28f, 0.78f);
+        rootRt.anchorMax = new Vector2(0.72f, 0.98f);
         rootRt.offsetMin = Vector2.zero;
         rootRt.offsetMax = Vector2.zero;
         var group = root.AddComponent<CanvasGroup>();
@@ -883,9 +1045,9 @@ public class GameBootstrap : MonoBehaviour
         var readyGo = new GameObject("ReadyButton");
         readyGo.transform.SetParent(canvas, false);
         var readyRt = readyGo.AddComponent<RectTransform>();
-        // 棋盘窗右上角（与 FitCameraToBoardWindow 棋盘区对齐）
-        readyRt.anchorMin = new Vector2(0.58f, 0.52f);
-        readyRt.anchorMax = new Vector2(0.74f, 0.595f);
+        // 准备完毕：战斗区（全宽）内、准备窗口右侧
+        readyRt.anchorMin = new Vector2(0.735f, 0.82f);
+        readyRt.anchorMax = new Vector2(0.88f, 0.94f);
         readyRt.offsetMin = Vector2.zero;
         readyRt.offsetMax = Vector2.zero;
         var readyBg = readyGo.AddComponent<Image>();
@@ -947,10 +1109,18 @@ public class GameBootstrap : MonoBehaviour
         outline.effectColor = new Color(0.95f, 0.75f, 0.3f, 0.75f);
         outline.effectDistance = new Vector2(2f, -2f);
 
-        Text MakeText(string name, Vector2 aMin, Vector2 aMax, int size, Color color, FontStyle style, TextAnchor align)
+        Text MakeText(
+            Transform parent,
+            string name,
+            Vector2 aMin,
+            Vector2 aMax,
+            int size,
+            Color color,
+            FontStyle style,
+            TextAnchor align)
         {
             var go = new GameObject(name);
-            go.transform.SetParent(root.transform, false);
+            go.transform.SetParent(parent, false);
             var trt = go.AddComponent<RectTransform>();
             trt.anchorMin = aMin;
             trt.anchorMax = aMax;
@@ -968,8 +1138,13 @@ public class GameBootstrap : MonoBehaviour
             return t;
         }
 
+        var moduleGo = new GameObject("ModuleBlock");
+        moduleGo.transform.SetParent(root.transform, false);
+        var moduleRt = moduleGo.AddComponent<RectTransform>();
+        StretchFull(moduleRt);
+
         var iconGo = new GameObject("Icon");
-        iconGo.transform.SetParent(root.transform, false);
+        iconGo.transform.SetParent(moduleGo.transform, false);
         var iconRt = iconGo.AddComponent<RectTransform>();
         iconRt.anchorMin = new Vector2(0.05f, 0.72f);
         iconRt.anchorMax = new Vector2(0.26f, 0.95f);
@@ -980,29 +1155,64 @@ public class GameBootstrap : MonoBehaviour
         icon.sprite = PrototypeSprites.Square;
 
         Text name = MakeText(
+            moduleGo.transform,
             "Name",
-            new Vector2(0.3f, 0.74f), new Vector2(0.95f, 0.95f),
+            new Vector2(0.3f, 0.82f), new Vector2(0.95f, 0.95f),
             22, new Color(1f, 0.9f, 0.5f, 1f), FontStyle.Bold, TextAnchor.MiddleLeft);
 
-        // 描述占主要空间
+        Text rarity = MakeText(
+            moduleGo.transform,
+            "Rarity",
+            new Vector2(0.3f, 0.72f), new Vector2(0.95f, 0.82f),
+            15, new Color(0.75f, 0.4f, 1f, 1f), FontStyle.Bold, TextAnchor.MiddleLeft);
+
         Text desc = MakeText(
+            moduleGo.transform,
             "Description",
             new Vector2(0.06f, 0.42f), new Vector2(0.94f, 0.7f),
             17, new Color(0.92f, 0.94f, 0.96f, 1f), FontStyle.Normal, TextAnchor.UpperLeft);
 
         Text stats = MakeText(
+            moduleGo.transform,
             "Stats",
             new Vector2(0.06f, 0.18f), new Vector2(0.94f, 0.4f),
             15, new Color(0.75f, 0.88f, 1f, 1f), FontStyle.Normal, TextAnchor.UpperLeft);
 
-        // 留言次要、偏淡
         Text flavor = MakeText(
+            moduleGo.transform,
             "Flavor",
             new Vector2(0.06f, 0.03f), new Vector2(0.94f, 0.16f),
             13, new Color(0.55f, 0.58f, 0.62f, 0.95f), FontStyle.Italic, TextAnchor.UpperLeft);
 
+        var enchantGo = new GameObject("EnchantBlock");
+        enchantGo.transform.SetParent(root.transform, false);
+        var enchantRt = enchantGo.AddComponent<RectTransform>();
+        enchantRt.anchorMin = new Vector2(0.04f, 0.02f);
+        enchantRt.anchorMax = new Vector2(0.96f, 0.24f);
+        enchantRt.offsetMin = Vector2.zero;
+        enchantRt.offsetMax = Vector2.zero;
+        var enchantBg = enchantGo.AddComponent<Image>();
+        enchantBg.color = new Color(0.12f, 0.13f, 0.18f, 0.95f);
+        enchantBg.raycastTarget = false;
+
+        Text enchantTitle = MakeText(
+            enchantGo.transform,
+            "EnchantTitle",
+            new Vector2(0.04f, 0.55f), new Vector2(0.96f, 0.95f),
+            15, new Color(1f, 0.65f, 0.3f, 1f), FontStyle.Bold, TextAnchor.MiddleLeft);
+
+        Text enchantDesc = MakeText(
+            enchantGo.transform,
+            "EnchantDesc",
+            new Vector2(0.04f, 0.08f), new Vector2(0.96f, 0.55f),
+            14, new Color(0.88f, 0.9f, 0.94f, 1f), FontStyle.Normal, TextAnchor.UpperLeft);
+
+        enchantGo.SetActive(false);
+
         var view = root.AddComponent<ModuleTooltipView>();
-        view.Bind(group, rt, icon, name, desc, stats, flavor, skin);
+        view.Bind(
+            group, rt, icon, name, desc, stats, flavor, skin, rarity,
+            enchantTitle, enchantDesc, moduleGo, enchantGo);
         return view;
     }
 
@@ -1087,9 +1297,9 @@ public class GameBootstrap : MonoBehaviour
         var go = new GameObject("GoldPanel");
         go.transform.SetParent(canvas, false);
         var rt = go.AddComponent<RectTransform>();
-        // 棋盘窗右下
-        rt.anchorMin = new Vector2(0.58f, 0.07f);
-        rt.anchorMax = new Vector2(0.74f, 0.14f);
+        // 棋盘窗右下（略缩小，给棋盘放大让位）
+        rt.anchorMin = new Vector2(GoldScrapX0, GoldY0);
+        rt.anchorMax = new Vector2(GoldScrapX1, GoldY1);
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
 
@@ -1110,11 +1320,11 @@ public class GameBootstrap : MonoBehaviour
         valueRt.offsetMax = Vector2.zero;
         var value = valueGo.AddComponent<Text>();
         value.font = font;
-        value.fontSize = 28;
+        value.fontSize = 18;
         value.fontStyle = FontStyle.Bold;
         value.alignment = TextAnchor.MiddleCenter;
         value.color = new Color(0.35f, 0.2f, 0.08f, 1f);
-        value.text = Economy.StartingGold.ToString();
+        value.text = "金币 " + Economy.StartingGold;
         value.raycastTarget = false;
 
         var deltaGo = new GameObject("Delta");
@@ -1169,7 +1379,7 @@ public class GameBootstrap : MonoBehaviour
         title.text = "商店";
         title.alignment = TextAnchor.MiddleLeft;
         title.color = new Color(0.7f, 0.7f, 0.8f);
-        title.fontSize = 15;
+        title.fontSize = 18;
 
         var refreshBtnGo = new GameObject("RefreshButton");
         refreshBtnGo.transform.SetParent(panelGo.transform, false);
@@ -1188,7 +1398,7 @@ public class GameBootstrap : MonoBehaviour
         StretchFull(refreshLabelRt);
         var refreshLabel = refreshLabelGo.AddComponent<Text>();
         refreshLabel.font = font;
-        refreshLabel.fontSize = 14;
+        refreshLabel.fontSize = 16;
         refreshLabel.alignment = TextAnchor.MiddleCenter;
         refreshLabel.color = new Color(0.95f, 0.85f, 0.4f, 1f);
         refreshLabel.text = "刷新 3";
@@ -1203,8 +1413,9 @@ public class GameBootstrap : MonoBehaviour
         listRt.offsetMax = new Vector2(-8f, -32f);
 
         var grid = listGo.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(96f, 72f);
-        grid.spacing = new Vector2(8f, 8f);
+        // 侧栏 40% 后放大商品卡（3列×2行）
+        grid.cellSize = new Vector2(210f, 112f);
+        grid.spacing = new Vector2(12f, 10f);
         grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
         grid.startAxis = GridLayoutGroup.Axis.Horizontal;
         grid.childAlignment = TextAnchor.UpperCenter;
@@ -1229,10 +1440,22 @@ public class GameBootstrap : MonoBehaviour
         var slotGo = new GameObject($"ShopSlot_{index}");
         slotGo.transform.SetParent(parent, false);
         var rt = slotGo.AddComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(96f, 72f);
+        rt.sizeDelta = new Vector2(210f, 112f);
 
         var bg = slotGo.AddComponent<Image>();
         bg.color = new Color(0.14f, 0.14f, 0.18f, 0.95f);
+
+        var rarityGo = new GameObject("RarityBar");
+        rarityGo.transform.SetParent(slotGo.transform, false);
+        var rarityRt = rarityGo.AddComponent<RectTransform>();
+        rarityRt.anchorMin = new Vector2(0f, 0.92f);
+        rarityRt.anchorMax = new Vector2(1f, 1f);
+        rarityRt.offsetMin = Vector2.zero;
+        rarityRt.offsetMax = Vector2.zero;
+        var rarityBar = rarityGo.AddComponent<Image>();
+        rarityBar.color = ModuleCatalog.GetRarityColor(ModuleRarity.Common);
+        rarityBar.raycastTarget = false;
+        rarityBar.enabled = false;
 
         var frameGo = new GameObject("SelectionFrame");
         frameGo.transform.SetParent(slotGo.transform, false);
@@ -1249,9 +1472,9 @@ public class GameBootstrap : MonoBehaviour
         var iconGo = new GameObject("Icon");
         iconGo.transform.SetParent(slotGo.transform, false);
         var iconRt = iconGo.AddComponent<RectTransform>();
-        iconRt.anchorMin = new Vector2(0.5f, 0.58f);
-        iconRt.anchorMax = new Vector2(0.5f, 0.58f);
-        iconRt.sizeDelta = new Vector2(24f, 24f);
+        iconRt.anchorMin = new Vector2(0.5f, 0.62f);
+        iconRt.anchorMax = new Vector2(0.5f, 0.62f);
+        iconRt.sizeDelta = new Vector2(44f, 44f);
         var icon = iconGo.AddComponent<Image>();
         icon.sprite = skin != null ? skin.ResolveSquare(null) : PrototypeSprites.Square;
         icon.color = Color.gray;
@@ -1269,7 +1492,7 @@ public class GameBootstrap : MonoBehaviour
         label.text = "空";
         label.alignment = TextAnchor.MiddleCenter;
         label.color = new Color(0.55f, 0.55f, 0.6f, 1f);
-        label.fontSize = 11;
+        label.fontSize = 17;
         label.raycastTarget = false;
 
         var priceGo = new GameObject("Price");
@@ -1284,11 +1507,11 @@ public class GameBootstrap : MonoBehaviour
         price.text = string.Empty;
         price.alignment = TextAnchor.MiddleCenter;
         price.color = new Color(0.95f, 0.82f, 0.25f, 1f);
-        price.fontSize = 13;
+        price.fontSize = 16;
         price.raycastTarget = false;
 
         var view = slotGo.AddComponent<ModuleSlotView>();
-        view.Bind(bg, icon, label, frame, skin, price);
+        view.Bind(bg, icon, label, frame, skin, price, rarityBar);
 
         var slot = slotGo.AddComponent<ShopSlot>();
         slot.Setup(shop, index, view);
@@ -1321,7 +1544,7 @@ public class GameBootstrap : MonoBehaviour
         title.text = "手牌 (8)";
         title.alignment = TextAnchor.MiddleCenter;
         title.color = new Color(0.7f, 0.75f, 0.85f);
-        title.fontSize = 15;
+        title.fontSize = 18;
         title.raycastTarget = false;
 
         var row = new GameObject("Slots");
@@ -1333,8 +1556,9 @@ public class GameBootstrap : MonoBehaviour
         rowRt.offsetMax = new Vector2(-6f, -28f);
 
         var grid = row.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(72f, 68f);
-        grid.spacing = new Vector2(6f, 6f);
+        // 侧栏 40% 后放大手牌格（4列×2行）
+        grid.cellSize = new Vector2(160f, 116f);
+        grid.spacing = new Vector2(10f, 8f);
         grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
         grid.startAxis = GridLayoutGroup.Axis.Horizontal;
         grid.childAlignment = TextAnchor.UpperCenter;
@@ -1358,10 +1582,22 @@ public class GameBootstrap : MonoBehaviour
         var slotGo = new GameObject($"HandSlot_{index}");
         slotGo.transform.SetParent(parent, false);
         var rt = slotGo.AddComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(72f, 68f);
+        rt.sizeDelta = new Vector2(160f, 116f);
 
         var bg = slotGo.AddComponent<Image>();
         bg.color = new Color(0.16f, 0.16f, 0.2f, 0.95f);
+
+        var rarityGo = new GameObject("RarityBar");
+        rarityGo.transform.SetParent(slotGo.transform, false);
+        var rarityRt = rarityGo.AddComponent<RectTransform>();
+        rarityRt.anchorMin = new Vector2(0f, 0.92f);
+        rarityRt.anchorMax = new Vector2(1f, 1f);
+        rarityRt.offsetMin = Vector2.zero;
+        rarityRt.offsetMax = Vector2.zero;
+        var rarityBar = rarityGo.AddComponent<Image>();
+        rarityBar.color = ModuleCatalog.GetRarityColor(ModuleRarity.Common);
+        rarityBar.raycastTarget = false;
+        rarityBar.enabled = false;
 
         var frameGo = new GameObject("SelectionFrame");
         frameGo.transform.SetParent(slotGo.transform, false);
@@ -1378,9 +1614,9 @@ public class GameBootstrap : MonoBehaviour
         var iconGo = new GameObject("Icon");
         iconGo.transform.SetParent(slotGo.transform, false);
         var iconRt = iconGo.AddComponent<RectTransform>();
-        iconRt.anchorMin = new Vector2(0.5f, 0.55f);
-        iconRt.anchorMax = new Vector2(0.5f, 0.55f);
-        iconRt.sizeDelta = new Vector2(28f, 28f);
+        iconRt.anchorMin = new Vector2(0.5f, 0.58f);
+        iconRt.anchorMax = new Vector2(0.5f, 0.58f);
+        iconRt.sizeDelta = new Vector2(48f, 48f);
         var icon = iconGo.AddComponent<Image>();
         icon.sprite = skin != null ? skin.ResolveSquare(null) : PrototypeSprites.Square;
         icon.color = Color.gray;
@@ -1392,21 +1628,150 @@ public class GameBootstrap : MonoBehaviour
         labelRt.anchorMin = new Vector2(0f, 0f);
         labelRt.anchorMax = new Vector2(1f, 0f);
         labelRt.pivot = new Vector2(0.5f, 0f);
-        labelRt.anchoredPosition = new Vector2(0f, 3f);
-        labelRt.sizeDelta = new Vector2(0f, 18f);
+        labelRt.anchoredPosition = new Vector2(0f, 4f);
+        labelRt.sizeDelta = new Vector2(0f, 24f);
         var label = labelGo.AddComponent<Text>();
         label.font = font;
-        label.fontSize = 11;
+        label.fontSize = 15;
         label.alignment = TextAnchor.MiddleCenter;
         label.color = Color.white;
         label.text = "空";
         label.raycastTarget = false;
 
         var view = slotGo.AddComponent<ModuleSlotView>();
-        view.Bind(bg, icon, label, frame, skin);
+        view.Bind(bg, icon, label, frame, skin, null, rarityBar);
 
         var slot = slotGo.AddComponent<HandSlot>();
         slot.Setup(hand, index, view);
         return slot;
+    }
+
+    RunStatsHud CreateRunStatsHud(Transform canvas, Font font, GridBoard board)
+    {
+        // 分解区正下方：收起时仅按钮条；展开后同宽向下弹出详情
+        float scrapH = GoldY1 - GoldY0;
+        float scrapBottom = ScrapTopY1 - scrapH;
+        float btnH = 0.04f;
+        float gap = 0.008f;
+        float btnTop = scrapBottom - gap;
+        float btnBottom = btnTop - btnH;
+        float panelH = 0.145f;
+        float expandedBottom = btnBottom - gap - panelH;
+
+        var collapsedMin = new Vector2(GoldScrapX0, btnBottom);
+        var collapsedMax = new Vector2(GoldScrapX1, btnTop);
+        var expandedMin = new Vector2(GoldScrapX0, expandedBottom);
+        var expandedMax = new Vector2(GoldScrapX1, btnTop);
+
+        var root = new GameObject("RunStatsHud");
+        root.transform.SetParent(canvas, false);
+        var rt = root.AddComponent<RectTransform>();
+        rt.anchorMin = collapsedMin;
+        rt.anchorMax = collapsedMax;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+
+        var panelGo = new GameObject("DetailPanel");
+        panelGo.transform.SetParent(root.transform, false);
+        var panelRt = panelGo.AddComponent<RectTransform>();
+        StretchFull(panelRt);
+        var panelBg = panelGo.AddComponent<Image>();
+        panelBg.color = new Color(0.06f, 0.07f, 0.1f, 0.9f);
+        panelBg.raycastTarget = true;
+
+        var detailGo = new GameObject("Detail");
+        detailGo.transform.SetParent(panelGo.transform, false);
+        var drt = detailGo.AddComponent<RectTransform>();
+        drt.anchorMin = new Vector2(0.06f, 0.06f);
+        drt.anchorMax = new Vector2(0.94f, 0.94f);
+        drt.offsetMin = Vector2.zero;
+        drt.offsetMax = Vector2.zero;
+        var detail = detailGo.AddComponent<Text>();
+        detail.font = font;
+        detail.fontSize = 13;
+        detail.alignment = TextAnchor.UpperLeft;
+        detail.color = new Color(0.88f, 0.9f, 0.94f, 0.95f);
+        detail.raycastTarget = false;
+        detail.horizontalOverflow = HorizontalWrapMode.Wrap;
+        detail.verticalOverflow = VerticalWrapMode.Overflow;
+        panelGo.SetActive(false);
+
+        var btnGo = new GameObject("Toggle");
+        btnGo.transform.SetParent(root.transform, false);
+        var brt = btnGo.AddComponent<RectTransform>();
+        StretchFull(brt);
+        var btnImg = btnGo.AddComponent<Image>();
+        btnImg.color = new Color(0.18f, 0.16f, 0.12f, 0.92f);
+        var btn = btnGo.AddComponent<Button>();
+        btn.targetGraphic = btnImg;
+        var btnLabelGo = new GameObject("Label");
+        btnLabelGo.transform.SetParent(btnGo.transform, false);
+        var blrt = btnLabelGo.AddComponent<RectTransform>();
+        StretchFull(blrt);
+        var btnLabel = btnLabelGo.AddComponent<Text>();
+        btnLabel.font = font;
+        btnLabel.fontSize = 13;
+        btnLabel.fontStyle = FontStyle.Bold;
+        btnLabel.alignment = TextAnchor.MiddleCenter;
+        btnLabel.color = new Color(0.95f, 0.85f, 0.55f, 1f);
+        btnLabel.raycastTarget = false;
+        btnLabel.text = "查看已有增幅";
+
+        var hud = root.AddComponent<RunStatsHud>();
+        hud.Bind(
+            rt, detail, btn, panelGo, panelRt, board,
+            collapsedMin, collapsedMax, expandedMin, expandedMax);
+        return hud;
+    }
+
+    WaveCountdownHud CreateWaveCountdownHud(Transform canvas, Font font, WaveManager waves)
+    {
+        var root = new GameObject("WaveCountdownHud");
+        root.transform.SetParent(canvas, false);
+        var rt = root.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.88f, 0.92f);
+        rt.anchorMax = new Vector2(0.99f, 0.99f);
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+
+        Text MakeNum(string name)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(root.transform, false);
+            var nrt = go.AddComponent<RectTransform>();
+            StretchFull(nrt);
+            var t = go.AddComponent<Text>();
+            t.font = font;
+            t.fontSize = 42;
+            t.fontStyle = FontStyle.Bold;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.color = Color.white;
+            t.raycastTarget = false;
+            t.text = "25";
+            return t;
+        }
+
+        Text label = MakeNum("Remaining");
+        Text outgoing = MakeNum("Outgoing");
+        outgoing.gameObject.SetActive(false);
+
+        var captionGo = new GameObject("Caption");
+        captionGo.transform.SetParent(root.transform, false);
+        var crt = captionGo.AddComponent<RectTransform>();
+        crt.anchorMin = new Vector2(0f, 0f);
+        crt.anchorMax = new Vector2(1f, 0.35f);
+        crt.offsetMin = Vector2.zero;
+        crt.offsetMax = Vector2.zero;
+        var caption = captionGo.AddComponent<Text>();
+        caption.font = font;
+        caption.fontSize = 14;
+        caption.alignment = TextAnchor.UpperCenter;
+        caption.color = new Color(0.75f, 0.78f, 0.85f, 0.9f);
+        caption.raycastTarget = false;
+        caption.text = "剩余波数";
+
+        var hud = root.AddComponent<WaveCountdownHud>();
+        hud.Bind(label, outgoing, waves);
+        return hud;
     }
 }

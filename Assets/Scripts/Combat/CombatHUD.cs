@@ -2,18 +2,18 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 战斗 HUD：波次/伤害文字、机会图标、漏怪警告、胜负 CanvasGroup 遮罩。
+/// 战斗 HUD：波次/伤害文字、漏怪罚沙警告、胜负 CanvasGroup 遮罩。
+/// 生存资源为沙漏时间（SandClock），倒计时显示由 SandClockPanel 负责。
 /// </summary>
 public class CombatHUD : MonoBehaviour
 {
     [SerializeField] Text statusText;
-    [SerializeField] Text livesText;
     [SerializeField] Text breachText;
     [SerializeField] Image breachFlash;
     [SerializeField] ResultOverlayView resultOverlay;
     [SerializeField] float breachMessageSeconds = 2.5f;
 
-    Mage _mage;
+    SandClock _sandClock;
     WaveManager _waves;
     GameSession _session;
     DamageTracker _damageTracker;
@@ -24,31 +24,28 @@ public class CombatHUD : MonoBehaviour
 
     public void Initialize(
         Text statusLabel,
-        Text livesLabel,
         Text breachLabel,
         Image flashImage,
         ResultOverlayView overlay,
-        Mage mage,
+        SandClock sandClock,
         WaveManager waves,
         GameSession session,
         DamageTracker damageTracker,
         UIAudioFeedback audio = null)
     {
         statusText = statusLabel;
-        livesText = livesLabel;
         breachText = breachLabel;
         breachFlash = flashImage;
         resultOverlay = overlay;
-        _mage = mage;
+        _sandClock = sandClock;
         _waves = waves;
         _session = session;
         _damageTracker = damageTracker;
         _audio = audio;
 
-        if (_mage != null)
+        if (_sandClock != null)
         {
-            _mage.OnLivesChanged += OnLivesChanged;
-            _mage.OnBreach += OnBreach;
+            _sandClock.OnPenalty += OnPenalty;
         }
 
         if (_waves != null)
@@ -77,15 +74,13 @@ public class CombatHUD : MonoBehaviour
 
         resultOverlay?.HideImmediate();
         RefreshStatus();
-        RefreshLives();
     }
 
     void OnDestroy()
     {
-        if (_mage != null)
+        if (_sandClock != null)
         {
-            _mage.OnLivesChanged -= OnLivesChanged;
-            _mage.OnBreach -= OnBreach;
+            _sandClock.OnPenalty -= OnPenalty;
         }
 
         if (_waves != null)
@@ -125,15 +120,9 @@ public class CombatHUD : MonoBehaviour
         }
     }
 
-    void OnLivesChanged(int lives)
-    {
-        RefreshLives();
-        RefreshStatus();
-    }
-
     void OnWaveChanged(int current, int total) => RefreshStatus();
 
-    void OnBreach()
+    void OnPenalty(int penaltyMs)
     {
         _breachMessageTimer = breachMessageSeconds;
         _flashTimer = 0.35f;
@@ -142,7 +131,7 @@ public class CombatHUD : MonoBehaviour
         if (breachText != null)
         {
             breachText.gameObject.SetActive(true);
-            breachText.text = "防线突破！清屏 -1 机会";
+            breachText.text = $"漏怪！沙漏 -{penaltyMs / 1000f:0.0} 秒";
             breachText.color = new Color(1f, 0.45f, 0.4f, 1f);
         }
 
@@ -155,27 +144,6 @@ public class CombatHUD : MonoBehaviour
     void OnVictory() => resultOverlay?.Show("VICTORY", new Color(0.45f, 0.95f, 0.55f, 1f));
 
     void OnDefeat() => resultOverlay?.Show("DEFEAT", new Color(0.95f, 0.35f, 0.35f, 1f));
-
-    void RefreshLives()
-    {
-        if (livesText == null)
-        {
-            return;
-        }
-
-        int lives = _mage != null ? _mage.LivesRemaining : 0;
-        // ◆ 活着 / ◇ 已失
-        char[] marks = new char[Mage.MaxLives];
-        for (int i = 0; i < Mage.MaxLives; i++)
-        {
-            marks[i] = i < lives ? '◆' : '◇';
-        }
-
-        livesText.text = "机会 " + new string(marks);
-        livesText.color = lives <= 1
-            ? new Color(1f, 0.45f, 0.4f, 1f)
-            : new Color(0.7f, 0.85f, 1f, 1f);
-    }
 
     void RefreshStatus()
     {

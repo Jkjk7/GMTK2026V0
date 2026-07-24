@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 本局商店解锁池。开局仅激光+收束器；解锁事件可加入/替换，上限 12。
+/// 本局商店解锁池。开局：激光+收束器+寒冰+火花；按稀有度权重抽货。
 /// </summary>
 public class RunModulePool : MonoBehaviour
 {
@@ -35,6 +35,8 @@ public class RunModulePool : MonoBehaviour
         _unlocked.Clear();
         _unlocked.Add(ModuleType.Projectile);
         _unlocked.Add(ModuleType.Redirector);
+        _unlocked.Add(ModuleType.IceLaser);
+        _unlocked.Add(ModuleType.Spark);
     }
 
     public bool Contains(ModuleType type) => _unlocked.Contains(type);
@@ -67,8 +69,66 @@ public class RunModulePool : MonoBehaviour
         return true;
     }
 
-    /// <summary>商店货架：约 4 攻击位 + 其余功能/随机，全部来自解锁池。</summary>
+    public bool TryRemove(ModuleType type)
+    {
+        // 保底：至少保留激光与收束器之一不可同时被掏空核心
+        if (type == ModuleType.Projectile || type == ModuleType.Redirector)
+        {
+            bool hasOtherCore = false;
+            for (int i = 0; i < _unlocked.Count; i++)
+            {
+                ModuleType t = _unlocked[i];
+                if (t != type && (t == ModuleType.Projectile || t == ModuleType.Redirector))
+                {
+                    hasOtherCore = true;
+                    break;
+                }
+            }
+
+            if (!hasOtherCore)
+            {
+                return false;
+            }
+        }
+
+        return _unlocked.Remove(type);
+    }
+
+    /// <summary>按稀有度权重从列表抽一个。</summary>
+    public static ModuleType RollWeighted(IList<ModuleType> list, int waveNumber)
+    {
+        if (list == null || list.Count == 0)
+        {
+            return ModuleType.Redirector;
+        }
+
+        int stage = ModulePricing.GetStage(waveNumber);
+        float total = 0f;
+        for (int i = 0; i < list.Count; i++)
+        {
+            total += ModuleCatalog.GetShopWeight(ModuleCatalog.GetRarity(list[i]), stage);
+        }
+
+        float roll = Random.value * Mathf.Max(0.001f, total);
+        float acc = 0f;
+        for (int i = 0; i < list.Count; i++)
+        {
+            acc += ModuleCatalog.GetShopWeight(ModuleCatalog.GetRarity(list[i]), stage);
+            if (roll <= acc)
+            {
+                return list[i];
+            }
+        }
+
+        return list[list.Count - 1];
+    }
+
     public ModuleType RollShopSlotType(int slotIndex)
+    {
+        return RollShopSlotType(slotIndex, WaveManagerDisplayWave());
+    }
+
+    public ModuleType RollShopSlotType(int slotIndex, int waveNumber)
     {
         if (_unlocked.Count == 0)
         {
@@ -92,18 +152,22 @@ public class RunModulePool : MonoBehaviour
 
         if (slotIndex < 4 && attacks.Count > 0)
         {
-            return attacks[Random.Range(0, attacks.Count)];
+            return RollWeighted(attacks, waveNumber);
         }
 
         if (slotIndex == 4 && utils.Count > 0)
         {
-            return utils[Random.Range(0, utils.Count)];
+            return RollWeighted(utils, waveNumber);
         }
 
-        return _unlocked[Random.Range(0, _unlocked.Count)];
+        return RollWeighted(_unlocked, waveNumber);
     }
 
-    /// <summary>为满池三选一生成尽量不重复的替换目标。</summary>
+    static int WaveManagerDisplayWave()
+    {
+        return WaveManager.FindDisplayWave();
+    }
+
     public List<ModuleType> PickDistinctReplaceTargets(int count)
     {
         var result = new List<ModuleType>();
@@ -130,5 +194,49 @@ public class RunModulePool : MonoBehaviour
         }
 
         return result;
+    }
+
+    /// <summary>按稀有度从池中移除最多 count 个（不含无法移除的核心保底失败项）。</summary>
+    public int PurgeByRarity(ModuleRarity rarity, int count)
+    {
+        var candidates = new List<ModuleType>();
+        for (int i = 0; i < _unlocked.Count; i++)
+        {
+            if (ModuleCatalog.GetRarity(_unlocked[i]) == rarity)
+            {
+                candidates.Add(_unlocked[i]);
+            }
+        }
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            int j = Random.Range(i, candidates.Count);
+            (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
+        }
+
+        int removed = 0;
+        for (int i = 0; i < candidates.Count && removed < count; i++)
+        {
+            if (TryRemove(candidates[i]))
+            {
+                removed++;
+            }
+        }
+
+        return removed;
+    }
+
+    public List<ModuleType> GetUnlockedOfRarity(ModuleRarity rarity)
+    {
+        var list = new List<ModuleType>();
+        for (int i = 0; i < _unlocked.Count; i++)
+        {
+            if (ModuleCatalog.GetRarity(_unlocked[i]) == rarity)
+            {
+                list.Add(_unlocked[i]);
+            }
+        }
+
+        return list;
     }
 }

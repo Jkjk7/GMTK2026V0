@@ -106,7 +106,7 @@ public class MinerModule : ModuleBase
         }
 
         currentEnergy -= energyCost;
-        _cooldown = cooldownSeconds;
+        _cooldown = cooldownSeconds * EnchantCooldownMultiplier;
         int gold = Mathf.Max(1, goldPerCycle);
         if (GoldDropService.Instance != null)
         {

@@ -12,9 +12,18 @@ public enum ModuleType
     /// <summary>大卫炸弹塔：AOE 清潮。</summary>
     Bomb = 2,
 
-    /// <summary>查理寒冰激光塔：弱输出 + 减速。</summary>
+    /// <summary>雪花发射塔：弧线雪花弹 + 寒冷减速。</summary>
     IceLaser = 3,
 
     /// <summary>比特币采矿机：能量换金币。</summary>
-    Miner = 4
+    Miner = 4,
+
+    /// <summary>黑洞发射器：史诗控场，吸引敌人聚堆。</summary>
+    BlackHole = 5,
+
+    /// <summary>火焰增幅：场上提高灼烧伤害。</summary>
+    FlameAmp = 6,
+
+    /// <summary>火花发射塔：弧线火花弹挂烧。</summary>
+    Spark = 7
 }

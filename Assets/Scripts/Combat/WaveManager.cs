@@ -25,14 +25,14 @@ public class WaveManager : MonoBehaviour
         Complete
     }
 
-    [Header("Waves (15)")]
+    [Header("Waves (25)")]
     [SerializeField] WaveConfig[] waves;
 
     [Header("Countdown")]
     [SerializeField] float countdownStepSeconds = 0.5f;
 
     readonly List<Enemy> _activeEnemies = new List<Enemy>();
-    readonly List<EnemyGoldType> _spawnQueue = new List<EnemyGoldType>();
+    readonly List<WaveSpawnBudget.SpawnEntry> _spawnQueue = new List<WaveSpawnBudget.SpawnEntry>();
 
     BattleLane _lane;
     Mage _mage;
@@ -41,6 +41,7 @@ public class WaveManager : MonoBehaviour
     EnergyBallManager _ballManager;
     ModuleUnlockDirector _unlockDirector;
     EmitterUpgradeDirector _emitterDirector;
+    BlessingCurseDirector _blessDirector;
 
     Phase _phase = Phase.Preparing;
     int _waveIndex;
@@ -69,6 +70,12 @@ public class WaveManager : MonoBehaviour
     public event Action<int> OnCountdownDigit;
     public event Action OnCombatStarted;
 
+    public static int FindDisplayWave()
+    {
+        WaveManager wm = FindObjectOfType<WaveManager>();
+        return wm != null ? wm.CurrentWaveDisplay : 1;
+    }
+
     public void Initialize(
         BattleLane lane,
         Mage mage,
@@ -76,7 +83,8 @@ public class WaveManager : MonoBehaviour
         Transform enemyRoot,
         EnergyBallManager ballManager = null,
         ModuleUnlockDirector unlockDirector = null,
-        EmitterUpgradeDirector emitterDirector = null)
+        EmitterUpgradeDirector emitterDirector = null,
+        BlessingCurseDirector blessDirector = null)
     {
         _lane = lane;
         _mage = mage;
@@ -85,6 +93,7 @@ public class WaveManager : MonoBehaviour
         _ballManager = ballManager;
         _unlockDirector = unlockDirector;
         _emitterDirector = emitterDirector;
+        _blessDirector = blessDirector;
         EnsureDefaultWaves();
         _waveIndex = 0;
         BeginPrepForWave(0);
@@ -92,9 +101,9 @@ public class WaveManager : MonoBehaviour
 
     void EnsureDefaultWaves()
     {
-        // Roguelike15：始终使用 15 波固定配额表（忽略旧序列化的 count 波次）
-        waves = new WaveConfig[15];
-        for (int i = 0; i < 15; i++)
+        // Roguelike25：始终使用 25 波固定配额表
+        waves = new WaveConfig[25];
+        for (int i = 0; i < 25; i++)
         {
             int display = i + 1;
             waves[i] = new WaveConfig
@@ -185,6 +194,18 @@ public class WaveManager : MonoBehaviour
         {
             miners[i]?.ClearEnergy();
         }
+
+        BlackHoleModule[] holes = FindObjectsOfType<BlackHoleModule>();
+        for (int i = 0; i < holes.Length; i++)
+        {
+            holes[i]?.ClearEnergy();
+        }
+
+        SparkModule[] sparks = FindObjectsOfType<SparkModule>();
+        for (int i = 0; i < sparks.Length; i++)
+        {
+            sparks[i]?.ClearEnergy();
+        }
     }
 
     void TickPreparing()
@@ -247,6 +268,7 @@ public class WaveManager : MonoBehaviour
 
         _session?.EnterCombat();
         WaveGoldBudget.Instance?.BeginWave(CurrentWaveDisplay, _spawnQueue);
+        SandClock.Instance?.BeginWave(CurrentWaveDisplay);
         OnCombatStarted?.Invoke();
     }
 
@@ -274,7 +296,7 @@ public class WaveManager : MonoBehaviour
 
         // 黄潮稍密
         if (_spawnedThisWave > 0 && _spawnedThisWave <= _spawnQueue.Count &&
-            _spawnQueue[_spawnedThisWave - 1] == EnemyGoldType.Swarm)
+            _spawnQueue[_spawnedThisWave - 1].Type == EnemyGoldType.Swarm)
         {
             interval *= 0.55f;
         }
@@ -310,7 +332,8 @@ public class WaveManager : MonoBehaviour
     {
         bool module = _unlockDirector != null && _unlockDirector.ShouldOfferAfterWave(finishedWave);
         bool emitter = _emitterDirector != null && _emitterDirector.ShouldOfferAfterWave(finishedWave);
-        if (!module && !emitter)
+        bool bless = _blessDirector != null && _blessDirector.ShouldOfferAfterWave(finishedWave);
+        if (!module && !emitter && !bless)
         {
             return false;
         }
@@ -325,7 +348,13 @@ public class WaveManager : MonoBehaviour
             return true;
         }
 
-        _emitterDirector.BeginDraft(finishedWave, OnDraftFinished);
+        if (emitter)
+        {
+            _emitterDirector.BeginDraft(finishedWave, OnEmitterDraftFinished);
+            return true;
+        }
+
+        _blessDirector.BeginDraft(finishedWave, OnDraftFinished);
         return true;
     }
 
@@ -339,7 +368,30 @@ public class WaveManager : MonoBehaviour
         int finishedWave = CurrentWaveDisplay;
         if (_emitterDirector != null && _emitterDirector.ShouldOfferAfterWave(finishedWave))
         {
-            _emitterDirector.BeginDraft(finishedWave, OnDraftFinished);
+            _emitterDirector.BeginDraft(finishedWave, OnEmitterDraftFinished);
+            return;
+        }
+
+        if (_blessDirector != null && _blessDirector.ShouldOfferAfterWave(finishedWave))
+        {
+            _blessDirector.BeginDraft(finishedWave, OnDraftFinished);
+            return;
+        }
+
+        BeginPrepForWave(_waveIndex + 1);
+    }
+
+    void OnEmitterDraftFinished()
+    {
+        if (_phase != Phase.AwaitingDraft)
+        {
+            return;
+        }
+
+        int finishedWave = CurrentWaveDisplay;
+        if (_blessDirector != null && _blessDirector.ShouldOfferAfterWave(finishedWave))
+        {
+            _blessDirector.BeginDraft(finishedWave, OnDraftFinished);
             return;
         }
 
@@ -358,12 +410,18 @@ public class WaveManager : MonoBehaviour
 
     void GrantWaveEndRewards()
     {
-        if (_waveRewardsGranted || WaveGoldBudget.Instance == null)
+        if (_waveRewardsGranted)
         {
             return;
         }
 
         _waveRewardsGranted = true;
+        SandClock.Instance?.GrantWaveClearReward();
+
+        if (WaveGoldBudget.Instance == null)
+        {
+            return;
+        }
         Vector3 from = _mage != null
             ? _mage.transform.position
             : (_lane != null ? _lane.GetSpawnPosition() : Vector3.zero);
@@ -384,24 +442,25 @@ public class WaveManager : MonoBehaviour
     {
         _phase = Phase.Complete;
         OnAllWavesComplete?.Invoke();
-        if (_mage != null && _mage.LivesRemaining > 0)
+        if (SandClock.Instance == null || SandClock.Instance.RemainingMs > 0)
         {
             _session?.SetVictory();
         }
     }
 
-    void SpawnEnemy(EnemyGoldType type)
+    void SpawnEnemy(WaveSpawnBudget.SpawnEntry entry)
     {
         if (_lane == null || _enemyRoot == null)
         {
             return;
         }
 
-        var go = new GameObject($"Enemy_W{_waveIndex + 1}_{_spawnedThisWave + 1}_{type}");
+        string tag = entry.SandBuff ? $"{entry.Type}_Sand" : entry.Type.ToString();
+        var go = new GameObject($"Enemy_W{_waveIndex + 1}_{_spawnedThisWave + 1}_{tag}");
         go.transform.SetParent(_enemyRoot, false);
         go.transform.position = _lane.GetSpawnPosition();
         var enemy = go.AddComponent<Enemy>();
-        enemy.Initialize(_lane, _mage, this, CurrentWaveDisplay, type);
+        enemy.Initialize(_lane, _mage, this, CurrentWaveDisplay, entry.Type, entry.SandBuff);
         RegisterEnemy(enemy);
     }
 

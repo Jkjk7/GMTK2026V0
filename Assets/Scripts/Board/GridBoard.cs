@@ -21,9 +21,26 @@ public class GridBoard : MonoBehaviour
     [SerializeField] Color gridLineColor = new Color(0.35f, 0.4f, 0.48f, 1f);
 
     ModuleBase[,] _modules;
+    bool[,] _cursed;
+    CellEnchant[,] _enchants;
     Transform _cellsRoot;
     Transform _modulesRoot;
+    Transform _curseRoot;
+    Transform _enchantRoot;
+    SpriteRenderer[,] _curseOverlays;
+    SpriteRenderer[,] _enchantOverlays;
     BoardExpandService _expand;
+
+    static readonly Color CurseFill = new Color(0.28f, 0.08f, 0.42f, 0.72f);
+    static readonly Color CurseHatch = new Color(0.7f, 0.25f, 0.95f, 0.65f);
+    static readonly CellEnchant[] RandomEnchantKinds =
+    {
+        CellEnchant.Flame,
+        CellEnchant.DamageUp,
+        CellEnchant.Frost,
+        CellEnchant.Shrink,
+        CellEnchant.Cooldown
+    };
 
     public float CellSize => cellSize;
     public Vector2 LocalOrigin => localOrigin;
@@ -42,6 +59,10 @@ public class GridBoard : MonoBehaviour
         cellSize = size;
         localOrigin = originLocal;
         _modules = new ModuleBase[Width, Height];
+        _cursed = new bool[Width, Height];
+        _enchants = new CellEnchant[Width, Height];
+        _curseOverlays = new SpriteRenderer[Width, Height];
+        _enchantOverlays = new SpriteRenderer[Width, Height];
 
         if (_cellsRoot != null)
         {
@@ -59,6 +80,8 @@ public class GridBoard : MonoBehaviour
         }
 
         BuildCellVisuals();
+        RebuildCurseOverlays();
+        RebuildEnchantOverlays();
     }
 
     /// <summary>格子中心（本地坐标）。</summary>
@@ -118,12 +141,306 @@ public class GridBoard : MonoBehaviour
             return false;
         }
 
+        if (IsCursed(coord))
+        {
+            return false;
+        }
+
         if (_expand != null && !_expand.IsBuildable(coord))
         {
             return false;
         }
 
         return true;
+    }
+
+    public bool IsCursed(GridCoord coord)
+    {
+        if (!IsInside(coord) || _cursed == null)
+        {
+            return false;
+        }
+
+        return _cursed[coord.Col, coord.Row];
+    }
+
+    public void SetCursed(GridCoord coord, bool cursed)
+    {
+        if (!IsInside(coord) || _cursed == null)
+        {
+            return;
+        }
+
+        _cursed[coord.Col, coord.Row] = cursed;
+        if (cursed)
+        {
+            SetEnchant(coord, CellEnchant.None);
+        }
+
+        RefreshCurseVisual(coord);
+    }
+
+    public CellEnchant GetEnchant(GridCoord coord)
+    {
+        if (!IsInside(coord) || _enchants == null)
+        {
+            return CellEnchant.None;
+        }
+
+        return _enchants[coord.Col, coord.Row];
+    }
+
+    public void SetEnchant(GridCoord coord, CellEnchant enchant)
+    {
+        if (!IsInside(coord) || _enchants == null)
+        {
+            return;
+        }
+
+        if (enchant != CellEnchant.None && IsCursed(coord))
+        {
+            return;
+        }
+
+        _enchants[coord.Col, coord.Row] = enchant;
+        RefreshEnchantVisual(coord);
+    }
+
+    /// <summary>
+    /// 随机选取可建造无诅咒格，每格独立随机一种附魔（可覆盖旧附魔）。
+    /// </summary>
+    public int EnchantRandomBuildableCells(int count)
+    {
+        if (count <= 0 || _enchants == null)
+        {
+            return 0;
+        }
+
+        var candidates = new System.Collections.Generic.List<GridCoord>();
+        for (int col = 0; col < Width; col++)
+        {
+            for (int row = 0; row < Height; row++)
+            {
+                var c = new GridCoord(col, row);
+                if (!IsBuildableCell(c) || IsCursed(c))
+                {
+                    continue;
+                }
+
+                candidates.Add(c);
+            }
+        }
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            int j = Random.Range(i, candidates.Count);
+            (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
+        }
+
+        int take = Mathf.Min(count, candidates.Count);
+        for (int i = 0; i < take; i++)
+        {
+            CellEnchant kind = RandomEnchantKinds[Random.Range(0, RandomEnchantKinds.Length)];
+            SetEnchant(candidates[i], kind);
+        }
+
+        return take;
+    }
+
+    public int CountEnchants()
+    {
+        if (_enchants == null)
+        {
+            return 0;
+        }
+
+        int n = 0;
+        for (int col = 0; col < Width; col++)
+        {
+            for (int row = 0; row < Height; row++)
+            {
+                if (_enchants[col, row] != CellEnchant.None)
+                {
+                    n++;
+                }
+            }
+        }
+
+        return n;
+    }
+
+    public static Color GetEnchantColor(CellEnchant enchant)
+    {
+        switch (enchant)
+        {
+            case CellEnchant.Flame: return new Color(1f, 0.45f, 0.12f, 0.42f);
+            case CellEnchant.DamageUp: return new Color(0.95f, 0.25f, 0.55f, 0.42f);
+            case CellEnchant.Frost: return new Color(0.35f, 0.85f, 1f, 0.42f);
+            case CellEnchant.Shrink: return new Color(0.65f, 0.35f, 0.95f, 0.42f);
+            case CellEnchant.Cooldown: return new Color(0.35f, 0.9f, 0.45f, 0.42f);
+            default: return new Color(0f, 0f, 0f, 0f);
+        }
+    }
+
+    /// <summary>
+    /// 随机诅咒已解锁可建造格；若格上有模块则取出（不销毁）返回列表供调用方入手/分解。
+    /// </summary>
+    public System.Collections.Generic.List<ModuleBase> CurseRandomBuildableCells(int count)
+    {
+        var result = new System.Collections.Generic.List<ModuleBase>();
+        if (count <= 0)
+        {
+            return result;
+        }
+
+        var candidates = new System.Collections.Generic.List<GridCoord>();
+        for (int col = 0; col < Width; col++)
+        {
+            for (int row = 0; row < Height; row++)
+            {
+                var c = new GridCoord(col, row);
+                if (!IsBuildableCell(c) || IsCursed(c))
+                {
+                    continue;
+                }
+
+                candidates.Add(c);
+            }
+        }
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            int j = Random.Range(i, candidates.Count);
+            (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
+        }
+
+        int take = Mathf.Min(count, candidates.Count);
+        for (int i = 0; i < take; i++)
+        {
+            GridCoord cell = candidates[i];
+            if (TryExtractModule(cell, out ModuleBase mod) && mod != null)
+            {
+                result.Add(mod);
+            }
+
+            SetCursed(cell, true);
+        }
+
+        return result;
+    }
+
+    void RebuildCurseOverlays()
+    {
+        if (_curseRoot != null)
+        {
+            Destroy(_curseRoot.gameObject);
+        }
+
+        _curseRoot = new GameObject("CurseOverlays").transform;
+        _curseRoot.SetParent(transform, false);
+        for (int col = 0; col < Width; col++)
+        {
+            for (int row = 0; row < Height; row++)
+            {
+                var cell = new GridCoord(col, row);
+                var go = new GameObject($"Curse_{col}_{row}");
+                go.transform.SetParent(_curseRoot, false);
+                go.transform.position = CellToWorld(cell);
+                go.transform.localScale = Vector3.one * (cellSize * 0.9f);
+                var fill = go.AddComponent<SpriteRenderer>();
+                fill.sprite = PrototypeSprites.Square;
+                fill.color = CurseFill;
+                fill.sortingOrder = 4;
+                fill.enabled = false;
+                _curseOverlays[col, row] = fill;
+
+                var hatchGo = new GameObject("Hatch");
+                hatchGo.transform.SetParent(go.transform, false);
+                hatchGo.transform.localRotation = Quaternion.Euler(0f, 0f, -35f);
+                hatchGo.transform.localScale = new Vector3(1.2f, 0.12f, 1f);
+                var hatch = hatchGo.AddComponent<SpriteRenderer>();
+                hatch.sprite = PrototypeSprites.Square;
+                hatch.color = CurseHatch;
+                hatch.sortingOrder = 5;
+                hatch.enabled = false;
+            }
+        }
+    }
+
+    void RefreshCurseVisual(GridCoord coord)
+    {
+        if (_curseOverlays == null || !IsInside(coord))
+        {
+            return;
+        }
+
+        SpriteRenderer sr = _curseOverlays[coord.Col, coord.Row];
+        if (sr == null)
+        {
+            return;
+        }
+
+        bool on = IsCursed(coord);
+        sr.enabled = on;
+        Transform hatch = sr.transform.childCount > 0 ? sr.transform.GetChild(0) : null;
+        if (hatch != null)
+        {
+            var hsr = hatch.GetComponent<SpriteRenderer>();
+            if (hsr != null)
+            {
+                hsr.enabled = on;
+            }
+        }
+    }
+
+    void RebuildEnchantOverlays()
+    {
+        if (_enchantRoot != null)
+        {
+            Destroy(_enchantRoot.gameObject);
+        }
+
+        _enchantRoot = new GameObject("EnchantOverlays").transform;
+        _enchantRoot.SetParent(transform, false);
+        for (int col = 0; col < Width; col++)
+        {
+            for (int row = 0; row < Height; row++)
+            {
+                var cell = new GridCoord(col, row);
+                var go = new GameObject($"Enchant_{col}_{row}");
+                go.transform.SetParent(_enchantRoot, false);
+                go.transform.position = CellToWorld(cell);
+                go.transform.localScale = Vector3.one * (cellSize * 0.88f);
+                var fill = go.AddComponent<SpriteRenderer>();
+                fill.sprite = PrototypeSprites.Square;
+                fill.color = Color.clear;
+                fill.sortingOrder = 3;
+                fill.enabled = false;
+                _enchantOverlays[col, row] = fill;
+            }
+        }
+    }
+
+    void RefreshEnchantVisual(GridCoord coord)
+    {
+        if (_enchantOverlays == null || !IsInside(coord))
+        {
+            return;
+        }
+
+        SpriteRenderer sr = _enchantOverlays[coord.Col, coord.Row];
+        if (sr == null)
+        {
+            return;
+        }
+
+        CellEnchant enchant = GetEnchant(coord);
+        bool on = enchant != CellEnchant.None && !IsCursed(coord);
+        sr.enabled = on;
+        if (on)
+        {
+            sr.color = GetEnchantColor(enchant);
+        }
     }
 
     public bool IsBuildableCell(GridCoord coord)
