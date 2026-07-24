@@ -512,6 +512,66 @@ public class ModuleTooltipView : MonoBehaviour
             return $"伤害：{dmg}\n射速：{rps:0.#}/秒\n灼烧：{burn:0.#}秒\n能耗：{cost}\n{energy}";
         }
 
+        if (card.Type == ModuleType.Heatwave)
+        {
+            float burn = ModuleCatalog.GetHeatwaveBurnDuration(card.Level);
+            string energy = live is HeatwaveModule hw
+                ? $"储能：{hw.CurrentEnergy}/{hw.EnergyCapacity}"
+                : "储能：0/20";
+            return $"全屏灼烧：{burn:0.#}秒\n能耗：20\n冷却：5秒\n{energy}";
+        }
+
+        if (card.Type == ModuleType.FireEnchant || card.Type == ModuleType.Surprise)
+        {
+            int cells = Mathf.Clamp(card.Level, 1, 4);
+            string kind = card.Type == ModuleType.FireEnchant ? "灼烧附魔" : "随机附魔";
+            return $"附魔格数：{cells}\n种类：{kind}\n同位置种子固定；诅咒格跳过不补抽";
+        }
+
+        if (card.Type == ModuleType.Splitter)
+        {
+            return "形状：T 形\n效果：一分二，寿命减半\n不可与收束器合成拐弯";
+        }
+
+        if (card.Type == ModuleType.Portal)
+        {
+            string shape = card.Bent ? "L 拐弯" : "直通";
+            return $"形状：{shape}\n场上最多 2 座\n成对传送，保持飞行方向";
+        }
+
+        if (card.Type == ModuleType.Relay)
+        {
+            string shape = card.Bent ? "L 拐弯" : "直通";
+            string energy = live is RelayModule r
+                ? $"储能：{r.StoredEnergy}/{RelayModule.EnergyCap}"
+                : $"储能上限：{RelayModule.EnergyCap}";
+            return $"形状：{shape}\n吸收能量；下一球刷新寿命\n{energy}";
+        }
+
+        if (card.Type == ModuleType.Accelerator)
+        {
+            string shape = card.Bent ? "L 拐弯" : "直通";
+            return $"形状：{shape}\n速度 ×1.5（每球一次）";
+        }
+
+        if (card.Type == ModuleType.Fusion)
+        {
+            string shape = card.Bent ? "L 拐弯" : "直通";
+            string prog = live is FusionModule f
+                ? $"进度：{f.AbsorbedCount}/{FusionModule.BallsNeeded}"
+                : $"需吸收：{FusionModule.BallsNeeded} 球";
+            return $"形状：{shape}\n5 球合成 1 球\n{prog}";
+        }
+
+        if (card.Type == ModuleType.Fission)
+        {
+            string shape = card.Bent ? "L 拐弯" : "直通";
+            string energy = live is FissionModule fi
+                ? $"储能：{fi.StoredEnergy}/{FissionModule.EnergyThreshold}"
+                : $"阈值：{FissionModule.EnergyThreshold}";
+            return $"形状：{shape}\n≥5 能 → 0.5s 射 5 颗默认球\n{energy}";
+        }
+
         if (card.Type == ModuleType.Projectile)
         {
             int dmg = live is ProjectileModule p
@@ -537,6 +597,18 @@ public class ModuleTooltipView : MonoBehaviour
             return $"功能：直角改向\n朝向：{OrientationLabel(red.Orientation)}";
         }
 
+        if (live is PathEffectModule path)
+        {
+            string shape = path.Shape == PathShape.Bent ? "L 拐弯"
+                : path.Shape == PathShape.Tee ? "T 形" : "直通";
+            return $"路径模块\n形状：{shape}\n朝向：{path.OrientationIndex}";
+        }
+
+        if (card.Bent)
+        {
+            return "路径：拐弯版";
+        }
+
         return "功能：直角改向";
     }
 
@@ -553,7 +625,10 @@ public class ModuleTooltipView : MonoBehaviour
 
     static bool CardsEqual(ModuleCardData a, ModuleCardData b)
     {
-        return a.Type == b.Type && a.Level == b.Level && a.InvestedGold == b.InvestedGold;
+        return a.Type == b.Type
+               && a.Level == b.Level
+               && a.InvestedGold == b.InvestedGold
+               && a.Bent == b.Bent;
     }
 
     void HideImmediate()

@@ -24,6 +24,7 @@ public class EnergyBall : MonoBehaviour
     GridCoord? _lastTriggeredCell;
     bool _alive = true;
     int _energy = DefaultEnergy;
+    bool _hasAccelerated;
     SpriteRenderer _visual;
     Vector3 _previousPosition;
     TextMesh _lifeLabel;
@@ -39,6 +40,15 @@ public class EnergyBall : MonoBehaviour
 
     /// <summary>剩余寿命（秒）。</summary>
     public float RemainingLifetime => Mathf.Max(0f, lifetimeSeconds - _age);
+
+    /// <summary>当前最大寿命上限（秒）。</summary>
+    public float MaxLifetime => lifetimeSeconds;
+
+    /// <summary>当前速度（格/秒）。</summary>
+    public float SpeedCellsPerSecond => cellsPerSecond;
+
+    /// <summary>是否已被加速模块处理过（只加速一次）。</summary>
+    public bool HasAccelerated => _hasAccelerated;
 
     /// <summary>
     /// 由 EnergyBallManager 在生成时调用。
@@ -65,6 +75,7 @@ public class EnergyBall : MonoBehaviour
         _age = 0f;
         _lastTriggeredCell = null;
         _alive = true;
+        _hasAccelerated = false;
         _energy = energy > 0 ? energy : DefaultEnergy;
 
         if (speedCellsPerSecond > 0f)
@@ -99,6 +110,71 @@ public class EnergyBall : MonoBehaviour
     {
         transform.position = worldPosition;
         _previousPosition = worldPosition;
+    }
+
+    /// <summary>刷新寿命计时（_age=0），保留当前 lifetimeSeconds。</summary>
+    public void RefreshLifetime()
+    {
+        _age = 0f;
+        RefreshLifeLabel();
+    }
+
+    /// <summary>设置绝对剩余寿命（同时调整 lifetimeSeconds）。</summary>
+    public void SetRemainingLifetime(float seconds)
+    {
+        float rem = Mathf.Max(0.05f, seconds);
+        lifetimeSeconds = rem;
+        _age = 0f;
+        RefreshLifeLabel();
+    }
+
+    /// <summary>剩余寿命减半（分裂器用）。</summary>
+    public void HalveRemainingLifetime()
+    {
+        SetRemainingLifetime(RemainingLifetime * 0.5f);
+    }
+
+    /// <summary>设置飞行速度（格/秒）。</summary>
+    public void SetSpeedCellsPerSecond(float speed)
+    {
+        if (speed > 0f)
+        {
+            cellsPerSecond = speed;
+        }
+    }
+
+    /// <summary>标记已被加速过。</summary>
+    public void MarkAccelerated()
+    {
+        _hasAccelerated = true;
+    }
+
+    /// <summary>
+    /// 传送后清除本格触发标记，并可选跳过刚落地的格一次，避免同帧再触发。
+    /// </summary>
+    public void ClearLastTriggeredCell()
+    {
+        _lastTriggeredCell = null;
+    }
+
+    /// <summary>标记某格已触发过（分裂生成后避免立刻再进同格）。</summary>
+    public void MarkCellTriggered(GridCoord cell)
+    {
+        _lastTriggeredCell = cell;
+    }
+
+    /// <summary>沿当前方向推出半格，避免同帧再触发本格。</summary>
+    public void NudgeAlongDirection(float cells = 0.51f)
+    {
+        if (_board == null)
+        {
+            return;
+        }
+
+        Vector2 d = GridDirectionUtil.ToWorldVector(_direction);
+        Vector3 delta = new Vector3(d.x, d.y, 0f) * (_board.CellSize * cells);
+        transform.position += delta;
+        _previousPosition = transform.position;
     }
 
     void Update()

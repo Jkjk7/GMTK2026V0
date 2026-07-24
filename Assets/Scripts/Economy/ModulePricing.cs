@@ -14,6 +14,15 @@ public static class ModulePricing
     public const int BlackHoleBasePrice = 45;
     public const int FlameAmpBasePrice = 20;
     public const int SparkBasePrice = 15;
+    public const int SplitterBasePrice = 55;
+    public const int PortalBasePrice = 22;
+    public const int RelayBasePrice = 22;
+    public const int AcceleratorBasePrice = 20;
+    public const int FusionBasePrice = 40;
+    public const int FissionBasePrice = 40;
+    public const int FireEnchantBasePrice = 20;
+    public const int SurpriseBasePrice = 20;
+    public const int HeatwaveBasePrice = 25;
     public const float ScrapRefundRate = 0.30f;
 
     public const int BoardExpandTo5Cost = 100;
@@ -61,7 +70,9 @@ public static class ModulePricing
             return RoundToFive(Mathf.RoundToInt(price));
         }
 
-        if (type == ModuleType.FlameAmp)
+        if (type == ModuleType.FlameAmp
+            || type == ModuleType.FireEnchant
+            || type == ModuleType.Surprise)
         {
             int lvl = Mathf.Clamp(level, 1, MaxAttackLevel);
             float price = basePrice * (1f + 0.4f * (lvl - 1)) * stageMult * rarityMult;
@@ -105,6 +116,15 @@ public static class ModulePricing
             case ModuleType.BlackHole: return BlackHoleBasePrice;
             case ModuleType.FlameAmp: return FlameAmpBasePrice;
             case ModuleType.Spark: return SparkBasePrice;
+            case ModuleType.Splitter: return SplitterBasePrice;
+            case ModuleType.Portal: return PortalBasePrice;
+            case ModuleType.Relay: return RelayBasePrice;
+            case ModuleType.Accelerator: return AcceleratorBasePrice;
+            case ModuleType.Fusion: return FusionBasePrice;
+            case ModuleType.Fission: return FissionBasePrice;
+            case ModuleType.FireEnchant: return FireEnchantBasePrice;
+            case ModuleType.Surprise: return SurpriseBasePrice;
+            case ModuleType.Heatwave: return HeatwaveBasePrice;
             default: return ProjectileBasePrice;
         }
     }

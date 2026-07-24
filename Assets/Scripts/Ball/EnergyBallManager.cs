@@ -43,25 +43,10 @@ public class EnergyBallManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 尝试在指定位置生成一颗球。
+    /// 尝试在指定位置生成一颗球（使用发射器本局升级默认参数）。
     /// </summary>
-    /// <returns>成功生成返回 true；达上限或未初始化返回 false。</returns>
     public bool TrySpawn(Vector3 worldPosition, GridDirection direction)
     {
-        if (_board == null)
-        {
-            Debug.LogWarning("[EnergyBallManager] Board not initialized.");
-            return false;
-        }
-
-        // 清理已销毁残留
-        _active.RemoveAll(b => b == null);
-
-        if (_active.Count >= maxBalls)
-        {
-            return false;
-        }
-
         float speed = defaultSpeedCellsPerSecond;
         float life = defaultLifetimeSeconds;
         int energy = EnergyBall.DefaultEnergy;
@@ -72,12 +57,65 @@ public class EnergyBallManager : MonoBehaviour
             energy = EmitterRunUpgrades.Instance.Mass;
         }
 
+        return TrySpawn(worldPosition, direction, speed, life, energy);
+    }
+
+    /// <summary>
+    /// 尝试生成指定参数的球。speed/life/energy &lt;=0 时用组件或默认值。
+    /// </summary>
+    /// <returns>成功生成的球；达上限或未初始化返回 null。</returns>
+    public EnergyBall TrySpawnBall(
+        Vector3 worldPosition,
+        GridDirection direction,
+        float speedCellsPerSecond = -1f,
+        float lifetimeSeconds = -1f,
+        int energy = -1)
+    {
+        if (_board == null)
+        {
+            Debug.LogWarning("[EnergyBallManager] Board not initialized.");
+            return null;
+        }
+
+        _active.RemoveAll(b => b == null);
+        if (_active.Count >= maxBalls)
+        {
+            return null;
+        }
+
+        if (_ballRoot == null)
+        {
+            _ballRoot = new GameObject("Balls").transform;
+            _ballRoot.SetParent(transform, false);
+        }
+
         var go = new GameObject("EnergyBall");
         go.transform.SetParent(_ballRoot, false);
         var ball = go.AddComponent<EnergyBall>();
-        ball.Initialize(_board, this, worldPosition, direction, speed, life, energy);
+        ball.Initialize(
+            _board,
+            this,
+            worldPosition,
+            direction,
+            speedCellsPerSecond,
+            lifetimeSeconds,
+            energy);
         _active.Add(ball);
-        return true;
+        return ball;
+    }
+
+    /// <summary>
+    /// 尝试在指定位置生成一颗球。
+    /// </summary>
+    /// <returns>成功生成返回 true；达上限或未初始化返回 false。</returns>
+    public bool TrySpawn(
+        Vector3 worldPosition,
+        GridDirection direction,
+        float speedCellsPerSecond,
+        float lifetimeSeconds,
+        int energy)
+    {
+        return TrySpawnBall(worldPosition, direction, speedCellsPerSecond, lifetimeSeconds, energy) != null;
     }
 
     /// <summary>
