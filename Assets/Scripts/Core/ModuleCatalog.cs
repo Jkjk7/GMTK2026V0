@@ -18,7 +18,16 @@ public static class ModuleCatalog
         ModuleType.Miner,
         ModuleType.BlackHole,
         ModuleType.FlameAmp,
-        ModuleType.Spark
+        ModuleType.Spark,
+        ModuleType.Splitter,
+        ModuleType.Portal,
+        ModuleType.Relay,
+        ModuleType.Accelerator,
+        ModuleType.Fusion,
+        ModuleType.Fission,
+        ModuleType.FireEnchant,
+        ModuleType.Surprise,
+        ModuleType.Heatwave
     };
 
     public static bool IsAttackModule(ModuleType type) =>
@@ -26,16 +35,36 @@ public static class ModuleCatalog
         || type == ModuleType.Bomb
         || type == ModuleType.IceLaser
         || type == ModuleType.BlackHole
-        || type == ModuleType.Spark;
+        || type == ModuleType.Spark
+        || type == ModuleType.Heatwave;
 
     public static bool IsUtilityModule(ModuleType type) =>
         type == ModuleType.Redirector
         || type == ModuleType.Miner
-        || type == ModuleType.FlameAmp;
+        || type == ModuleType.FlameAmp
+        || type == ModuleType.FireEnchant
+        || type == ModuleType.Surprise
+        || IsPathEffectModule(type);
 
-    public static bool IsPathModule(ModuleType type) => type == ModuleType.Redirector;
+    public static bool IsPathEffectModule(ModuleType type) =>
+        type == ModuleType.Splitter
+        || type == ModuleType.Portal
+        || type == ModuleType.Relay
+        || type == ModuleType.Accelerator
+        || type == ModuleType.Fusion
+        || type == ModuleType.Fission;
 
-    public static bool IsRotatable(ModuleType type) => type == ModuleType.Redirector;
+    public static bool CanBendWithRedirector(ModuleType type) =>
+        type == ModuleType.Portal
+        || type == ModuleType.Relay
+        || type == ModuleType.Accelerator
+        || type == ModuleType.Fusion
+        || type == ModuleType.Fission;
+
+    public static bool IsPathModule(ModuleType type) =>
+        type == ModuleType.Redirector || IsPathEffectModule(type);
+
+    public static bool IsRotatable(ModuleType type) => IsPathModule(type);
 
     public static ModuleType[] GetSellableTypes() => AllTypes;
 
@@ -46,8 +75,17 @@ public static class ModuleCatalog
             case ModuleType.Redirector:
             case ModuleType.Miner:
             case ModuleType.FlameAmp:
+            case ModuleType.Portal:
+            case ModuleType.Relay:
+            case ModuleType.Accelerator:
+            case ModuleType.FireEnchant:
+            case ModuleType.Surprise:
+            case ModuleType.Heatwave:
                 return ModuleRarity.Rare;
             case ModuleType.BlackHole:
+            case ModuleType.Splitter:
+            case ModuleType.Fusion:
+            case ModuleType.Fission:
                 return ModuleRarity.Epic;
             default:
                 return ModuleRarity.Common;
@@ -138,6 +176,15 @@ public static class ModuleCatalog
             case ModuleType.BlackHole: return "黑洞发射器";
             case ModuleType.FlameAmp: return "火焰增幅";
             case ModuleType.Spark: return "火花发射塔";
+            case ModuleType.Splitter: return "分裂器";
+            case ModuleType.Portal: return "传送门";
+            case ModuleType.Relay: return "中续器";
+            case ModuleType.Accelerator: return "加速器";
+            case ModuleType.Fusion: return "核聚变";
+            case ModuleType.Fission: return "核裂变";
+            case ModuleType.FireEnchant: return "火附魔";
+            case ModuleType.Surprise: return "惊喜";
+            case ModuleType.Heatwave: return "热浪";
             default: return type.ToString();
         }
     }
@@ -145,12 +192,20 @@ public static class ModuleCatalog
     public static string GetDisplayName(ModuleCardData card)
     {
         string baseName = GetDisplayName(card.Type);
+        if (card.Bent)
+        {
+            baseName += "（拐弯）";
+        }
+
         if (IsAttackModule(card.Type) && card.Level > 1)
         {
             return $"{baseName} Lv{card.Level}";
         }
 
-        if ((card.Type == ModuleType.Miner || card.Type == ModuleType.FlameAmp) && card.Level > 1)
+        if ((card.Type == ModuleType.Miner
+             || card.Type == ModuleType.FlameAmp
+             || card.Type == ModuleType.FireEnchant
+             || card.Type == ModuleType.Surprise) && card.Level > 1)
         {
             return $"{baseName} Lv{card.Level}";
         }
@@ -170,6 +225,15 @@ public static class ModuleCatalog
             case ModuleType.BlackHole: return "聚怪";
             case ModuleType.FlameAmp: return "灼烧";
             case ModuleType.Spark: return "火花";
+            case ModuleType.Splitter: return "分裂";
+            case ModuleType.Portal: return "传送";
+            case ModuleType.Relay: return "续航";
+            case ModuleType.Accelerator: return "加速";
+            case ModuleType.Fusion: return "聚变";
+            case ModuleType.Fission: return "裂变";
+            case ModuleType.FireEnchant: return "附魔";
+            case ModuleType.Surprise: return "附魔";
+            case ModuleType.Heatwave: return "灼烧";
             default: return string.Empty;
         }
     }
@@ -194,6 +258,24 @@ public static class ModuleCatalog
                 return "场上被动提高灼烧每次跳动伤害；多座叠加";
             case ModuleType.Spark:
                 return "射出弧线橙红火花弹，命中施加灼烧；适合与雪花触发融化";
+            case ModuleType.Splitter:
+                return "T 形一分二：原球销毁，左右口各出一球（同能量、剩余寿命减半）";
+            case ModuleType.Portal:
+                return "场上最多 2 座；成对时球保持飞行方向传送到另一门";
+            case ModuleType.Relay:
+                return "吸收能量至 20；储能后下一球刷新寿命并清空储能";
+            case ModuleType.Accelerator:
+                return "使未加速过的球速度 ×1.5（每球仅一次）";
+            case ModuleType.Fusion:
+                return "吸收 5 颗球后射出 1 颗：能量相加，寿命与速度取平均";
+            case ModuleType.Fission:
+                return "吸收能量 ≥5 后，0.5 秒内依次射出 5 颗高速默认球";
+            case ModuleType.FireEnchant:
+                return "按固定种子给若干格写入灼烧附魔；升级多附魔 1 格";
+            case ModuleType.Surprise:
+                return "按固定种子给若干格写入随机附魔；升级多附魔 1 格";
+            case ModuleType.Heatwave:
+                return "储能满后释放热浪：全屏施加灼烧，冷却 5 秒";
             default:
                 return string.Empty;
         }
@@ -219,6 +301,24 @@ public static class ModuleCatalog
                 return "把整条航道烧得更烫一点";
             case ModuleType.Spark:
                 return "像 Noita 里那样噼里啪啦往外飞";
+            case ModuleType.Splitter:
+                return "一球拆两半，寿命也对半砍";
+            case ModuleType.Portal:
+                return "这边进，那边出，方向别晕";
+            case ModuleType.Relay:
+                return "先吃饱，再给路过的球续命";
+            case ModuleType.Accelerator:
+                return "油门踩一次就够了";
+            case ModuleType.Fusion:
+                return "五球归一心，能量叠满仓";
+            case ModuleType.Fission:
+                return "攒够就炸成五连发";
+            case ModuleType.FireEnchant:
+                return "把格子烫出烙印";
+            case ModuleType.Surprise:
+                return "盒子一开，谁知道是啥附魔";
+            case ModuleType.Heatwave:
+                return "整片战场一起出汗";
             default:
                 return string.Empty;
         }
@@ -332,6 +432,17 @@ public static class ModuleCatalog
 
     public static int GetSparkEnergyPerShot(int level = 1) => 1;
 
+    public static float GetHeatwaveBurnDuration(int level)
+    {
+        switch (Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel))
+        {
+            case 1: return 2f;
+            case 2: return 3f;
+            case 3: return 4f;
+            default: return 5f;
+        }
+    }
+
     public static int GetMinerEnergyCost(int level) => 10;
 
     public static int GetMinerGoldAmount(int level)
@@ -356,6 +467,15 @@ public static class ModuleCatalog
             case ModuleType.BlackHole: return new Color(0.35f, 0.15f, 0.55f, 1f);
             case ModuleType.FlameAmp: return new Color(1f, 0.4f, 0.15f, 1f);
             case ModuleType.Spark: return new Color(1f, 0.7f, 0.2f, 1f);
+            case ModuleType.Splitter: return new Color(0.85f, 0.45f, 0.95f, 1f);
+            case ModuleType.Portal: return new Color(0.45f, 0.35f, 0.95f, 1f);
+            case ModuleType.Relay: return new Color(0.35f, 0.9f, 0.75f, 1f);
+            case ModuleType.Accelerator: return new Color(1f, 0.85f, 0.25f, 1f);
+            case ModuleType.Fusion: return new Color(0.95f, 0.4f, 0.85f, 1f);
+            case ModuleType.Fission: return new Color(1f, 0.55f, 0.2f, 1f);
+            case ModuleType.FireEnchant: return new Color(1f, 0.35f, 0.1f, 1f);
+            case ModuleType.Surprise: return new Color(0.95f, 0.55f, 0.85f, 1f);
+            case ModuleType.Heatwave: return new Color(1f, 0.25f, 0.15f, 1f);
             default: return Color.gray;
         }
     }

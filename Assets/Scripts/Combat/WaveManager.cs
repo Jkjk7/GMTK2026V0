@@ -206,6 +206,30 @@ public class WaveManager : MonoBehaviour
         {
             sparks[i]?.ClearEnergy();
         }
+
+        RelayModule[] relays = FindObjectsOfType<RelayModule>();
+        for (int i = 0; i < relays.Length; i++)
+        {
+            relays[i]?.ClearEnergy();
+        }
+
+        FusionModule[] fusions = FindObjectsOfType<FusionModule>();
+        for (int i = 0; i < fusions.Length; i++)
+        {
+            fusions[i]?.ClearEnergy();
+        }
+
+        FissionModule[] fissions = FindObjectsOfType<FissionModule>();
+        for (int i = 0; i < fissions.Length; i++)
+        {
+            fissions[i]?.ClearEnergy();
+        }
+
+        HeatwaveModule[] heatwaves = FindObjectsOfType<HeatwaveModule>();
+        for (int i = 0; i < heatwaves.Length; i++)
+        {
+            heatwaves[i]?.ClearEnergy();
+        }
     }
 
     void TickPreparing()

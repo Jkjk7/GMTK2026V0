@@ -127,6 +127,13 @@ public class GameBootstrap : MonoBehaviour
 
         emitter.Initialize(board, ballManager, session, sandClock);
 
+        var ballHudGo = new GameObject("BallCountHud");
+        ballHudGo.transform.SetParent(worldRoot, false);
+        var ballHud = ballHudGo.AddComponent<BallCountHud>();
+        Vector3 ballHudPos = boardBounds.center;
+        ballHudPos.y = boardBounds.max.y + cellSize * 0.55f;
+        ballHud.Initialize(ballManager, ballHudPos);
+
         var lane = battleRoot.gameObject.AddComponent<BattleLane>();
         lane.Initialize(spawnAnchor, endAnchor);
 

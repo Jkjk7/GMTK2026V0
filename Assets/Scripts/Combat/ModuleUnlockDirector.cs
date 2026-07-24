@@ -90,16 +90,29 @@ public class ModuleUnlockDirector : MonoBehaviour
         var list = new List<ModuleType>();
         list.Add(ModuleType.Bomb);
         list.Add(ModuleType.Miner);
+        list.Add(ModuleType.Portal);
+        list.Add(ModuleType.Relay);
+        list.Add(ModuleType.Accelerator);
+        list.Add(ModuleType.FireEnchant);
+        list.Add(ModuleType.Surprise);
+        list.Add(ModuleType.Heatwave);
         // 寒冰/火花已在开局池，不再进解锁候选
         if (waveDisplay >= 6)
         {
             list.Add(ModuleType.FlameAmp);
         }
 
-        // 史诗黑洞：偏后期才进解锁池
+        // 史诗：偏后期
         if (waveDisplay >= 9)
         {
             list.Add(ModuleType.BlackHole);
+            list.Add(ModuleType.Fusion);
+            list.Add(ModuleType.Fission);
+        }
+
+        if (waveDisplay >= 12)
+        {
+            list.Add(ModuleType.Splitter);
         }
 
         return list;

@@ -355,7 +355,7 @@ public class PlacementController : MonoBehaviour
             if (_board.TryWorldToCell(mouseWorld, out GridCoord cell))
             {
                 ModuleBase occupant = _board.GetModule(cell);
-                bool canDrop = _board.CanPlace(cell) ||
+                bool canDrop = (_board.CanPlace(cell) && CanPlaceTypeAt(_boardDragModule.ModuleType, cell)) ||
                                (occupant != null &&
                                 !occupant.IsPermanentlyLocked &&
                                 occupant.CardData.CanFuseWith(_boardDragModule.CardData));
@@ -404,12 +404,19 @@ public class PlacementController : MonoBehaviour
             !occupant.IsPermanentlyLocked &&
             occupant.CardData.CanFuseWith(mod.CardData))
         {
-            occupant.ApplyCardData(occupant.CardData.FusedWith(mod.CardData));
-            Destroy(mod.gameObject);
+            if (TryApplyBoardFuse(occupant, to, mod.CardData))
+            {
+                Destroy(mod.gameObject);
+            }
+            else
+            {
+                _board.TryPlaceModule(_boardDragFrom, mod);
+            }
+
             return;
         }
 
-        if (!_board.CanPlace(to))
+        if (!_board.CanPlace(to) || !CanPlaceTypeAt(mod.ModuleType, to))
         {
             _board.TryPlaceModule(_boardDragFrom, mod);
             return;
@@ -1065,23 +1072,24 @@ public class PlacementController : MonoBehaviour
             {
                 if (hand.TryConsumeSlot(handIndex, out card))
                 {
-                    occupant.ApplyCardData(occupant.CardData.FusedWith(card));
+                    if (!TryApplyBoardFuse(occupant, cell, card))
+                    {
+                        hand.TryAddCard(card);
+                    }
                 }
 
                 _scrapZone?.SetIdle();
                 return;
             }
 
-            if (_board.CanPlace(cell) && hand.TryConsumeSlot(handIndex, out card))
+            if (_board.CanPlace(cell)
+                && CanPlaceTypeAt(card.Type, cell)
+                && hand.TryConsumeSlot(handIndex, out card))
             {
                 ModuleBase module = CreateModule(card);
                 if (module != null)
                 {
-                    if (module is RedirectorModule redirector)
-                    {
-                        redirector.SetOrientation(_previewOrientation);
-                    }
-
+                    ApplyPreviewOrientation(module);
                     module.transform.SetParent(_moduleRoot, true);
                     if (_board.TryPlaceModule(cell, module))
                     {
@@ -1147,7 +1155,7 @@ public class PlacementController : MonoBehaviour
             bool canFuse = occupant != null &&
                            !occupant.IsPermanentlyLocked &&
                            occupant.CardData.CanFuseWith(_shopDragCard);
-            bool canPlace = _board.CanPlace(cell) || canFuse;
+            bool canPlace = (_board.CanPlace(cell) && CanPlaceTypeAt(_shopDragCard.Type, cell)) || canFuse;
             bool canAfford = Economy.Instance == null || Economy.Instance.CanAfford(_shopDragPrice);
             ShowGhostAt(_board.CellToWorld(cell), canPlace && canAfford);
             UpdateCellHover(cell, canPlace && canAfford);
@@ -1187,7 +1195,7 @@ public class PlacementController : MonoBehaviour
         bool canFuse = occupant != null &&
                        !occupant.IsPermanentlyLocked &&
                        occupant.CardData.CanFuseWith(card);
-        if (!canFuse && !_board.CanPlace(cell))
+        if (!canFuse && (!_board.CanPlace(cell) || !CanPlaceTypeAt(card.Type, cell)))
         {
             return;
         }
@@ -1199,7 +1207,12 @@ public class PlacementController : MonoBehaviour
 
         if (canFuse && occupant != null)
         {
-            occupant.ApplyCardData(occupant.CardData.FusedWith(purchased));
+            if (!TryApplyBoardFuse(occupant, cell, purchased))
+            {
+                Economy.Instance?.AddGold(pricePaid, silent: true);
+                shop.RestoreOffer(index, purchased, pricePaid);
+            }
+
             return;
         }
 
@@ -1255,7 +1268,7 @@ public class PlacementController : MonoBehaviour
             bool canFuse = occupant != null &&
                            !occupant.IsPermanentlyLocked &&
                            occupant.CardData.CanFuseWith(_hand.SelectedCard);
-            bool canPlace = _board.CanPlace(cell) || canFuse;
+            bool canPlace = (_board.CanPlace(cell) && CanPlaceTypeAt(type, cell)) || canFuse;
             ShowGhostAt(_board.CellToWorld(cell), canPlace);
             UpdateCellHover(cell, canPlace);
         }
@@ -1289,6 +1302,20 @@ public class PlacementController : MonoBehaviour
         {
             _ghostOther.gameObject.SetActive(true);
             _ghostOther.transform.position = pos;
+            if (_shopDragging)
+            {
+                _ghostOther.ApplyCardData(_shopDragCard);
+            }
+            else if (_hand != null && _hand.HasSelection)
+            {
+                _ghostOther.ApplyCardData(_hand.SelectedCard);
+            }
+
+            if (_ghostOther.CanRotate)
+            {
+                _ghostOther.SetOrientationIndex(_previewOrientation);
+            }
+
             SetGhostTint(_ghostOther.gameObject, tint);
         }
     }
@@ -1387,13 +1414,16 @@ public class PlacementController : MonoBehaviour
             !occupant.IsPermanentlyLocked &&
             occupant.CardData.CanFuseWith(card))
         {
-            occupant.ApplyCardData(occupant.CardData.FusedWith(card));
-            _hand.ConsumeSelected();
-            ClearGhost();
+            if (TryApplyBoardFuse(occupant, cell, card))
+            {
+                _hand.ConsumeSelected();
+                ClearGhost();
+            }
+
             return;
         }
 
-        if (!_board.CanPlace(cell))
+        if (!_board.CanPlace(cell) || !CanPlaceTypeAt(card.Type, cell))
         {
             return;
         }
@@ -1404,10 +1434,7 @@ public class PlacementController : MonoBehaviour
             return;
         }
 
-        if (module is RedirectorModule redirector)
-        {
-            redirector.SetOrientation(_previewOrientation);
-        }
+        ApplyPreviewOrientation(module);
 
         module.transform.SetParent(_moduleRoot, true);
         if (!_board.TryPlaceModule(cell, module))
@@ -1472,9 +1499,99 @@ public class PlacementController : MonoBehaviour
                 return new GameObject("FlameAmp").AddComponent<FlameAmpModule>();
             case ModuleType.Spark:
                 return new GameObject("SparkTurret").AddComponent<SparkModule>();
+            case ModuleType.Splitter:
+                return new GameObject("Splitter").AddComponent<SplitterModule>();
+            case ModuleType.Portal:
+                return new GameObject("Portal").AddComponent<PortalModule>();
+            case ModuleType.Relay:
+                return new GameObject("Relay").AddComponent<RelayModule>();
+            case ModuleType.Accelerator:
+                return new GameObject("Accelerator").AddComponent<AcceleratorModule>();
+            case ModuleType.Fusion:
+                return new GameObject("Fusion").AddComponent<FusionModule>();
+            case ModuleType.Fission:
+                return new GameObject("Fission").AddComponent<FissionModule>();
+            case ModuleType.FireEnchant:
+                return new GameObject("FireEnchant").AddComponent<FireEnchantModule>();
+            case ModuleType.Surprise:
+                return new GameObject("Surprise").AddComponent<SurpriseModule>();
+            case ModuleType.Heatwave:
+                return new GameObject("Heatwave").AddComponent<HeatwaveModule>();
             default:
                 return null;
         }
+    }
+
+    void ApplyPreviewOrientation(ModuleBase module)
+    {
+        if (module == null || !module.CanRotate)
+        {
+            return;
+        }
+
+        if (module is RedirectorModule redirector)
+        {
+            redirector.SetOrientation(_previewOrientation);
+        }
+        else
+        {
+            module.SetOrientationIndex(_previewOrientation);
+        }
+    }
+
+    bool CanPlaceTypeAt(ModuleType type, GridCoord cell)
+    {
+        if (type == ModuleType.Portal && PortalModule.CountOnBoard() >= 2)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 棋盘合成：同型升级，或收束器×功能模块变拐弯（类型变化时替换实例）。
+    /// </summary>
+    bool TryApplyBoardFuse(ModuleBase occupant, GridCoord cell, ModuleCardData incoming)
+    {
+        if (occupant == null || _board == null)
+        {
+            return false;
+        }
+
+        ModuleCardData fused = occupant.CardData.FusedWith(incoming);
+        if (fused.Type == occupant.ModuleType)
+        {
+            occupant.ApplyCardData(fused);
+            return true;
+        }
+
+        int orient = occupant.OrientationIndex;
+        if (!_board.TryExtractModule(cell, out ModuleBase extracted) || extracted != occupant)
+        {
+            return false;
+        }
+
+        Destroy(extracted.gameObject);
+        ModuleBase neu = CreateModule(fused);
+        if (neu == null)
+        {
+            return false;
+        }
+
+        if (neu.CanRotate)
+        {
+            neu.SetOrientationIndex(orient);
+        }
+
+        neu.transform.SetParent(_moduleRoot, true);
+        if (!_board.TryPlaceModule(cell, neu))
+        {
+            Destroy(neu.gameObject);
+            return false;
+        }
+
+        return true;
     }
 
     void EnsureGhost(ModuleType type)
@@ -1524,6 +1641,33 @@ public class PlacementController : MonoBehaviour
                     break;
                 case ModuleType.Spark:
                     _ghostOther = go.AddComponent<SparkModule>();
+                    break;
+                case ModuleType.Splitter:
+                    _ghostOther = go.AddComponent<SplitterModule>();
+                    break;
+                case ModuleType.Portal:
+                    _ghostOther = go.AddComponent<PortalModule>();
+                    break;
+                case ModuleType.Relay:
+                    _ghostOther = go.AddComponent<RelayModule>();
+                    break;
+                case ModuleType.Accelerator:
+                    _ghostOther = go.AddComponent<AcceleratorModule>();
+                    break;
+                case ModuleType.Fusion:
+                    _ghostOther = go.AddComponent<FusionModule>();
+                    break;
+                case ModuleType.Fission:
+                    _ghostOther = go.AddComponent<FissionModule>();
+                    break;
+                case ModuleType.FireEnchant:
+                    _ghostOther = go.AddComponent<FireEnchantModule>();
+                    break;
+                case ModuleType.Surprise:
+                    _ghostOther = go.AddComponent<SurpriseModule>();
+                    break;
+                case ModuleType.Heatwave:
+                    _ghostOther = go.AddComponent<HeatwaveModule>();
                     break;
             }
 

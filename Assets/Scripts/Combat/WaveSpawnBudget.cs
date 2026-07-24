@@ -16,9 +16,10 @@ public static class WaveSpawnBudget
     const int WaveCount = 25;
     public const float SandBuffPowerMult = 1.5f;
 
+    // 波1–5：无环教学区，压数量；波5 仅轻量黄潮试水
     static readonly int[] NormalCounts =
     {
-        5, 7, 9, 12, 10,
+        4, 5, 6, 8, 8,
         14, 16, 18, 20, 24,
         26, 28, 30, 32, 36,
         40, 44, 48, 52, 58,
@@ -27,7 +28,7 @@ public static class WaveSpawnBudget
 
     static readonly int[] SwarmCounts =
     {
-        0, 0, 0, 0, 9,
+        0, 0, 0, 0, 4,
         12, 16, 20, 26, 36,
         40, 44, 48, 52, 60,
         68, 76, 84, 92, 104,
@@ -43,10 +44,10 @@ public static class WaveSpawnBudget
         20, 22, 24, 26, 30
     };
 
-    /// <summary>沙 buff 基础数量（实际会 ±1 小幅浮动）。</summary>
+    /// <summary>沙 buff 基础数量（实际会 ±1 小幅浮动）。波1–5 不挂沙 buff。</summary>
     static readonly int[] SandBuffBaseCounts =
     {
-        0, 0, 0, 0, 1,
+        0, 0, 0, 0, 0,
         2, 2, 2, 2, 2,
         3, 3, 3, 3, 3,
         3, 3, 3, 3, 3,
@@ -64,7 +65,7 @@ public static class WaveSpawnBudget
 
     static readonly float[] SpawnIntervals =
     {
-        0.75f, 0.69f, 0.63f, 0.55f, 0.35f,
+        0.95f, 0.88f, 0.80f, 0.72f, 0.58f,
         0.50f, 0.42f, 0.34f, 0.26f, 0.16f,
         0.38f, 0.30f, 0.24f, 0.18f, 0.12f,
         0.32f, 0.26f, 0.20f, 0.15f, 0.10f,

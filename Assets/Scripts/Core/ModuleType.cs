@@ -25,5 +25,32 @@ public enum ModuleType
     FlameAmp = 6,
 
     /// <summary>火花发射塔：弧线火花弹挂烧。</summary>
-    Spark = 7
+    Spark = 7,
+
+    /// <summary>分裂器：T 形一分二。</summary>
+    Splitter = 8,
+
+    /// <summary>传送门：成对传送。</summary>
+    Portal = 9,
+
+    /// <summary>中续器：吸能后刷新下一球寿命。</summary>
+    Relay = 10,
+
+    /// <summary>加速：球速 ×1.5（一次）。</summary>
+    Accelerator = 11,
+
+    /// <summary>核聚变：5 球合成 1 球。</summary>
+    Fusion = 12,
+
+    /// <summary>核裂变：≥5 能裂变为 5 颗默认球。</summary>
+    Fission = 13,
+
+    /// <summary>火附魔：种子灼烧附魔格。</summary>
+    FireEnchant = 14,
+
+    /// <summary>惊喜：种子随机附魔格。</summary>
+    Surprise = 15,
+
+    /// <summary>热浪：全屏灼烧攻击塔。</summary>
+    Heatwave = 16
 }
