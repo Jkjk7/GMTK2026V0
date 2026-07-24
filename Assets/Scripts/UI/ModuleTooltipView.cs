@@ -2,8 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 模块长悬停详情：棋盘 / 手牌 / 商店通用。
-/// 布局侧重描述；留言次要；不显示金额。
+/// 模块/格子附魔长悬停详情：棋盘 / 手牌 / 商店通用。
+/// 棋盘悬停时可同时展示模块与附魔。
 /// </summary>
 public class ModuleTooltipView : MonoBehaviour
 {
@@ -13,9 +13,14 @@ public class ModuleTooltipView : MonoBehaviour
     [SerializeField] RectTransform root;
     [SerializeField] Image icon;
     [SerializeField] Text nameText;
+    [SerializeField] Text rarityText;
     [SerializeField] Text descText;
     [SerializeField] Text statsText;
     [SerializeField] Text flavorText;
+    [SerializeField] Text enchantTitleText;
+    [SerializeField] Text enchantDescText;
+    [SerializeField] GameObject moduleBlock;
+    [SerializeField] GameObject enchantBlock;
 
     GameSkin _skin;
     bool _visible;
@@ -23,8 +28,13 @@ public class ModuleTooltipView : MonoBehaviour
     object _hoverSource;
     ModuleCardData _hoverCard;
     ModuleBase _hoverLive;
+    CellEnchant _hoverEnchant;
+    bool _hoverHasModule;
     float _hoverTimer;
     const float HoverDelaySeconds = 0.7f;
+    static readonly Vector2 SizeModuleOnly = new Vector2(340f, 300f);
+    static readonly Vector2 SizeEnchantOnly = new Vector2(300f, 170f);
+    static readonly Vector2 SizeBoth = new Vector2(340f, 390f);
 
     void OnEnable()
     {
@@ -47,15 +57,25 @@ public class ModuleTooltipView : MonoBehaviour
         Text description,
         Text stats,
         Text flavor,
-        GameSkin skin)
+        GameSkin skin,
+        Text rarity = null,
+        Text enchantTitle = null,
+        Text enchantDesc = null,
+        GameObject moduleSection = null,
+        GameObject enchantSection = null)
     {
         group = canvasGroup;
         root = rect;
         icon = iconImage;
         nameText = name;
+        rarityText = rarity;
         descText = description;
         statsText = stats;
         flavorText = flavor;
+        enchantTitleText = enchantTitle;
+        enchantDescText = enchantDesc;
+        moduleBlock = moduleSection;
+        enchantBlock = enchantSection;
         _skin = skin;
         HideImmediate();
     }
@@ -68,7 +88,27 @@ public class ModuleTooltipView : MonoBehaviour
             return;
         }
 
-        s_instance.InternalBegin(source, card, live);
+        s_instance.InternalBegin(source, true, card, live, CellEnchant.None);
+    }
+
+    /// <summary>棋盘格悬停：模块与/或附魔。</summary>
+    public static void BeginBoardHover(object source, ModuleBase live, CellEnchant enchant)
+    {
+        if (s_instance == null)
+        {
+            return;
+        }
+
+        bool hasModule = live != null && live.CardData.Level >= 1;
+        bool hasEnchant = enchant != CellEnchant.None;
+        if (!hasModule && !hasEnchant)
+        {
+            s_instance.InternalEnd(source);
+            return;
+        }
+
+        ModuleCardData card = hasModule ? live.CardData : default;
+        s_instance.InternalBegin(source, hasModule, card, live, enchant);
     }
 
     public static void EndHover(object source)
@@ -81,15 +121,56 @@ public class ModuleTooltipView : MonoBehaviour
         s_instance?.HideImmediate();
     }
 
-    void InternalBegin(object source, ModuleCardData card, ModuleBase live)
+    public static string GetEnchantDisplayName(CellEnchant enchant)
+    {
+        switch (enchant)
+        {
+            case CellEnchant.Flame: return "火焰附魔";
+            case CellEnchant.DamageUp: return "伤害附魔";
+            case CellEnchant.Frost: return "寒霜附魔";
+            case CellEnchant.Shrink: return "缩小附魔";
+            case CellEnchant.Cooldown: return "冷却附魔";
+            default: return "附魔";
+        }
+    }
+
+    public static string GetEnchantDescription(CellEnchant enchant)
+    {
+        switch (enchant)
+        {
+            case CellEnchant.Flame:
+                return "此格模块造成伤害时，对目标施加 3 秒灼烧。";
+            case CellEnchant.DamageUp:
+                return "此格模块最终伤害 ×1.2。";
+            case CellEnchant.Frost:
+                return "此格模块造成伤害时，施加 3 秒寒冷（30% 减速）。";
+            case CellEnchant.Shrink:
+                return "此格模块伤害 ×0.5，射速翻倍。";
+            case CellEnchant.Cooldown:
+                return "此格有冷却的模块冷却时间减半（如采矿机）。";
+            default:
+                return string.Empty;
+        }
+    }
+
+    void InternalBegin(
+        object source,
+        bool hasModule,
+        ModuleCardData card,
+        ModuleBase live,
+        CellEnchant enchant)
     {
         bool same = _hovering &&
                     ReferenceEquals(_hoverSource, source) &&
+                    _hoverHasModule == hasModule &&
                     CardsEqual(_hoverCard, card) &&
-                    _hoverLive == live;
+                    _hoverLive == live &&
+                    _hoverEnchant == enchant;
         _hoverSource = source;
+        _hoverHasModule = hasModule;
         _hoverCard = card;
         _hoverLive = live;
+        _hoverEnchant = enchant;
         _hovering = true;
         if (!same)
         {
@@ -122,7 +203,6 @@ public class ModuleTooltipView : MonoBehaviour
             return;
         }
 
-        // 拖拽时不弹
         if (Input.GetMouseButton(0) || Input.GetMouseButton(1))
         {
             HideVisualOnly();
@@ -148,32 +228,197 @@ public class ModuleTooltipView : MonoBehaviour
 
     void RefreshContent()
     {
-        ModuleCardData card = _hoverLive != null ? _hoverLive.CardData : _hoverCard;
-        if (nameText != null)
+        bool hasModule = _hoverHasModule;
+        bool hasEnchant = _hoverEnchant != CellEnchant.None;
+
+        if (moduleBlock != null)
         {
-            nameText.text = ModuleCatalog.GetDisplayName(card);
+            moduleBlock.SetActive(hasModule);
         }
 
-        if (icon != null)
+        if (enchantBlock != null)
         {
-            icon.sprite = _skin != null ? _skin.GetModuleIcon(card.Type) : PrototypeSprites.Square;
-            icon.color = ModuleCatalog.GetDisplayColor(card.Type);
+            enchantBlock.SetActive(hasEnchant);
         }
 
-        if (descText != null)
+        if (root != null)
         {
-            descText.text = ModuleCatalog.GetDescription(card.Type);
+            if (hasModule && hasEnchant)
+            {
+                root.sizeDelta = SizeBoth;
+            }
+            else if (hasEnchant)
+            {
+                root.sizeDelta = SizeEnchantOnly;
+            }
+            else
+            {
+                root.sizeDelta = SizeModuleOnly;
+            }
         }
 
-        if (statsText != null)
+        LayoutBlocks(hasModule, hasEnchant);
+
+        if (hasModule)
         {
-            statsText.text = BuildStats(card, _hoverLive);
+            ModuleCardData card = _hoverLive != null ? _hoverLive.CardData : _hoverCard;
+            ModuleRarity rarity = ModuleCatalog.GetRarity(card.Type);
+            if (nameText != null)
+            {
+                nameText.text = ModuleCatalog.GetDisplayName(card);
+                nameText.color = ModuleCatalog.GetRarityColor(rarity);
+            }
+
+            if (rarityText != null)
+            {
+                rarityText.text = ModuleCatalog.GetRarityName(rarity);
+                rarityText.color = ModuleCatalog.GetRarityColor(rarity);
+            }
+
+            if (icon != null)
+            {
+                icon.sprite = _skin != null ? _skin.GetModuleIcon(card.Type) : PrototypeSprites.Square;
+                icon.color = ModuleCatalog.GetDisplayColor(card.Type);
+                icon.enabled = true;
+            }
+
+            if (descText != null)
+            {
+                descText.text = ModuleCatalog.GetDescription(card.Type);
+            }
+
+            if (statsText != null)
+            {
+                statsText.text = BuildStats(card, _hoverLive);
+            }
+
+            if (flavorText != null)
+            {
+                flavorText.text = ModuleCatalog.GetFlavor(card.Type);
+            }
         }
 
-        if (flavorText != null)
+        if (hasEnchant)
         {
-            flavorText.text = ModuleCatalog.GetFlavor(card.Type);
+            Color tint = SolidEnchantColor(_hoverEnchant);
+            string title = hasModule
+                ? $"附魔 · {GetEnchantDisplayName(_hoverEnchant)}"
+                : GetEnchantDisplayName(_hoverEnchant);
+            string body = hasModule
+                ? GetEnchantDescription(_hoverEnchant)
+                : $"格子附魔\n{GetEnchantDescription(_hoverEnchant)}";
+
+            if (enchantTitleText != null)
+            {
+                enchantTitleText.text = title;
+                enchantTitleText.color = tint;
+            }
+
+            if (enchantDescText != null)
+            {
+                enchantDescText.text = body;
+            }
+
+            // 无独立附魔块时：并入 flavor / 仅附魔时填入主标题区
+            if (enchantBlock == null)
+            {
+                if (hasModule)
+                {
+                    if (flavorText != null)
+                    {
+                        string existing = flavorText.text;
+                        flavorText.text = string.IsNullOrEmpty(existing)
+                            ? $"{title}\n{GetEnchantDescription(_hoverEnchant)}"
+                            : $"{existing}\n\n{title}\n{GetEnchantDescription(_hoverEnchant)}";
+                    }
+                }
+                else
+                {
+                    if (nameText != null)
+                    {
+                        nameText.text = GetEnchantDisplayName(_hoverEnchant);
+                        nameText.color = tint;
+                    }
+
+                    if (rarityText != null)
+                    {
+                        rarityText.text = "格子附魔";
+                        rarityText.color = new Color(0.75f, 0.78f, 0.85f, 1f);
+                    }
+
+                    if (icon != null)
+                    {
+                        icon.sprite = PrototypeSprites.Square;
+                        icon.color = tint;
+                        icon.enabled = true;
+                    }
+
+                    if (descText != null)
+                    {
+                        descText.text = GetEnchantDescription(_hoverEnchant);
+                    }
+
+                    if (statsText != null)
+                    {
+                        statsText.text = string.Empty;
+                    }
+
+                    if (flavorText != null)
+                    {
+                        flavorText.text = string.Empty;
+                    }
+                }
+            }
         }
+    }
+
+    void LayoutBlocks(bool hasModule, bool hasEnchant)
+    {
+        var moduleRt = moduleBlock != null ? moduleBlock.transform as RectTransform : null;
+        var enchantRt = enchantBlock != null ? enchantBlock.transform as RectTransform : null;
+
+        if (hasModule && hasEnchant)
+        {
+            if (moduleRt != null)
+            {
+                moduleRt.anchorMin = new Vector2(0f, 0.28f);
+                moduleRt.anchorMax = new Vector2(1f, 1f);
+                moduleRt.offsetMin = Vector2.zero;
+                moduleRt.offsetMax = Vector2.zero;
+            }
+
+            if (enchantRt != null)
+            {
+                enchantRt.anchorMin = new Vector2(0.04f, 0.03f);
+                enchantRt.anchorMax = new Vector2(0.96f, 0.26f);
+                enchantRt.offsetMin = Vector2.zero;
+                enchantRt.offsetMax = Vector2.zero;
+            }
+        }
+        else if (hasModule)
+        {
+            if (moduleRt != null)
+            {
+                moduleRt.anchorMin = Vector2.zero;
+                moduleRt.anchorMax = Vector2.one;
+                moduleRt.offsetMin = Vector2.zero;
+                moduleRt.offsetMax = Vector2.zero;
+            }
+        }
+        else if (hasEnchant && enchantRt != null)
+        {
+            enchantRt.anchorMin = new Vector2(0.04f, 0.08f);
+            enchantRt.anchorMax = new Vector2(0.96f, 0.92f);
+            enchantRt.offsetMin = Vector2.zero;
+            enchantRt.offsetMax = Vector2.zero;
+        }
+    }
+
+    static Color SolidEnchantColor(CellEnchant enchant)
+    {
+        Color c = GridBoard.GetEnchantColor(enchant);
+        c.a = 1f;
+        return Color.Lerp(c, Color.white, 0.25f);
     }
 
     static string BuildStats(ModuleCardData card, ModuleBase live)
@@ -188,27 +433,86 @@ public class ModuleTooltipView : MonoBehaviour
             return $"伤害：{dmg}\n射速：1.5/秒\n范围：{radius:0.#}\n{energy}";
         }
 
+        if (card.Type == ModuleType.BlackHole)
+        {
+            float radius = live is BlackHoleModule bh
+                ? bh.PullRadius
+                : ModuleCatalog.GetBlackHoleRadius(card.Level);
+            float dur = live is BlackHoleModule bh2
+                ? bh2.PullDuration
+                : ModuleCatalog.GetBlackHoleDuration(card.Level);
+            string energy = live is BlackHoleModule liveH
+                ? $"储能：{liveH.CurrentEnergy}/{liveH.EnergyCapacity}"
+                : "储能上限：5";
+            return $"吸引半径：{radius:0.#}\n持续：{dur:0.#}秒\n射速：3秒/发\n能耗：5\n{energy}";
+        }
+
         if (card.Type == ModuleType.IceLaser)
         {
-            int dmg = live is IceLaserModule ice ? ice.DamagePerShot : 5;
-            float interval = live is IceLaserModule ice2 ? ice2.FireInterval : 0.12f;
+            int dmg = live is IceLaserModule ice
+                ? ice.DamagePerShot
+                : ModuleCatalog.GetIceDamage(card.Level);
+            float interval = live is IceLaserModule ice2
+                ? ice2.FireInterval
+                : ModuleCatalog.GetFireInterval(card.Level);
             float rps = interval > 0.0001f ? 1f / interval : 0f;
+            float slowDur = live is IceLaserModule ice3
+                ? ice3.SlowDuration
+                : ModuleCatalog.GetIceSlowDuration(card.Level);
+            int cap = live is IceLaserModule ice4
+                ? ice4.EnergyCapacity
+                : ModuleCatalog.GetEnergyCapacity(card.Level);
             string energy = live is IceLaserModule liveI
                 ? $"储能：{liveI.CurrentEnergy}/{liveI.EnergyCapacity}"
-                : "储能上限：8";
-            return $"伤害：{dmg}\n射速：{rps:0.#}/秒\n减速：30%\n{energy}";
+                : $"储能上限：{cap}";
+            return $"伤害：{dmg}\n射速：{rps:0.#}/秒\n寒冷：{ModuleCatalog.IceSlowPercent * 100f:0}% / {slowDur:0.#}秒\n{energy}";
         }
 
         if (card.Type == ModuleType.Miner)
         {
-            int cost = live is MinerModule m ? m.EnergyCost : ModuleCatalog.GetMinerEnergyCost(card.Level);
+            int cost = MinerModule.FixedEnergyCost;
+            int gold = live is MinerModule m
+                ? m.GoldPerCycle
+                : ModuleCatalog.GetMinerGoldAmount(card.Level);
             string energy = live is MinerModule liveM
                 ? $"储能：{liveM.CurrentEnergy}/{liveM.EnergyCapacity}"
-                : $"储能上限：{Mathf.Max(10, cost)}";
-            return $"产出：{cost} 能 → 1 金\n冷却：3 秒\n{energy}";
+                : $"储能上限：{cost}";
+            return $"产出：{cost} 能 → {gold} 金\n冷却：3 秒\n{energy}";
         }
 
-        if (card.Type == ModuleType.Projectile || ModuleCatalog.IsAttackModule(card.Type))
+        if (card.Type == ModuleType.FlameAmp)
+        {
+            int bonus = live is FlameAmpModule amp
+                ? amp.BurnBonus
+                : ModuleCatalog.GetFlameAmpBonus(card.Level);
+            return $"灼烧增幅：+{bonus}/{RunModifiers.BurnTickInterval:0.#}秒\n被动：场上生效，可叠加";
+        }
+
+        if (card.Type == ModuleType.Spark)
+        {
+            int dmg = live is SparkModule s
+                ? s.DamagePerShot
+                : ModuleCatalog.GetSparkDamage(card.Level);
+            float interval = live is SparkModule s2
+                ? s2.FireInterval
+                : ModuleCatalog.GetSparkFireInterval(card.Level);
+            float burn = live is SparkModule s3
+                ? s3.BurnDuration
+                : ModuleCatalog.GetSparkBurnDuration(card.Level);
+            int cap = live is SparkModule s4
+                ? s4.EnergyCapacity
+                : ModuleCatalog.GetSparkEnergyCapacity(card.Level);
+            int cost = live is SparkModule s5
+                ? s5.EnergyPerShot
+                : ModuleCatalog.GetSparkEnergyPerShot(card.Level);
+            float rps = interval > 0.0001f ? 1f / interval : 0f;
+            string energy = live is SparkModule liveS
+                ? $"储能：{liveS.CurrentEnergy}/{liveS.EnergyCapacity}"
+                : $"储能上限：{cap}";
+            return $"伤害：{dmg}\n射速：{rps:0.#}/秒\n灼烧：{burn:0.#}秒\n能耗：{cost}\n{energy}";
+        }
+
+        if (card.Type == ModuleType.Projectile)
         {
             int dmg = live is ProjectileModule p
                 ? p.DamagePerShot
@@ -258,6 +562,8 @@ public class ModuleTooltipView : MonoBehaviour
         _hoverSource = null;
         _hoverLive = null;
         _hoverCard = default;
+        _hoverEnchant = CellEnchant.None;
+        _hoverHasModule = false;
         _hoverTimer = 0f;
         SetVisible(false);
     }

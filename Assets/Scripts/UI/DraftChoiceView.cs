@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 模块发现三选一：可显示「替换 xxx」。
+/// 三选一草稿：模块发现，或通用文本选项（发射器强化等）。
 /// </summary>
 public class DraftChoiceView : MonoBehaviour
 {
@@ -20,8 +20,10 @@ public class DraftChoiceView : MonoBehaviour
     [SerializeField] Text[] buttonLabels;
 
     Action<Option> _onPick;
+    Action<int> _onPickIndex;
     Action _onSkip;
     readonly List<Option> _options = new List<Option>();
+    int _customCount;
 
     public void Bind(CanvasGroup canvasGroup, Text title, Button[] btns, Text[] labels)
     {
@@ -47,7 +49,9 @@ public class DraftChoiceView : MonoBehaviour
         }
 
         _onPick = onPick;
+        _onPickIndex = null;
         _onSkip = onSkip;
+        _customCount = 0;
 
         if (titleText != null)
         {
@@ -78,44 +82,92 @@ public class DraftChoiceView : MonoBehaviour
             }
         }
 
-        if (group != null)
+        SetVisible(true);
+    }
+
+    public void ShowCustom(string title, IList<string> labels, Action<int> onPick, Action onSkip = null)
+    {
+        _options.Clear();
+        _onPick = null;
+        _onPickIndex = onPick;
+        _onSkip = onSkip;
+        _customCount = labels != null ? labels.Count : 0;
+
+        if (titleText != null)
         {
-            group.alpha = 1f;
-            group.blocksRaycasts = true;
-            group.interactable = true;
+            titleText.text = string.IsNullOrEmpty(title) ? "请选择" : title;
         }
 
-        gameObject.SetActive(true);
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            bool active = labels != null && i < labels.Count;
+            buttons[i].gameObject.SetActive(active);
+            if (!active)
+            {
+                continue;
+            }
+
+            if (buttonLabels != null && i < buttonLabels.Length && buttonLabels[i] != null)
+            {
+                buttonLabels[i].text = labels[i];
+            }
+        }
+
+        SetVisible(true);
     }
 
     public void Hide()
     {
         _onPick = null;
+        _onPickIndex = null;
         _onSkip = null;
+        _customCount = 0;
+        SetVisible(false);
+    }
+
+    void SetVisible(bool visible)
+    {
         if (group != null)
         {
-            group.alpha = 0f;
-            group.blocksRaycasts = false;
-            group.interactable = false;
+            group.alpha = visible ? 1f : 0f;
+            group.blocksRaycasts = visible;
+            group.interactable = visible;
+        }
+
+        if (visible)
+        {
+            gameObject.SetActive(true);
         }
     }
 
     void OnClick(int index)
     {
+        if (_onPickIndex != null)
+        {
+            if (index < 0 || index >= _customCount)
+            {
+                return;
+            }
+
+            Action<int> pick = _onPickIndex;
+            Hide();
+            pick?.Invoke(index);
+            return;
+        }
+
         if (index < 0 || index >= _options.Count)
         {
             return;
         }
 
         Option opt = _options[index];
-        Action<Option> pick = _onPick;
+        Action<Option> modulePick = _onPick;
         Hide();
-        pick?.Invoke(opt);
+        modulePick?.Invoke(opt);
     }
 
     void Update()
     {
-        // Escape 跳过（不选）
         if (group != null && group.blocksRaycasts && Input.GetKeyDown(KeyCode.Escape))
         {
             Action skip = _onSkip;

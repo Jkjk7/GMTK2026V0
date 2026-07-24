@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 商店：扣费购买、刷新价、阶段货架、买不起灰显。
+/// 商店：扣费购买、恒定刷新价、阶段货架、买不起灰显；波末免费自动刷新。
 /// </summary>
 public class ShopController : MonoBehaviour
 {
@@ -15,7 +15,6 @@ public class ShopController : MonoBehaviour
     GameSession _session;
     WaveManager _waves;
     Text _refreshLabel;
-    int _refreshIndexInWave;
     int _lastWaveSeen = -1;
 
     public int CurrentRefreshCost
@@ -23,7 +22,7 @@ public class ShopController : MonoBehaviour
         get
         {
             int wave = _waves != null ? _waves.CurrentWaveDisplay : 1;
-            return ModulePricing.GetRefreshCost(wave, _refreshIndexInWave);
+            return ModulePricing.GetRefreshCost(wave);
         }
     }
 
@@ -39,13 +38,18 @@ public class ShopController : MonoBehaviour
         _session = session;
         _waves = waves;
         _refreshLabel = refreshLabel;
-        _refreshIndexInWave = 0;
         if (Economy.Instance != null)
         {
             Economy.Instance.OnGoldChanged += OnGoldChanged;
         }
 
+        if (_waves != null)
+        {
+            _waves.OnPrepStarted += OnPrepStarted;
+        }
+
         RerollShop();
+        _lastWaveSeen = _waves != null ? _waves.CurrentWaveDisplay : 1;
         UpdateRefreshLabel();
     }
 
@@ -55,9 +59,26 @@ public class ShopController : MonoBehaviour
         {
             Economy.Instance.OnGoldChanged -= OnGoldChanged;
         }
+
+        if (_waves != null)
+        {
+            _waves.OnPrepStarted -= OnPrepStarted;
+        }
     }
 
     void OnGoldChanged(int _) => RefreshAffordability();
+
+    void OnPrepStarted(int wave, float duration)
+    {
+        // 每一波结束后进入下一波准备时免费刷新；开局第 1 波已在 Initialize 刷过
+        if (wave <= 1)
+        {
+            return;
+        }
+
+        RerollShop();
+        UpdateRefreshLabel();
+    }
 
     void Update()
     {
@@ -75,7 +96,6 @@ public class ShopController : MonoBehaviour
         if (wave != _lastWaveSeen)
         {
             _lastWaveSeen = wave;
-            _refreshIndexInWave = 0;
             UpdateRefreshLabel();
         }
 
@@ -103,7 +123,6 @@ public class ShopController : MonoBehaviour
             return;
         }
 
-        _refreshIndexInWave++;
         RerollShop();
         UpdateRefreshLabel();
     }
@@ -123,9 +142,9 @@ public class ShopController : MonoBehaviour
                 continue;
             }
 
-            ModuleType type = ModuleCatalog.RollShopSlotType(i);
+            ModuleType type = ModuleCatalog.RollShopSlotType(i, wave);
             int level = 1;
-            if (ModuleCatalog.IsAttackModule(type))
+            if (ModuleCatalog.IsAttackModule(type) || type == ModuleType.FlameAmp)
             {
                 level = ModulePricing.RollAttackLevel(wave);
             }
@@ -134,6 +153,7 @@ public class ShopController : MonoBehaviour
                 int rolled = ModulePricing.RollAttackLevel(wave);
                 level = Mathf.Clamp(rolled, 1, 3);
             }
+
             int price = ModulePricing.GetShopPrice(type, level, wave);
             var offer = ModuleCardData.Create(type, level, 0);
             _slots[i].SetOffer(offer, price);
@@ -175,23 +195,12 @@ public class ShopController : MonoBehaviour
 
     public bool TryPurchaseSlot(int index)
     {
-        if (_session != null && !_session.IsRunActive)
+        if (!CanInteractShop())
         {
             return false;
         }
 
-        if (_waves != null && (_waves.IsCountdownPhase || _waves.IsAwaitingDraft))
-        {
-            return false;
-        }
-
-        if (_hand == null || _slots == null || index < 0 || index >= _slots.Length)
-        {
-            return false;
-        }
-
-        ShopSlot slot = _slots[index];
-        if (slot == null || !slot.IsOccupied)
+        if (_hand == null || !TryGetOccupiedSlot(index, out ShopSlot slot))
         {
             return false;
         }
@@ -221,5 +230,69 @@ public class ShopController : MonoBehaviour
         slot.Clear();
         RefreshAffordability();
         return true;
+    }
+
+    /// <summary>拖到棋盘直接购买：不经手牌。</summary>
+    public bool TryPurchaseForBoard(int index, out ModuleCardData purchased, out int pricePaid)
+    {
+        purchased = default;
+        pricePaid = 0;
+        if (!CanInteractShop() || !TryGetOccupiedSlot(index, out ShopSlot slot))
+        {
+            return false;
+        }
+
+        pricePaid = slot.Price;
+        if (Economy.Instance != null && !Economy.Instance.TrySpend(pricePaid))
+        {
+            pricePaid = 0;
+            return false;
+        }
+
+        purchased = ModuleCardData.FromShopPurchase(
+            slot.CardData.Type,
+            slot.CardData.Level,
+            pricePaid);
+        slot.Clear();
+        RefreshAffordability();
+        return true;
+    }
+
+    public void RestoreOffer(int index, ModuleCardData card, int price)
+    {
+        if (_slots == null || index < 0 || index >= _slots.Length || _slots[index] == null)
+        {
+            return;
+        }
+
+        _slots[index].SetOffer(card, price);
+        RefreshAffordability();
+    }
+
+    bool CanInteractShop()
+    {
+        if (_session != null && !_session.IsRunActive)
+        {
+            return false;
+        }
+
+        if (_waves != null && (_waves.IsCountdownPhase || _waves.IsAwaitingDraft))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool TryGetOccupiedSlot(int index, out ShopSlot slot)
+    {
+        slot = null;
+        if (_slots == null || index < 0 || index >= _slots.Length)
+        {
+            return false;
+        }
+
+        slot = _slots[index];
+        return slot != null && slot.IsOccupied;
     }
 }

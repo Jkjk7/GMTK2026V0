@@ -3,19 +3,19 @@ using UnityEngine;
 /// <summary>
 /// 单颗能量光球。
 /// 职责：按方向匀速飞行、寿命到期销毁、进入新格时触发模块一次。
-/// 原型约定：能量恒定 1；无质量/类型分化。
+/// 能量由发射器质量升级决定（默认 1）。
 /// </summary>
 public class EnergyBall : MonoBehaviour
 {
-    /// <summary>原型固定能量值。</summary>
-    public const int EnergyValue = 1;
+    /// <summary>未升级时的默认能量。</summary>
+    public const int DefaultEnergy = 1;
 
     [Header("Motion")]
     [Tooltip("飞行速度（格/秒）。实际世界速度 = cellsPerSecond * board.CellSize。")]
     [SerializeField] float cellsPerSecond = 4f;
 
     [Tooltip("存活时间（秒）；到期销毁。若 EnergyBallManager 传入正数寿命会覆盖此值。")]
-    [SerializeField] float lifetimeSeconds = 50f;
+    [SerializeField] float lifetimeSeconds = 12f;
 
     GridBoard _board;
     EnergyBallManager _manager;
@@ -23,17 +23,22 @@ public class EnergyBall : MonoBehaviour
     float _age;
     GridCoord? _lastTriggeredCell;
     bool _alive = true;
+    int _energy = DefaultEnergy;
     SpriteRenderer _visual;
     Vector3 _previousPosition;
+    TextMesh _lifeLabel;
 
     /// <summary>当前飞行方向。</summary>
     public GridDirection Direction => _direction;
 
-    /// <summary>本球携带的能量（恒为 1）。</summary>
-    public int Energy => EnergyValue;
+    /// <summary>本球携带的能量（受发射器质量升级影响）。</summary>
+    public int Energy => _energy;
 
     /// <summary>是否仍在场上有效。</summary>
     public bool IsAlive => _alive;
+
+    /// <summary>剩余寿命（秒）。</summary>
+    public float RemainingLifetime => Mathf.Max(0f, lifetimeSeconds - _age);
 
     /// <summary>
     /// 由 EnergyBallManager 在生成时调用。
@@ -44,13 +49,15 @@ public class EnergyBall : MonoBehaviour
     /// <param name="direction">初始方向。</param>
     /// <param name="speedCellsPerSecond">速度覆盖；&lt;=0 则用默认。</param>
     /// <param name="lifetime">寿命覆盖；&lt;=0 则用默认。</param>
+    /// <param name="energy">球能量；&lt;=0 则用默认 1。</param>
     public void Initialize(
         GridBoard board,
         EnergyBallManager manager,
         Vector3 worldPosition,
         GridDirection direction,
         float speedCellsPerSecond = -1f,
-        float lifetime = -1f)
+        float lifetime = -1f,
+        int energy = -1)
     {
         _board = board;
         _manager = manager;
@@ -58,6 +65,7 @@ public class EnergyBall : MonoBehaviour
         _age = 0f;
         _lastTriggeredCell = null;
         _alive = true;
+        _energy = energy > 0 ? energy : DefaultEnergy;
 
         if (speedCellsPerSecond > 0f)
         {
@@ -72,6 +80,8 @@ public class EnergyBall : MonoBehaviour
         transform.position = worldPosition;
         _previousPosition = worldPosition;
         EnsureVisual();
+        EnsureLifeLabel();
+        RefreshLifeLabel();
     }
 
     /// <summary>
@@ -99,6 +109,7 @@ public class EnergyBall : MonoBehaviour
         }
 
         _age += Time.deltaTime;
+        RefreshLifeLabel();
         if (_age >= lifetimeSeconds)
         {
             Despawn();
@@ -230,8 +241,50 @@ public class EnergyBall : MonoBehaviour
         }
 
         _visual.sprite = PrototypeSprites.Circle;
-        _visual.color = new Color(0.55f, 0.95f, 1f, 1f);
+        // 质量越高略偏暖、略大（质量档 1/2/3/4）
+        float t = Mathf.Clamp01((_energy - 1) / 3f);
+        _visual.color = Color.Lerp(new Color(0.55f, 0.95f, 1f, 1f), new Color(1f, 0.82f, 0.35f, 1f), t);
         _visual.sortingOrder = 20;
-        transform.localScale = Vector3.one * 0.35f;
+        float scale = 0.32f + 0.07f * Mathf.Clamp(_energy, 1, 4);
+        transform.localScale = Vector3.one * scale;
+    }
+
+    void EnsureLifeLabel()
+    {
+        if (_lifeLabel != null)
+        {
+            return;
+        }
+
+        var go = new GameObject("LifeLabel");
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = new Vector3(0f, 0.85f, 0f);
+        float inv = 1f / Mathf.Max(0.05f, transform.localScale.x);
+        go.transform.localScale = new Vector3(0.09f * inv, 0.09f * inv, 1f);
+        _lifeLabel = go.AddComponent<TextMesh>();
+        _lifeLabel.anchor = TextAnchor.MiddleCenter;
+        _lifeLabel.alignment = TextAlignment.Center;
+        _lifeLabel.fontSize = 42;
+        _lifeLabel.color = new Color(1f, 0.95f, 0.75f, 1f);
+        var mr = go.GetComponent<MeshRenderer>();
+        if (mr != null)
+        {
+            mr.sortingOrder = 25;
+        }
+    }
+
+    void RefreshLifeLabel()
+    {
+        EnsureLifeLabel();
+        if (_lifeLabel == null)
+        {
+            return;
+        }
+
+        float rem = RemainingLifetime;
+        _lifeLabel.text = rem >= 10f ? rem.ToString("0") : rem.ToString("0.0");
+        _lifeLabel.color = rem <= 3f
+            ? new Color(1f, 0.45f, 0.35f, 1f)
+            : new Color(1f, 0.95f, 0.75f, 1f);
     }
 }

@@ -62,10 +62,20 @@ public class EnergyBallManager : MonoBehaviour
             return false;
         }
 
+        float speed = defaultSpeedCellsPerSecond;
+        float life = defaultLifetimeSeconds;
+        int energy = EnergyBall.DefaultEnergy;
+        if (EmitterRunUpgrades.Instance != null)
+        {
+            speed = EmitterRunUpgrades.Instance.BallSpeed;
+            life = EmitterRunUpgrades.Instance.Lifetime;
+            energy = EmitterRunUpgrades.Instance.Mass;
+        }
+
         var go = new GameObject("EnergyBall");
         go.transform.SetParent(_ballRoot, false);
         var ball = go.AddComponent<EnergyBall>();
-        ball.Initialize(_board, this, worldPosition, direction, defaultSpeedCellsPerSecond, defaultLifetimeSeconds);
+        ball.Initialize(_board, this, worldPosition, direction, speed, life, energy);
         _active.Add(ball);
         return true;
     }

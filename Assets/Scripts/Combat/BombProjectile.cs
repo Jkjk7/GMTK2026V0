@@ -6,19 +6,28 @@ using UnityEngine;
 public class BombProjectile : MonoBehaviour
 {
     Vector3 _target;
-    float _speed = 8f;
+    float _speed = 16f;
     int _damage;
     float _aoeRadius;
     bool _exploded;
+    ModuleBase _source;
 
-    public void Launch(Vector3 from, Vector3 target, int damage, float aoeRadius, float speed = 8f)
+    public void Launch(
+        Vector3 from,
+        Vector3 target,
+        int damage,
+        float aoeRadius,
+        ModuleBase source = null,
+        float speed = 16f)
     {
         transform.position = from;
         _target = target;
         _target.z = 0f;
         _damage = damage;
         _aoeRadius = aoeRadius;
-        _speed = Mathf.Max(2f, speed);
+        _source = source;
+        // 红怪移速 1.5、黄怪 3.0；投掷物需明显更快，避免爆炸点已过时
+        _speed = Mathf.Max(12f, speed);
         _exploded = false;
         EnsureVisual();
     }
@@ -61,7 +70,7 @@ public class BombProjectile : MonoBehaviour
 
             if (Vector3.Distance(origin, e.transform.position) <= _aoeRadius)
             {
-                e.TakeDamage(_damage);
+                CombatDamage.Apply(_source, e, _damage, CombatDamage.HitEffects.None);
             }
         }
 

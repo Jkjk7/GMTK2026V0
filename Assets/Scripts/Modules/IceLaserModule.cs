@@ -1,22 +1,20 @@
 using UnityEngine;
 
 /// <summary>
-/// 查理寒冰塔：伤害 5、耗能 2、减速目标（刷新不叠加）。
+/// 雪花发射塔：弧线淡蓝白雪花弹；固定 30% 寒冷，升级加时长。
 /// </summary>
 public class IceLaserModule : ModuleBase
 {
-    [SerializeField] int energyCapacity = 8;
+    [SerializeField] int energyCapacity = 10;
     [SerializeField] int currentEnergy;
-    [SerializeField] float fireInterval = 0.12f;
-    [SerializeField] int energyPerShot = 2;
+    [SerializeField] float fireInterval = 0.1f;
+    [SerializeField] int energyPerShot = 1;
     [SerializeField] int damagePerShot = 5;
-    [SerializeField] float slowPercent = 0.30f;
+    [SerializeField] float slowPercent = ModuleCatalog.IceSlowPercent;
     [SerializeField] float slowDuration = 2f;
-    [SerializeField] float trailVisibleSeconds = 0.1f;
+    [SerializeField] float spreadDegrees = 60f;
 
     float _fireTimer;
-    float _trailTimer;
-    LineRenderer _line;
     SpriteRenderer _body;
     Transform _energyHud;
     SpriteRenderer _energyHudFill;
@@ -25,8 +23,11 @@ public class IceLaserModule : ModuleBase
     public override ModuleType ModuleType => global::ModuleType.IceLaser;
     public int CurrentEnergy => currentEnergy;
     public int EnergyCapacity => energyCapacity;
+    public int EnergyPerShot => energyPerShot;
     public int DamagePerShot => damagePerShot;
     public float FireInterval => fireInterval;
+    public float SlowPercent => slowPercent;
+    public float SlowDuration => slowDuration;
 
     public void ClearEnergy()
     {
@@ -43,20 +44,12 @@ public class IceLaserModule : ModuleBase
     void ApplyLevelStats(int level)
     {
         int lvl = Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel);
-        damagePerShot = 5;
-        energyCapacity = 8 + (lvl - 1);
-        fireInterval = Mathf.Max(0.08f, 0.12f / (1f + 0.08f * (lvl - 1)));
-        if (lvl >= 2)
-        {
-            slowPercent = 0.40f;
-            slowDuration = 3f;
-        }
-        else
-        {
-            slowPercent = 0.30f;
-            slowDuration = 2f;
-        }
-
+        damagePerShot = ModuleCatalog.GetIceDamage(lvl);
+        energyCapacity = ModuleCatalog.GetEnergyCapacity(lvl);
+        fireInterval = ModuleCatalog.GetFireInterval(lvl);
+        energyPerShot = ModuleCatalog.GetIceEnergyPerShot(lvl);
+        slowPercent = ModuleCatalog.IceSlowPercent;
+        slowDuration = ModuleCatalog.GetIceSlowDuration(lvl);
         currentEnergy = Mathf.Min(currentEnergy, energyCapacity);
         EnsureLevelLabel(lvl);
         RefreshVisual();
@@ -98,23 +91,23 @@ public class IceLaserModule : ModuleBase
     void Awake()
     {
         EnsureVisual();
-        EnsureLine();
         RefreshVisual();
     }
 
     void Update()
     {
-        UpdateTrailFade();
+        float interval = fireInterval * EnchantFireIntervalMultiplier;
         if (currentEnergy < energyPerShot)
         {
-            _fireTimer = 0f;
+            // 保持就绪：能量到账后立刻打出第一发，而不是再等一整段间隔
+            _fireTimer = interval;
             return;
         }
 
         _fireTimer += Time.deltaTime;
-        while (_fireTimer >= fireInterval && currentEnergy >= energyPerShot)
+        while (_fireTimer >= interval && currentEnergy >= energyPerShot)
         {
-            _fireTimer -= fireInterval;
+            _fireTimer -= interval;
             Fire();
         }
     }
@@ -141,9 +134,14 @@ public class IceLaserModule : ModuleBase
         }
 
         currentEnergy -= energyPerShot;
-        target.TakeDamage(damagePerShot);
-        target.ApplySlow(slowPercent, slowDuration);
-        ShowTrail(target.transform.position);
+        ArcSparkProjectile.Spawn(
+            transform.position,
+            target,
+            this,
+            damagePerShot,
+            CombatDamage.HitEffects.Chill(slowDuration, slowPercent),
+            ArcSparkProjectile.Style.Snowflake,
+            spreadDegrees);
         RefreshVisual();
     }
 
@@ -169,33 +167,6 @@ public class IceLaserModule : ModuleBase
         }
 
         return best;
-    }
-
-    void ShowTrail(Vector3 targetWorld)
-    {
-        if (_line == null)
-        {
-            return;
-        }
-
-        _line.enabled = true;
-        _line.SetPosition(0, transform.position);
-        _line.SetPosition(1, targetWorld);
-        _trailTimer = trailVisibleSeconds;
-    }
-
-    void UpdateTrailFade()
-    {
-        if (_line == null || !_line.enabled)
-        {
-            return;
-        }
-
-        _trailTimer -= Time.deltaTime;
-        if (_trailTimer <= 0f)
-        {
-            _line.enabled = false;
-        }
     }
 
     public override void RefreshVisual()
@@ -268,24 +239,5 @@ public class IceLaserModule : ModuleBase
         _energyHudFill = fillGo.AddComponent<SpriteRenderer>();
         _energyHudFill.sprite = PrototypeSprites.Square;
         _energyHudFill.sortingOrder = 19;
-    }
-
-    void EnsureLine()
-    {
-        if (_line != null)
-        {
-            return;
-        }
-
-        _line = gameObject.AddComponent<LineRenderer>();
-        _line.positionCount = 2;
-        _line.startWidth = 0.09f;
-        _line.endWidth = 0.03f;
-        _line.material = new Material(Shader.Find("Sprites/Default"));
-        _line.startColor = new Color(0.55f, 0.95f, 1f, 1f);
-        _line.endColor = new Color(0.3f, 0.7f, 1f, 0.25f);
-        _line.sortingOrder = 25;
-        _line.enabled = false;
-        _line.useWorldSpace = true;
     }
 }

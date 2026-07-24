@@ -112,10 +112,11 @@ public class ProjectileModule : ModuleBase
             return;
         }
 
+        float interval = fireInterval * EnchantFireIntervalMultiplier;
         _fireTimer += Time.deltaTime;
-        while (_fireTimer >= fireInterval && currentEnergy > 0)
+        while (_fireTimer >= interval && currentEnergy > 0)
         {
-            _fireTimer -= fireInterval;
+            _fireTimer -= interval;
             ConsumeEnergyAndFire();
         }
     }
@@ -150,7 +151,7 @@ public class ProjectileModule : ModuleBase
         }
 
         currentEnergy = Mathf.Max(0, currentEnergy - 1);
-        target.TakeDamage(damagePerShot);
+        CombatDamage.Apply(this, target, damagePerShot, CombatDamage.HitEffects.None);
         ShowTrail(target.transform.position);
         RefreshVisual();
     }

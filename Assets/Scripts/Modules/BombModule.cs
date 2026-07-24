@@ -96,8 +96,9 @@ public class BombModule : ModuleBase
             return;
         }
 
+        float interval = fireInterval * EnchantFireIntervalMultiplier;
         _fireTimer += Time.deltaTime;
-        if (_fireTimer < fireInterval)
+        if (_fireTimer < interval)
         {
             return;
         }
@@ -106,17 +107,17 @@ public class BombModule : ModuleBase
         if (target == null)
         {
             // 有能无怪：保持就绪，不空耗能量也不推进射速节拍
-            _fireTimer = fireInterval;
+            _fireTimer = interval;
             return;
         }
 
-        _fireTimer -= fireInterval;
+        _fireTimer -= interval;
         currentEnergy -= energyPerShot;
         Vector3 aim = target.transform.position;
         aim.z = 0f;
         var go = new GameObject("BombProjectile");
         var proj = go.AddComponent<BombProjectile>();
-        proj.Launch(transform.position, aim, damage, aoeRadius);
+        proj.Launch(transform.position, aim, damage, aoeRadius, this);
         RefreshVisual();
     }
 

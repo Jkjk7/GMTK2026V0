@@ -9,9 +9,15 @@ public class BoardExpandService : MonoBehaviour
     public const int Size5 = 5;
     public const int Size7 = 7;
 
+    static readonly Color LockFill = new Color(0.04f, 0.04f, 0.06f, 0.88f);
+    static readonly Color LockHatch = new Color(0.55f, 0.18f, 0.22f, 0.55f);
+    static readonly Color PlayableWash = new Color(0.28f, 0.72f, 0.42f, 0.16f);
+
     GridBoard _board;
     int _unlockedSize = Size3;
     SpriteRenderer[] _lockOverlays;
+    SpriteRenderer[] _lockHatches;
+    SpriteRenderer[] _playableWashes;
 
     public int UnlockedSize => _unlockedSize;
 
@@ -42,17 +48,26 @@ public class BoardExpandService : MonoBehaviour
 
     public int GetNextExpandCost()
     {
+        int baseCost;
         if (_unlockedSize < Size5)
         {
-            return ModulePricing.BoardExpandTo5Cost;
+            baseCost = ModulePricing.BoardExpandTo5Cost;
         }
-
-        if (_unlockedSize < Size7)
+        else if (_unlockedSize < Size7)
         {
-            return ModulePricing.BoardExpandTo7Cost;
+            baseCost = ModulePricing.BoardExpandTo7Cost;
+        }
+        else
+        {
+            return 0;
         }
 
-        return 0;
+        if (RunModifiers.Instance != null && RunModifiers.Instance.NextExpandHalfPrice)
+        {
+            return Mathf.Max(1, baseCost / 2);
+        }
+
+        return baseCost;
     }
 
     public int GetNextSize()
@@ -83,6 +98,7 @@ public class BoardExpandService : MonoBehaviour
             return false;
         }
 
+        RunModifiers.Instance?.TryConsumeExpandHalfPrice();
         _unlockedSize = GetNextSize();
         RefreshLockVisuals();
         return true;
@@ -113,21 +129,51 @@ public class BoardExpandService : MonoBehaviour
 
         var go = new GameObject("LockOverlays");
         go.transform.SetParent(_board.transform, false);
-        _lockOverlays = new SpriteRenderer[GridBoard.Width * GridBoard.Height];
+        int count = GridBoard.Width * GridBoard.Height;
+        _lockOverlays = new SpriteRenderer[count];
+        _lockHatches = new SpriteRenderer[count];
+        _playableWashes = new SpriteRenderer[count];
+        float cell = _board.CellSize;
         int i = 0;
         for (int col = 0; col < GridBoard.Width; col++)
         {
             for (int row = 0; row < GridBoard.Height; row++)
             {
-                var cell = new GameObject($"Lock_{col}_{row}");
-                cell.transform.SetParent(go.transform, false);
-                cell.transform.position = _board.CellToWorld(new GridCoord(col, row));
-                cell.transform.localScale = Vector3.one * (_board.CellSize * 0.92f);
-                var sr = cell.AddComponent<SpriteRenderer>();
-                sr.sprite = PrototypeSprites.Square;
-                sr.color = new Color(0.12f, 0.12f, 0.14f, 0.55f);
-                sr.sortingOrder = 2;
-                _lockOverlays[i++] = sr;
+                Vector3 pos = _board.CellToWorld(new GridCoord(col, row));
+
+                var cellGo = new GameObject($"Lock_{col}_{row}");
+                cellGo.transform.SetParent(go.transform, false);
+                cellGo.transform.position = pos;
+                cellGo.transform.localScale = Vector3.one * (cell * 0.94f);
+                var fill = cellGo.AddComponent<SpriteRenderer>();
+                fill.sprite = PrototypeSprites.Square;
+                fill.color = LockFill;
+                fill.sortingOrder = 2;
+                _lockOverlays[i] = fill;
+
+                // 斜杠：锁定格一眼可辨
+                var hatchGo = new GameObject("Hatch");
+                hatchGo.transform.SetParent(cellGo.transform, false);
+                hatchGo.transform.localPosition = Vector3.zero;
+                hatchGo.transform.localRotation = Quaternion.Euler(0f, 0f, 38f);
+                hatchGo.transform.localScale = new Vector3(1.15f, 0.14f, 1f);
+                var hatch = hatchGo.AddComponent<SpriteRenderer>();
+                hatch.sprite = PrototypeSprites.Square;
+                hatch.color = LockHatch;
+                hatch.sortingOrder = 3;
+                _lockHatches[i] = hatch;
+
+                var washGo = new GameObject($"Playable_{col}_{row}");
+                washGo.transform.SetParent(go.transform, false);
+                washGo.transform.position = pos;
+                washGo.transform.localScale = Vector3.one * (cell * 0.94f);
+                var wash = washGo.AddComponent<SpriteRenderer>();
+                wash.sprite = PrototypeSprites.Square;
+                wash.color = PlayableWash;
+                wash.sortingOrder = 1;
+                _playableWashes[i] = wash;
+
+                i++;
             }
         }
     }
@@ -148,6 +194,16 @@ public class BoardExpandService : MonoBehaviour
                 if (_lockOverlays[i] != null)
                 {
                     _lockOverlays[i].enabled = locked;
+                }
+
+                if (_lockHatches[i] != null)
+                {
+                    _lockHatches[i].enabled = locked;
+                }
+
+                if (_playableWashes[i] != null)
+                {
+                    _playableWashes[i].enabled = !locked;
                 }
 
                 i++;

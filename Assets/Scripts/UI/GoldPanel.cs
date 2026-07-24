@@ -82,7 +82,7 @@ public class GoldPanel : MonoBehaviour
     {
         if (goldText != null)
         {
-            goldText.text = gold.ToString();
+            goldText.text = "金币 " + gold;
         }
     }
 
