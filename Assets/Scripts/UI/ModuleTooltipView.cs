@@ -125,12 +125,12 @@ public class ModuleTooltipView : MonoBehaviour
     {
         switch (enchant)
         {
-            case CellEnchant.Flame: return "火焰附魔";
-            case CellEnchant.DamageUp: return "伤害附魔";
-            case CellEnchant.Frost: return "寒霜附魔";
-            case CellEnchant.Shrink: return "缩小附魔";
-            case CellEnchant.Cooldown: return "冷却附魔";
-            default: return "附魔";
+            case CellEnchant.Flame: return GameLocalization.Text("Flame Enchant", "火焰附魔");
+            case CellEnchant.DamageUp: return GameLocalization.Text("Damage Enchant", "伤害附魔");
+            case CellEnchant.Frost: return GameLocalization.Text("Frost Enchant", "寒霜附魔");
+            case CellEnchant.Shrink: return GameLocalization.Text("Rapid Enchant", "缩小附魔");
+            case CellEnchant.Cooldown: return GameLocalization.Text("Cooldown Enchant", "冷却附魔");
+            default: return GameLocalization.Text("Enchant", "附魔");
         }
     }
 
@@ -139,15 +139,25 @@ public class ModuleTooltipView : MonoBehaviour
         switch (enchant)
         {
             case CellEnchant.Flame:
-                return "此格模块造成伤害时，对目标施加 3 秒灼烧。";
+                return GameLocalization.Text(
+                    "Damage from this cell applies 3 seconds of burn.",
+                    "此格模块造成伤害时，对目标施加 3 秒灼烧。");
             case CellEnchant.DamageUp:
-                return "此格模块最终伤害 ×1.2。";
+                return GameLocalization.Text(
+                    "Final damage from this cell is multiplied by 1.2.",
+                    "此格模块最终伤害 ×1.2。");
             case CellEnchant.Frost:
-                return "此格模块造成伤害时，施加 3 秒寒冷（30% 减速）。";
+                return GameLocalization.Text(
+                    "Damage from this cell applies 3 seconds of chill (30% slow).",
+                    "此格模块造成伤害时，施加 3 秒寒冷（30% 减速）。");
             case CellEnchant.Shrink:
-                return "此格模块伤害 ×0.5，射速翻倍。";
+                return GameLocalization.Text(
+                    "Damage ×0.5; attack speed is doubled.",
+                    "此格模块伤害 ×0.5，射速翻倍。");
             case CellEnchant.Cooldown:
-                return "此格有冷却的模块冷却时间减半（如采矿机）。";
+                return GameLocalization.Text(
+                    "Cooldown-based modules on this cell recover twice as fast.",
+                    "此格有冷却的模块冷却时间减半（如采矿机）。");
             default:
                 return string.Empty;
         }
@@ -302,11 +312,15 @@ public class ModuleTooltipView : MonoBehaviour
         {
             Color tint = SolidEnchantColor(_hoverEnchant);
             string title = hasModule
-                ? $"附魔 · {GetEnchantDisplayName(_hoverEnchant)}"
+                ? GameLocalization.Text(
+                    $"Enchant · {GetEnchantDisplayName(_hoverEnchant)}",
+                    $"附魔 · {GetEnchantDisplayName(_hoverEnchant)}")
                 : GetEnchantDisplayName(_hoverEnchant);
             string body = hasModule
                 ? GetEnchantDescription(_hoverEnchant)
-                : $"格子附魔\n{GetEnchantDescription(_hoverEnchant)}";
+                : GameLocalization.Text(
+                    $"Cell Enchant\n{GetEnchantDescription(_hoverEnchant)}",
+                    $"格子附魔\n{GetEnchantDescription(_hoverEnchant)}");
 
             if (enchantTitleText != null)
             {
@@ -342,7 +356,7 @@ public class ModuleTooltipView : MonoBehaviour
 
                     if (rarityText != null)
                     {
-                        rarityText.text = "格子附魔";
+                        rarityText.text = GameLocalization.Text("Cell Enchant", "格子附魔");
                         rarityText.color = new Color(0.75f, 0.78f, 0.85f, 1f);
                     }
 
