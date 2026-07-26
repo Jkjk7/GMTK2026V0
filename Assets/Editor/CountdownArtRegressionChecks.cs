@@ -22,6 +22,7 @@ public static class CountdownArtRegressionChecks
             }
 
             VisibleCountdownResourcesExist();
+            EnemyTypesHaveDistinctCountdownSilhouettes();
             EnemyStatusVisualsFollowAndClear();
             CombatAccentsAreBounded();
 
@@ -75,6 +76,26 @@ public static class CountdownArtRegressionChecks
         finally
         {
             UnityEngine.Object.DestroyImmediate(go);
+        }
+    }
+
+    static void EnemyTypesHaveDistinctCountdownSilhouettes()
+    {
+        foreach (EnemyGoldType type in Enum.GetValues(typeof(EnemyGoldType)))
+        {
+            var go = new GameObject($"EnemyVisual_{type}");
+            try
+            {
+                Enemy enemy = go.AddComponent<Enemy>();
+                enemy.Initialize(null, null, null, 1, type);
+                Require(
+                    go.transform.Find($"EnemySilhouette/{type}Marker") != null,
+                    $"{type} enemy is missing its distinct countdown silhouette.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
         }
     }
 

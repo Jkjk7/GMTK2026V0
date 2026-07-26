@@ -15,6 +15,7 @@ public sealed class EnemyVisualController : MonoBehaviour
     SpriteRenderer _chillRim;
     Transform _sandOrbit;
     SpriteRenderer _sandGrain;
+    Transform _silhouette;
 
     public bool HasClockworkCore => _core != null && _hand != null;
     public bool BurnVisible => _burnEmber != null && _burnEmber.enabled;
@@ -33,6 +34,8 @@ public sealed class EnemyVisualController : MonoBehaviour
 
     void Build()
     {
+        BuildDistinctSilhouette();
+
         _chillRim = Add("FrostRim", PrototypeSprites.Circle, Vector3.zero,
             Vector3.one * 1.22f, new Color(0.2f, 0.95f, 1f, 0.55f), 9);
         _core = Add("ClockworkCore", PrototypeSprites.Circle, Vector3.zero,
@@ -50,6 +53,77 @@ public sealed class EnemyVisualController : MonoBehaviour
         _sandOrbit.SetParent(transform, false);
         _sandGrain = Add("GoldGrain", PrototypeSprites.Circle, new Vector3(0.62f, 0f, 0f),
             Vector3.one * 0.18f, Gold, 15, _sandOrbit);
+    }
+
+    void BuildDistinctSilhouette()
+    {
+        _silhouette = new GameObject("EnemySilhouette").transform;
+        _silhouette.SetParent(transform, false);
+
+        switch (_enemy.GoldType)
+        {
+            case EnemyGoldType.Swarm:
+                Add("SwarmMarker", PrototypeSprites.Circle, new Vector3(-0.46f, 0f, 0f),
+                    new Vector3(0.52f, 0.68f, 1f), Brass, 9, _silhouette);
+                Add("RightWing", PrototypeSprites.Circle, new Vector3(0.46f, 0f, 0f),
+                    new Vector3(0.52f, 0.68f, 1f), Brass, 9, _silhouette);
+                Add("AntennaLeft", PrototypeSprites.Square, new Vector3(-0.2f, 0.52f, 0f),
+                    new Vector3(0.07f, 0.38f, 1f), Gold, 12, _silhouette)
+                    .transform.localRotation = Quaternion.Euler(0f, 0f, -28f);
+                Add("AntennaRight", PrototypeSprites.Square, new Vector3(0.2f, 0.52f, 0f),
+                    new Vector3(0.07f, 0.38f, 1f), Gold, 12, _silhouette)
+                    .transform.localRotation = Quaternion.Euler(0f, 0f, 28f);
+                break;
+
+            case EnemyGoldType.Tank:
+                Add("TankMarker", PrototypeSprites.Square, new Vector3(-0.58f, 0f, 0f),
+                    new Vector3(0.36f, 0.92f, 1f), Brass, 11, _silhouette);
+                Add("RightArmor", PrototypeSprites.Square, new Vector3(0.58f, 0f, 0f),
+                    new Vector3(0.36f, 0.92f, 1f), Brass, 11, _silhouette);
+                Add("TopArmor", PrototypeSprites.Square, new Vector3(0f, 0.52f, 0f),
+                    new Vector3(0.72f, 0.24f, 1f), Gold, 12, _silhouette);
+                Add("Pendulum", PrototypeSprites.Circle, new Vector3(0f, -0.62f, 0f),
+                    Vector3.one * 0.28f, Gold, 12, _silhouette);
+                break;
+
+            case EnemyGoldType.Elite:
+                Add("EliteMarker", PrototypeSprites.Square, new Vector3(-0.48f, 0.42f, 0f),
+                    new Vector3(0.18f, 0.52f, 1f), Gold, 12, _silhouette)
+                    .transform.localRotation = Quaternion.Euler(0f, 0f, -42f);
+                Add("RightEliteBlade", PrototypeSprites.Square, new Vector3(0.48f, 0.42f, 0f),
+                    new Vector3(0.18f, 0.52f, 1f), Gold, 12, _silhouette)
+                    .transform.localRotation = Quaternion.Euler(0f, 0f, 42f);
+                Add("EliteWeight", PrototypeSprites.Circle, new Vector3(0f, -0.6f, 0f),
+                    Vector3.one * 0.34f, Brass, 12, _silhouette);
+                break;
+
+            case EnemyGoldType.Boss:
+                Add("BossMarker", PrototypeSprites.Circle, Vector3.zero,
+                    Vector3.one * 1.48f, Dark, 9, _silhouette);
+                for (int i = 0; i < 12; i++)
+                {
+                    float angle = i * 30f;
+                    float radians = angle * Mathf.Deg2Rad;
+                    Vector3 position = new Vector3(Mathf.Sin(radians), Mathf.Cos(radians), 0f) * 0.83f;
+                    SpriteRenderer tick = Add($"BossTick{i:00}", PrototypeSprites.Square, position,
+                        new Vector3(0.07f, 0.24f, 1f), i < 3 ? Gold : Brass, 12, _silhouette);
+                    tick.transform.localRotation = Quaternion.Euler(0f, 0f, -angle);
+                }
+                Add("ClockTowerCrown", PrototypeSprites.Square, new Vector3(0f, 0.88f, 0f),
+                    new Vector3(0.68f, 0.34f, 1f), Brass, 11, _silhouette);
+                break;
+
+            default:
+                Add("NormalMarker", PrototypeSprites.Square, new Vector3(-0.54f, 0f, 0f),
+                    new Vector3(0.2f, 0.48f, 1f), Brass, 11, _silhouette);
+                Add("RightGearTooth", PrototypeSprites.Square, new Vector3(0.54f, 0f, 0f),
+                    new Vector3(0.2f, 0.48f, 1f), Brass, 11, _silhouette);
+                Add("TopGearTooth", PrototypeSprites.Square, new Vector3(0f, 0.54f, 0f),
+                    new Vector3(0.48f, 0.2f, 1f), Brass, 11, _silhouette);
+                Add("BottomGearTooth", PrototypeSprites.Square, new Vector3(0f, -0.54f, 0f),
+                    new Vector3(0.48f, 0.2f, 1f), Brass, 11, _silhouette);
+                break;
+        }
     }
 
     void Update()

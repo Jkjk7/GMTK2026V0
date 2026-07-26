@@ -455,7 +455,9 @@ public class Enemy : MonoBehaviour
             }
         }
 
-        _visual.sprite = PrototypeSprites.Square;
+        _visual.sprite = goldType == EnemyGoldType.Tank
+            ? PrototypeSprites.Square
+            : PrototypeSprites.Circle;
         RefreshDisplayColor();
         if (_sandBuff)
         {
