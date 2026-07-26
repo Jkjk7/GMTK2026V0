@@ -133,7 +133,7 @@ public class MinerModule : ModuleBase
             }
 
             // 稳定排序：实例 ID 较小的优先产出
-            if (m.GetInstanceID() < GetInstanceID())
+            if (m.GetEntityId() < GetEntityId())
             {
                 active++;
                 if (active >= MaxActiveProducers)
