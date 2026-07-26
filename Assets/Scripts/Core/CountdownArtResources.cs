@@ -7,6 +7,12 @@ public static class CountdownArtResources
     public const string BoardCellPath = "Countdown/board_cell";
     public const string BattleBackdropPath = "Countdown/battle_lane_backdrop";
     public const string ModuleRootPath = "Countdown/Modules/";
+    public const string HourglassFramePath = "Countdown/UI/hourglass_frame";
+    public const string TimerPlaquePath = "Countdown/UI/timer_plaque";
+    public const string RingOrnamentPath = "Countdown/Environment/countdown_ring_ornament";
+    public const string PanelBackgroundPath = "Countdown/Environment/panel_background";
+    public const string BoardFramePath = "Countdown/Environment/board_frame";
+    public const string BoardStateOverlayPath = "Countdown/Environment/board_state_overlay";
 
     static readonly Dictionary<string, Sprite> Cache = new Dictionary<string, Sprite>();
 

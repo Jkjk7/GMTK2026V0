@@ -30,7 +30,7 @@ public sealed class GridCellView : MonoBehaviour
     {
         if (baseRenderer != null)
         {
-            baseRenderer.color = Color.Lerp(_normalColor, Color.white, 0.25f);
+            baseRenderer.color = Color.Lerp(_normalColor, Color.white, 0.12f);
         }
     }
 
@@ -38,7 +38,10 @@ public sealed class GridCellView : MonoBehaviour
     {
         if (baseRenderer != null)
         {
-            baseRenderer.color = new Color(0.25f, 0.55f, 0.35f, 1f);
+            baseRenderer.color = Color.Lerp(
+                _normalColor,
+                new Color(0.35f, 0.72f, 0.42f, 1f),
+                0.24f);
         }
     }
 
@@ -46,7 +49,10 @@ public sealed class GridCellView : MonoBehaviour
     {
         if (baseRenderer != null)
         {
-            baseRenderer.color = new Color(0.55f, 0.22f, 0.22f, 1f);
+            baseRenderer.color = Color.Lerp(
+                _normalColor,
+                new Color(0.75f, 0.24f, 0.2f, 1f),
+                0.26f);
         }
     }
 
@@ -54,7 +60,7 @@ public sealed class GridCellView : MonoBehaviour
     {
         if (baseRenderer != null)
         {
-            baseRenderer.color = Color.Lerp(_normalColor, Color.black, 0.2f);
+            baseRenderer.color = Color.Lerp(_normalColor, Color.black, 0.08f);
         }
     }
 }

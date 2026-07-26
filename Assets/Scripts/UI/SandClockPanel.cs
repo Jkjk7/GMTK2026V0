@@ -16,6 +16,7 @@ public class SandClockPanel : MonoBehaviour
     Text _floatText;
     Image _glassTop;
     Image _glassBottom;
+    Image _frame;
     SandClock _clock;
     RectTransform _glassBottomRt;
 
@@ -24,13 +25,22 @@ public class SandClockPanel : MonoBehaviour
     Vector2 _basePos;
     RectTransform _rt;
 
-    public void Bind(SandClock clock, Text countdownText, Text floatText, Image glassTop, Image glassBottom)
+    public Image FrameImage => _frame;
+
+    public void Bind(
+        SandClock clock,
+        Text countdownText,
+        Text floatText,
+        Image glassTop,
+        Image glassBottom,
+        Image frame = null)
     {
         _clock = clock;
         _countdownText = countdownText;
         _floatText = floatText;
         _glassTop = glassTop;
         _glassBottom = glassBottom;
+        _frame = frame;
         _glassBottomRt = glassBottom != null ? glassBottom.rectTransform : null;
         _rt = GetComponent<RectTransform>();
         _basePos = _rt != null ? _rt.anchoredPosition : Vector2.zero;

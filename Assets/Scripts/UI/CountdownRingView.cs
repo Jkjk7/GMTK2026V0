@@ -11,25 +11,57 @@ public sealed class CountdownRingView : MonoBehaviour
 
     readonly SpriteRenderer[] _ticks = new SpriteRenderer[CountdownVisualRules.TickCount];
     SandClock _clock;
+    SpriteRenderer _ornament;
 
     public int TickRendererCount => _ticks.Length;
+    public SpriteRenderer OrnamentRenderer => _ornament;
+    public int MaxSortingOrder
+    {
+        get
+        {
+            int max = _ornament != null ? _ornament.sortingOrder : int.MinValue;
+            for (int i = 0; i < _ticks.Length; i++)
+            {
+                if (_ticks[i] != null)
+                {
+                    max = Mathf.Max(max, _ticks[i].sortingOrder);
+                }
+            }
+
+            return max;
+        }
+    }
 
     public void Initialize(SandClock clock, Vector3 center, float radius)
     {
         _clock = clock;
         transform.position = new Vector3(center.x, center.y, 0f);
+
+        var ornamentGo = new GameObject("ClockOrnament");
+        ornamentGo.transform.SetParent(transform, false);
+        _ornament = ornamentGo.AddComponent<SpriteRenderer>();
+        _ornament.sprite = CountdownArtResources.LoadSprite(
+            CountdownArtResources.RingOrnamentPath,
+            PrototypeSprites.Circle);
+        ornamentGo.transform.localScale = CountdownArtResources.FitScale(
+            _ornament.sprite,
+            radius * 2.08f,
+            radius * 2.08f);
+        _ornament.color = new Color(0.78f, 0.6f, 0.35f, 0.48f);
+        _ornament.sortingOrder = -4;
+
         for (int i = 0; i < _ticks.Length; i++)
         {
             float angle = i * 360f / _ticks.Length;
             var tick = new GameObject($"Tick_{i:00}");
             tick.transform.SetParent(transform, false);
             tick.transform.localPosition =
-                Quaternion.Euler(0f, 0f, angle) * (Vector3.up * radius);
+                Quaternion.Euler(0f, 0f, angle) * (Vector3.up * radius * 0.87f);
             tick.transform.localRotation = Quaternion.Euler(0f, 0f, angle);
-            tick.transform.localScale = new Vector3(radius * 0.035f, radius * 0.13f, 1f);
+            tick.transform.localScale = new Vector3(radius * 0.018f, radius * 0.065f, 1f);
             var sr = tick.AddComponent<SpriteRenderer>();
             sr.sprite = PrototypeSprites.Square;
-            sr.sortingOrder = -20;
+            sr.sortingOrder = -3;
             _ticks[i] = sr;
         }
         Refresh();
@@ -46,9 +78,11 @@ public sealed class CountdownRingView : MonoBehaviour
         for (int i = 0; i < _ticks.Length; i++)
         {
             if (_ticks[i] == null) continue;
-            _ticks[i].color = i < lit
+            Color color = i < lit
                 ? (warning ? (alternate ? Orange : Red) : (i % 5 == 0 ? Gold : Brass))
                 : Dark;
+            color.a = i < lit ? (warning ? 0.9f : 0.72f) : 0.28f;
+            _ticks[i].color = color;
         }
     }
 

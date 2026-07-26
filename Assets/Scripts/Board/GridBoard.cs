@@ -550,7 +550,7 @@ public class GridBoard : MonoBehaviour
                 sr.sprite = cellSprite;
                 sr.color = ((col + row) % 2 == 0)
                     ? Color.white
-                    : new Color(0.84f, 0.88f, 0.96f, 1f);
+                    : new Color(0.92f, 0.88f, 0.8f, 1f);
                 sr.sortingOrder = 0;
 
                 var cellView = go.AddComponent<GridCellView>();

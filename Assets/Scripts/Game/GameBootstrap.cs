@@ -130,7 +130,17 @@ public class GameBootstrap : MonoBehaviour
         var ringGo = new GameObject("CountdownRing");
         ringGo.transform.SetParent(worldRoot, false);
         var ring = ringGo.AddComponent<CountdownRingView>();
-        ring.Initialize(sandClock, new Vector3(0f, 0.2f, 0f), 7.2f);
+        Vector3 ringCenter = new Vector3(0f, 0.2f, 0f);
+        float ringRadius = 7.2f;
+        if (worldCam != null)
+        {
+            float depth = Mathf.Abs(worldCam.transform.position.z);
+            ringCenter = worldCam.ViewportToWorldPoint(new Vector3(0.38f, 0.53f, depth));
+            Vector3 ringEdge = worldCam.ViewportToWorldPoint(new Vector3(0.65f, 0.53f, depth));
+            ringRadius = Mathf.Abs(ringEdge.x - ringCenter.x);
+            ringCenter.z = 0f;
+        }
+        ring.Initialize(sandClock, ringCenter, ringRadius);
 
         emitter.Initialize(board, ballManager, session, sandClock);
 
@@ -518,7 +528,7 @@ public class GameBootstrap : MonoBehaviour
         sr.color = sr.sprite == PrototypeSprites.Square
             ? new Color(0.11f, 0.13f, 0.17f, 1f)
             : Color.white;
-        sr.sortingOrder = -2;
+        sr.sortingOrder = -6;
     }
 
     Canvas CreateCanvas()
@@ -646,11 +656,19 @@ public class GameBootstrap : MonoBehaviour
             new Vector2(1f, 0.5f), new Vector2(-30f, 30f), new Vector2(0f, -30f), frame);
 
         // 不做局部蓝分隔线（只画一侧会显得怪）；侧栏用底板与棋盘区分即可
-        CreateShellBar(root.transform, "SidebarPlate", new Vector2(0.60f, 0.03f), new Vector2(0.985f, 0.64f),
-            new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, sidebar);
+        Image sidebarPlate = CreateShellBar(
+            root.transform,
+            "SidebarPlate",
+            new Vector2(0.60f, 0.03f),
+            new Vector2(0.985f, 0.64f),
+            new Vector2(0.5f, 0.5f),
+            Vector2.zero,
+            Vector2.zero,
+            sidebar);
+        ApplyPanelArt(sidebarPlate, 0.72f);
     }
 
-    static void CreateShellBar(
+    static Image CreateShellBar(
         Transform parent,
         string name,
         Vector2 anchorMin,
@@ -671,6 +689,21 @@ public class GameBootstrap : MonoBehaviour
         var img = go.AddComponent<Image>();
         img.color = color;
         img.raycastTarget = false;
+        return img;
+    }
+
+    static void ApplyPanelArt(Image image, float alpha)
+    {
+        if (image == null)
+        {
+            return;
+        }
+
+        image.sprite = CountdownArtResources.LoadSprite(
+            CountdownArtResources.PanelBackgroundPath,
+            PrototypeSprites.Square);
+        image.type = Image.Type.Simple;
+        image.color = new Color(1f, 1f, 1f, alpha);
     }
 
     static void StretchFull(RectTransform rt)
@@ -746,8 +779,8 @@ public class GameBootstrap : MonoBehaviour
     SandClockPanel CreateSandClockPanel(Transform canvas, Font font, SandClock sandClock, Vector3 mageViewport)
     {
         // 沙漏 = 原法师：面板中心对齐蓝块（Mage）的视口坐标
-        const float halfW = 0.045f;
-        const float halfH = 0.07f;
+        const float halfW = 0.055f;
+        const float halfH = 0.09f;
         float cx = Mathf.Clamp(mageViewport.x, halfW + 0.01f, 1f - halfW - 0.01f);
         float cy = Mathf.Clamp(mageViewport.y, halfH + 0.02f, 1f - halfH - 0.02f);
 
@@ -765,8 +798,23 @@ public class GameBootstrap : MonoBehaviour
         var bgRt = bgGo.AddComponent<RectTransform>();
         StretchFull(bgRt);
         var bg = bgGo.AddComponent<Image>();
-        bg.color = new Color(0f, 0f, 0f, 0.45f);
+        bg.color = Color.clear;
         bg.raycastTarget = false;
+
+        var frameGo = new GameObject("HourglassFrame");
+        frameGo.transform.SetParent(go.transform, false);
+        var frameRt = frameGo.AddComponent<RectTransform>();
+        frameRt.anchorMin = new Vector2(0.08f, 0.02f);
+        frameRt.anchorMax = new Vector2(0.92f, 0.74f);
+        frameRt.offsetMin = Vector2.zero;
+        frameRt.offsetMax = Vector2.zero;
+        var frame = frameGo.AddComponent<Image>();
+        frame.sprite = CountdownArtResources.LoadSprite(
+            CountdownArtResources.HourglassFramePath,
+            PrototypeSprites.Square);
+        frame.color = Color.white;
+        frame.preserveAspect = true;
+        frame.raycastTarget = false;
 
         // 沙漏上方：毫秒倒计时
         var cdGo = new GameObject("Countdown");
@@ -788,7 +836,7 @@ public class GameBootstrap : MonoBehaviour
         cd.resizeTextMinSize = 10;
         cd.resizeTextMaxSize = 26;
 
-        // 占位沙漏：上下两腔（暂不做沙子颗粒动画）
+        // 沙漏内部的动态沙量，叠在正式框体和玻璃之上。
         Image MakeGlass(string name, Vector2 aMin, Vector2 aMax)
         {
             var g = new GameObject(name);
@@ -799,13 +847,14 @@ public class GameBootstrap : MonoBehaviour
             grt.offsetMin = Vector2.zero;
             grt.offsetMax = Vector2.zero;
             var img = g.AddComponent<Image>();
-            img.sprite = PrototypeSprites.Square;
+            img.sprite = PrototypeSprites.Circle;
+            img.preserveAspect = true;
             img.raycastTarget = false;
             return img;
         }
 
-        Image glassTop = MakeGlass("GlassTop", new Vector2(0.36f, 0.40f), new Vector2(0.64f, 0.66f));
-        Image glassBottom = MakeGlass("GlassBottom", new Vector2(0.36f, 0.08f), new Vector2(0.64f, 0.34f));
+        Image glassTop = MakeGlass("GlassTop", new Vector2(0.39f, 0.44f), new Vector2(0.61f, 0.61f));
+        Image glassBottom = MakeGlass("GlassBottom", new Vector2(0.39f, 0.15f), new Vector2(0.61f, 0.32f));
 
         // 罚沙/补沙浮动提示（面板右侧探出）
         var floatGo = new GameObject("FloatDelta");
@@ -824,7 +873,7 @@ public class GameBootstrap : MonoBehaviour
         floatGo.SetActive(false);
 
         var panel = go.AddComponent<SandClockPanel>();
-        panel.Bind(sandClock, cd, floatText, glassTop, glassBottom);
+        panel.Bind(sandClock, cd, floatText, glassTop, glassBottom, frame);
         return panel;
     }
 
@@ -1433,7 +1482,7 @@ public class GameBootstrap : MonoBehaviour
         panel.offsetMax = Vector2.zero;
 
         var bg = panelGo.AddComponent<Image>();
-        bg.color = new Color(0.1f, 0.1f, 0.14f, 0.75f);
+        ApplyPanelArt(bg, 0.72f);
 
         var titleGo = new GameObject("Title");
         titleGo.transform.SetParent(panelGo.transform, false);
@@ -1598,7 +1647,7 @@ public class GameBootstrap : MonoBehaviour
         handRt.offsetMax = Vector2.zero;
 
         var bg = handGo.AddComponent<Image>();
-        bg.color = new Color(0.09f, 0.09f, 0.12f, 0.8f);
+        ApplyPanelArt(bg, 0.72f);
 
         var titleGo = new GameObject("Title");
         titleGo.transform.SetParent(handGo.transform, false);

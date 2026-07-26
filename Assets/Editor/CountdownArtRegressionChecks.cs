@@ -33,6 +33,7 @@ public static class CountdownArtRegressionChecks
             CombatAccentsAreBounded();
             SharedModuleIconVisuals();
             PlacedModuleUsesFormalSkin();
+            RingAndHourglassUseFormalArt();
 
             Require(SandClock.InitialSandMs == 100_000, "Initial sand gameplay constant changed.");
             Require(SandClock.BreachPenaltySwarmMs == 3_000, "Swarm penalty gameplay constant changed.");
@@ -184,6 +185,30 @@ public static class CountdownArtRegressionChecks
             Require(
                 body.sprite == CountdownArtResources.LoadModuleSprite(ModuleType.Spark),
                 "A gameplay refresh replaced the formal module sprite.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(go);
+        }
+    }
+
+    static void RingAndHourglassUseFormalArt()
+    {
+        Require(
+            Resources.Load<Texture2D>(CountdownArtResources.RingOrnamentPath) != null,
+            "Countdown ring ornament is not runtime-loadable.");
+        Require(
+            Resources.Load<Texture2D>(CountdownArtResources.HourglassFramePath) != null,
+            "Hourglass frame is not runtime-loadable.");
+
+        var go = new GameObject("CountdownRingHierarchyRegression");
+        try
+        {
+            CountdownRingView ring = go.AddComponent<CountdownRingView>();
+            ring.Initialize(null, Vector3.zero, 4f);
+            Require(ring.TickRendererCount == 60, "Countdown ring lost its sixty ticks.");
+            Require(ring.OrnamentRenderer != null, "Countdown ring ornament is missing.");
+            Require(ring.MaxSortingOrder < 0, "Countdown ring must remain below gameplay.");
         }
         finally
         {
