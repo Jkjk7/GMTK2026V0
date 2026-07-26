@@ -32,6 +32,7 @@ public static class CountdownArtRegressionChecks
             EnemyStatusVisualsFollowAndClear();
             CombatAccentsAreBounded();
             SharedModuleIconVisuals();
+            PlacedModuleUsesFormalSkin();
 
             Require(SandClock.InitialSandMs == 100_000, "Initial sand gameplay constant changed.");
             Require(SandClock.BreachPenaltySwarmMs == 3_000, "Swarm penalty gameplay constant changed.");
@@ -152,6 +153,37 @@ public static class CountdownArtRegressionChecks
             Require(
                 Mathf.Approximately(image.color.a, ModuleIconVisuals.DisabledAlpha),
                 "Disabled module icon alpha is inconsistent.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(go);
+        }
+    }
+
+    static void PlacedModuleUsesFormalSkin()
+    {
+        var go = new GameObject("PlacedModuleSkinRegression");
+        try
+        {
+            SparkModule module = go.AddComponent<SparkModule>();
+            module.ApplyCardData(ModuleCardData.Create(ModuleType.Spark, 1, 0));
+            bool applied = ModuleSkinApplicator.Apply(module);
+            SpriteRenderer body = module.GetComponent<SpriteRenderer>();
+            Require(applied, "Spark formal skin was not applied.");
+            Require(
+                body != null &&
+                body.sprite == CountdownArtResources.LoadModuleSprite(ModuleType.Spark),
+                "Placed Spark retained its prototype body.");
+            Require(
+                module.transform.Find("CountdownClockwork") == null,
+                "Old decorative clock face is still stacked over the module body.");
+
+            module.RefreshVisual();
+            ModuleSkinApplicator controller = module.GetComponent<ModuleSkinApplicator>();
+            controller.RefreshNow();
+            Require(
+                body.sprite == CountdownArtResources.LoadModuleSprite(ModuleType.Spark),
+                "A gameplay refresh replaced the formal module sprite.");
         }
         finally
         {

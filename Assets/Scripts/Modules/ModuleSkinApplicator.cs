@@ -1,64 +1,98 @@
 using UnityEngine;
 
-/// <summary>Adds clockwork readability without replacing module gameplay renderers.</summary>
+/// <summary>Persistently replaces prototype module bodies with formal countdown art.</summary>
 public sealed class ModuleSkinApplicator : MonoBehaviour
 {
-    const string DetailName = "CountdownClockwork";
-    static readonly Color Ink = Hex("#0B0910");
-    static readonly Color Brass = Hex("#B58248");
-    static readonly Color Gold = Hex("#FFD676");
+    const string LegacyDetailName = "CountdownClockwork";
+
+    ModuleBase _module;
+    SpriteRenderer _body;
+    Sprite _formalSprite;
 
     public static bool HasStyle(ModuleType type) =>
         System.Enum.IsDefined(typeof(ModuleType), type);
 
-    public static void Apply(ModuleBase module)
+    public static bool Apply(ModuleBase module)
     {
-        if (module == null || module.transform.Find(DetailName) != null) return;
-
-        Color typeColor = GetTypeColor(module.ModuleType);
-        Transform root = new GameObject(DetailName).transform;
-        root.SetParent(module.transform, false);
-        Add(root, "Face", PrototypeSprites.Circle, Vector3.zero, Vector3.one * 0.56f, typeColor, 15);
-        float angle = ((int)module.ModuleType * 37f) % 360f;
-        Add(root, "Hand", PrototypeSprites.Square, new Vector3(0f, 0.11f, 0f),
-            new Vector3(0.07f, 0.32f, 1f), Gold, 16).localRotation =
-            Quaternion.Euler(0f, 0f, angle);
-        Add(root, "Hub", PrototypeSprites.Circle, Vector3.zero, Vector3.one * 0.12f, Ink, 17);
-        if (((int)module.ModuleType & 1) == 0)
+        if (module == null)
         {
-            Add(root, "Gear", PrototypeSprites.Circle, new Vector3(0.22f, -0.2f, 0f),
-                Vector3.one * 0.18f, Gold, 17);
+            return false;
+        }
+
+        ModuleSkinApplicator controller = module.GetComponent<ModuleSkinApplicator>();
+        if (controller == null)
+        {
+            controller = module.gameObject.AddComponent<ModuleSkinApplicator>();
+        }
+
+        controller.Bind(module);
+        return CountdownArtResources.IsFormalModuleSprite(controller._formalSprite);
+    }
+
+    void Bind(ModuleBase module)
+    {
+        _module = module;
+        _body = module.GetComponent<SpriteRenderer>();
+        if (_body == null)
+        {
+            _body = module.gameObject.AddComponent<SpriteRenderer>();
+        }
+
+        _formalSprite = CountdownArtResources.LoadModuleSprite(module.ModuleType);
+        RemoveLegacyDecoration(module.transform.Find(LegacyDetailName));
+        RefreshNow();
+    }
+
+    public void RefreshNow()
+    {
+        if (_module == null || _body == null)
+        {
+            return;
+        }
+
+        if (_formalSprite == null)
+        {
+            _formalSprite = CountdownArtResources.LoadModuleSprite(_module.ModuleType);
+        }
+
+        _body.sprite = _formalSprite;
+        _body.sortingOrder = 10;
+        Color accent = ModuleCatalog.GetDisplayColor(_module.ModuleType);
+        Color restrained = Color.Lerp(Color.white, accent, 0.18f);
+        restrained.a = 1f;
+        _body.color = restrained;
+    }
+
+    void LateUpdate()
+    {
+        if (_module == null || _body == null)
+        {
+            return;
+        }
+
+        Color accent = ModuleCatalog.GetDisplayColor(_module.ModuleType);
+        Color expected = Color.Lerp(Color.white, accent, 0.18f);
+        expected.a = 1f;
+        if (_body.sprite != _formalSprite || _body.color != expected)
+        {
+            RefreshNow();
         }
     }
 
-    static Transform Add(
-        Transform parent, string name, Sprite sprite, Vector3 pos,
-        Vector3 scale, Color color, int order)
+    static void RemoveLegacyDecoration(Transform legacy)
     {
-        Transform child = new GameObject(name).transform;
-        child.SetParent(parent, false);
-        child.localPosition = pos;
-        child.localScale = scale;
-        var sr = child.gameObject.AddComponent<SpriteRenderer>();
-        sr.sprite = sprite;
-        sr.color = color;
-        sr.sortingOrder = order;
-        return child;
-    }
-
-    static Color Hex(string value)
-    {
-        ColorUtility.TryParseHtmlString(value, out Color color);
-        return color;
-    }
-
-    static Color GetTypeColor(ModuleType type)
-    {
-        switch ((int)type % 3)
+        if (legacy == null)
         {
-            case 0: return Brass;
-            case 1: return Gold;
-            default: return Ink;
+            return;
+        }
+
+        if (Application.isPlaying)
+        {
+            Destroy(legacy.gameObject);
+        }
+        else
+        {
+            DestroyImmediate(legacy.gameObject);
         }
     }
 }
