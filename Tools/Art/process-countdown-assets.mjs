@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url);
 const sharp = require("sharp");
 
 const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
+const backdropBackground = { r: 15, g: 20, b: 32 };
 
 export function keyedAlpha(r, g, b, originalAlpha) {
   const distance = Math.hypot(r, g - 255, b);
@@ -107,6 +108,7 @@ export async function processOpaque(entry, rootDir) {
   const output = resolveEntryPath(rootDir, entry.output);
   await mkdir(path.dirname(output), { recursive: true });
   await sharp(source)
+    .flatten({ background: backdropBackground })
     .resize(entry.width ?? 1536, entry.height ?? 512, { fit: "cover", position: "centre" })
     .png()
     .toFile(output);

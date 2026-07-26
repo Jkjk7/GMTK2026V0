@@ -7,7 +7,7 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 const sharp = require("sharp");
 
-import { processSheet, processSingle } from "./process-countdown-assets.mjs";
+import { processOpaque, processSheet, processSingle } from "./process-countdown-assets.mjs";
 
 async function withTempRoot(run) {
   const root = await mkdtemp(path.join(os.tmpdir(), "countdown-assets-"));
@@ -62,6 +62,20 @@ test("single sprites are padded to exactly 512 square pixels", async () => {
 
     const info = await sharp(output).metadata();
     assert.deepEqual([info.width, info.height], [512, 512]);
+  });
+});
+
+test("opaque backdrops flatten transparent source pixels", async () => {
+  await withTempRoot(async (root) => {
+    await sharp({ create: { width: 2, height: 2, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 0 } } })
+      .png()
+      .toFile(path.join(root, "backdrop.png"));
+    const output = path.join(root, "output.png");
+
+    await processOpaque({ source: "backdrop.png", output: "output.png", width: 4, height: 2 }, root);
+
+    const pixels = await sharp(output).ensureAlpha().raw().toBuffer();
+    for (let offset = 3; offset < pixels.length; offset += 4) assert.equal(pixels[offset], 255);
   });
 });
 
