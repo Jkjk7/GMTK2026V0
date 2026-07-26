@@ -1,43 +1,72 @@
-# GMTK2026 Game Jam Project
-仓库地址：https://github.com/Jkjk7/GMTK2026V0
+# Sand Circuit: The Last Grain
 
-## 项目简介
-GMTK 2026 GameJam 小游戏
-- 开发周期：GMTK2026 限定开发时长
-- 开发引擎：Unity
-- 开发语言：中文
-- 团队成员：强者🥛
+[简体中文](README.zh-CN.md)
 
-## 游戏玩法说明
-不知道
+> Route time into weapons before the final grain falls.
 
-## 项目结构
+**Sand Circuit: The Last Grain** is a circuit-building tower-defense game created for GMTK Game
+Jam 2026 and its theme, **Count Down**. Time is both your health and the resource that powers your
+clockwork defense workshop.
+
+## How to Play
+
+Place modules on the board and route energy balls through machines to charge your defenses.
+Enemies approach from the right; letting one reach the hourglass removes precious time. Build an
+efficient circuit, combine status effects, and survive 25 escalating waves before the last grain
+falls.
+
+The current jam build includes:
+
+- 17 attack, routing, economy, enchantment, and support modules
+- Buying, placing, rotating, moving, merging, upgrading, and scrapping
+- Fire, chill, Melt, black-hole, bomb, and sand-buff combat interactions
+- Roguelike module drafts, emitter upgrades, blessings, and bindings
+- A 60-tick world-space countdown ring with warning states
+- Clockwork module and enemy skins with burn, chill, sand, hit, death, and Melt effects
+- English interface by default with an in-game Simplified Chinese switch
+
+## Controls
+
+- **Mouse:** buy, select, drag, place, move, merge, and scrap modules
+- **R:** rotate the selected or carried module
+- **Space** or **Ready:** finish preparation and begin the wave
+- **F:** refresh the shop
+- **Right click** or **X:** dismantle a placed module
+- **中文 / EN:** switch language; the choice is saved for future launches
+
+## Run the Project
+
+The submission branch is tested with **Unity 6000.5.4f1**.
+
+1. Clone [Jkjk7/GMTK2026V0](https://github.com/Jkjk7/GMTK2026V0).
+2. Open the repository root through Unity Hub.
+3. Open the game scene in `Assets/Scenes`, then press Play. The runtime bootstrap can also assemble
+   the prototype when no bootstrap object is present.
+
+For itch.io, make a WebGL build and ZIP the build contents so `index.html`, `Build/`, and
+`TemplateData/` are at the archive root.
+
+## Repository Layout
+
+```text
+Assets/Scripts/                  Gameplay and UI code
+Assets/Art/Generated/Countdown/ Generated and processed countdown artwork
+Assets/Editor/                   Batch-mode regression checks
+Tools/Art/                       Deterministic PNG processing pipeline
+docs/agent-handoff/              System and handoff documentation
+docs/superpowers/                Design specifications and implementation plans
 ```
-GMTK2026V0/
-├── Assets/          # 资源文件（贴图、音效、场景、预制体）
-├── Build/           # 游戏打包输出目录
-├── Scripts/         # 全部游戏逻辑代码
-├── Scenes/          # 游戏场景文件
-├── Audio/           # BGM、音效素材
-└── README.md        # 项目说明文档
-```
 
-## 本地运行教程
-### 环境依赖
+## Team
 
+Created for GMTK Game Jam 2026 by **Team 强者🥛**.
 
-### 步骤
-1. 克隆仓库到本地
-```bash
-git clone https://github.com/Jkjk7/GMTK2026V0.git
-```
-2. 使用对应引擎打开项目根文件夹
-3. 打开主场景，点击运行按钮即可测试游戏
+## Generative AI Disclosure
 
-## 打包发布
-1. 在引擎内打开 Build 设置
-2. 选择目标平台（Windows/Mac/WebGL）
-3. 输出到 Build 文件夹，生成可执行文件
+Generative AI tools assisted with portions of the visual development, code, documentation, and
+submission text. The team selected, edited, integrated, and tested the final content.
 
-## 开源说明
-本项目仅用于 GMTK GameJam 参赛展示，素材与代码未经允许禁止商用，学习交流可自由 Fork。
+## License and Use
+
+This repository is published for game-jam demonstration and learning. Do not reuse its assets or
+code commercially without permission from the team.
