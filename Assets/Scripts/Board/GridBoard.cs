@@ -531,6 +531,9 @@ public class GridBoard : MonoBehaviour
 
     void BuildCellVisuals()
     {
+        Sprite cellSprite = CountdownArtResources.LoadSprite(
+            CountdownArtResources.BoardCellPath,
+            PrototypeSprites.Square);
         for (int col = 0; col < Width; col++)
         {
             for (int row = 0; row < Height; row++)
@@ -538,11 +541,16 @@ public class GridBoard : MonoBehaviour
                 var go = new GameObject($"Cell_{col}_{row}");
                 go.transform.SetParent(_cellsRoot, false);
                 go.transform.localPosition = LocalCellCenter(new GridCoord(col, row));
-                go.transform.localScale = Vector3.one * (cellSize * 0.92f);
+                go.transform.localScale = CountdownArtResources.FitScale(
+                    cellSprite,
+                    cellSize * 0.92f,
+                    cellSize * 0.92f);
 
                 var sr = go.AddComponent<SpriteRenderer>();
-                sr.sprite = PrototypeSprites.Square;
-                sr.color = ((col + row) % 2 == 0) ? evenCellColor : oddCellColor;
+                sr.sprite = cellSprite;
+                sr.color = ((col + row) % 2 == 0)
+                    ? Color.white
+                    : new Color(0.84f, 0.88f, 0.96f, 1f);
                 sr.sortingOrder = 0;
 
                 var cellView = go.AddComponent<GridCellView>();

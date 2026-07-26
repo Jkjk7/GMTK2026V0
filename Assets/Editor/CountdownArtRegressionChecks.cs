@@ -21,6 +21,7 @@ public static class CountdownArtRegressionChecks
                 Require(ModuleSkinApplicator.HasStyle(type), $"Missing module visual style for {type}.");
             }
 
+            VisibleCountdownResourcesExist();
             EnemyStatusVisualsFollowAndClear();
             CombatAccentsAreBounded();
 
@@ -75,6 +76,16 @@ public static class CountdownArtRegressionChecks
         {
             UnityEngine.Object.DestroyImmediate(go);
         }
+    }
+
+    static void VisibleCountdownResourcesExist()
+    {
+        Require(
+            Resources.LoadAll<Sprite>("Countdown/board_cell").Length > 0,
+            "Generated board-cell art is not loadable at runtime.");
+        Require(
+            Resources.LoadAll<Sprite>("Countdown/battle_lane_backdrop").Length > 0,
+            "Generated battle-lane art is not loadable at runtime.");
     }
 
     static void CombatAccentsAreBounded()

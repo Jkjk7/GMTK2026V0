@@ -510,10 +510,14 @@ public class GameBootstrap : MonoBehaviour
         float right = ViewportToWorldX(cam, 0.96f);
         float width = Mathf.Max(boardBounds.size.x + cellSize * 6f, right - left);
         go.transform.position = new Vector3((left + right) * 0.5f, laneY, 0f);
-        go.transform.localScale = new Vector3(width, 2.4f, 1f);
         var sr = go.AddComponent<SpriteRenderer>();
-        sr.sprite = PrototypeSprites.Square;
-        sr.color = new Color(0.11f, 0.13f, 0.17f, 1f);
+        sr.sprite = CountdownArtResources.LoadSprite(
+            CountdownArtResources.BattleBackdropPath,
+            PrototypeSprites.Square);
+        go.transform.localScale = CountdownArtResources.FitScale(sr.sprite, width, 2.4f);
+        sr.color = sr.sprite == PrototypeSprites.Square
+            ? new Color(0.11f, 0.13f, 0.17f, 1f)
+            : Color.white;
         sr.sortingOrder = -2;
     }
 
