@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const sharp = require("sharp");
 
-import { processOpaque, processSheet, processSingle } from "./process-countdown-assets.mjs";
+import { keyedPixel, processOpaque, processSheet, processSingle } from "./process-countdown-assets.mjs";
 
 async function withTempRoot(run) {
   const root = await mkdtemp(path.join(os.tmpdir(), "countdown-assets-"));
@@ -50,6 +51,15 @@ test("green key becomes transparent without erasing a cyan subject", async () =>
   });
 });
 
+test("strong green antialias pixels are fully removed", () => {
+  const pixel = keyedPixel(45, 220, 40, 255);
+  assert.deepEqual(pixel, { r: 0, g: 0, b: 0, alpha: 0 });
+});
+
+test("bright yellow-green edge spill is fully removed", () => {
+  assert.equal(keyedPixel(96, 255, 16, 255).alpha, 0);
+});
+
 test("single sprites are padded to exactly 512 square pixels", async () => {
   await withTempRoot(async (root) => {
     await mkdir(path.join(root, "source"));
@@ -86,4 +96,14 @@ test("sheet entry rejects a name count that does not match columns times rows", 
       /requires exactly 4 names/
     );
   });
+});
+
+test("manifest applies the corrected standalone hourglass after the UI sheet", async () => {
+  const manifestPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "countdown-assets.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const sheetIndex = manifest.entries.findIndex((entry) => entry.source === "Sources/environment_ui_sheet.png");
+  const overrideIndex = manifest.entries.findIndex((entry) => entry.source === "Sources/hourglass_frame_v2.png");
+  assert.ok(sheetIndex >= 0);
+  assert.ok(overrideIndex > sheetIndex);
+  assert.equal(manifest.entries[overrideIndex].output, "UI/hourglass_frame.png");
 });

@@ -10,10 +10,18 @@ const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
 const backdropBackground = { r: 15, g: 20, b: 32 };
 
 export function keyedAlpha(r, g, b, originalAlpha) {
+  if (g - Math.max(r, b) >= 80) return 0;
   const distance = Math.hypot(r, g - 255, b);
   if (distance <= 42) return 0;
   if (distance >= 112) return originalAlpha;
   return Math.round(originalAlpha * ((distance - 42) / 70));
+}
+
+export function keyedPixel(r, g, b, originalAlpha) {
+  const alpha = keyedAlpha(r, g, b, originalAlpha);
+  if (alpha === 0) return { r: 0, g: 0, b: 0, alpha: 0 };
+  const edgeGreen = Math.min(g, Math.max(r, b) + 24);
+  return { r, g: alpha < originalAlpha ? edgeGreen : g, b, alpha };
 }
 
 function resolveEntryPath(rootDir, entryPath) {
@@ -42,7 +50,11 @@ async function requireSource(entry, rootDir) {
 async function processTransparentBuffer(buffer, output, size = 512) {
   const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   for (let offset = 0; offset < data.length; offset += info.channels) {
-    data[offset + 3] = keyedAlpha(data[offset], data[offset + 1], data[offset + 2], data[offset + 3]);
+    const pixel = keyedPixel(data[offset], data[offset + 1], data[offset + 2], data[offset + 3]);
+    data[offset] = pixel.r;
+    data[offset + 1] = pixel.g;
+    data[offset + 2] = pixel.b;
+    data[offset + 3] = pixel.alpha;
   }
 
   await mkdir(path.dirname(output), { recursive: true });

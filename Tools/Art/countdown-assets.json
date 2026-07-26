@@ -19,6 +19,12 @@
       "size": 512
     },
     {
+      "mode": "single",
+      "source": "Sources/hourglass_frame_v2.png",
+      "output": "UI/hourglass_frame.png",
+      "size": 512
+    },
+    {
       "mode": "opaque",
       "source": "Sources/battle_lane_backdrop.png",
       "output": "Environment/battle_lane_backdrop.png",
