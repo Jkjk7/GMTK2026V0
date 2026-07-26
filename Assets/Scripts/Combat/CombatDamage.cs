@@ -62,6 +62,7 @@ public static class CombatDamage
         {
             damage = Mathf.Max(1, Mathf.RoundToInt(damage * 1.5f));
             SpawnMeltPopup(target.transform.position);
+            CombatVfxService.SpawnMelt(target.transform.position);
         }
 
         target.TakeDamage(damage);

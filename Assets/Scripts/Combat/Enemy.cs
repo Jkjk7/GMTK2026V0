@@ -317,6 +317,7 @@ public class Enemy : MonoBehaviour
 
         _alive = false;
         Vector3 pos = transform.position;
+        CombatVfxService.SpawnDeath(pos);
         int gold = WaveGoldBudget.Instance != null
             ? WaveGoldBudget.Instance.RollKillGold(goldType)
             : 0;
@@ -345,6 +346,7 @@ public class Enemy : MonoBehaviour
 
     void FlashHit()
     {
+        CombatVfxService.SpawnHit(transform.position);
         if (_visual == null)
         {
             return;
@@ -482,5 +484,12 @@ public class Enemy : MonoBehaviour
 
         _baseScale = s;
         transform.localScale = new Vector3(s, s, 1f);
+
+        var clockwork = GetComponent<EnemyVisualController>();
+        if (clockwork == null)
+        {
+            clockwork = gameObject.AddComponent<EnemyVisualController>();
+        }
+        clockwork.Initialize(this);
     }
 }
