@@ -2,11 +2,10 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 火附魔：按种子对若干格写入 Flame 附魔；同位置结果固定；升级确定性加 1 格。
+/// 火附魔：按卡牌实例种子对若干格写入 Flame；移动不改布局，升级确定性加 1 格。
 /// </summary>
 public class FireEnchantModule : ModuleBase
 {
-    [SerializeField] int salt;
     readonly List<GridCoord> _owned = new List<GridCoord>(4);
     readonly List<CellEnchant> _kinds = new List<CellEnchant>(4);
     SpriteRenderer _body;
@@ -17,7 +16,6 @@ public class FireEnchantModule : ModuleBase
 
     public override void BindToCell(GridBoard board, GridCoord cell)
     {
-        EnsureSalt();
         base.BindToCell(board, cell);
         ReapplyEnchants(CardData.Level);
     }
@@ -47,14 +45,6 @@ public class FireEnchantModule : ModuleBase
     {
     }
 
-    void EnsureSalt()
-    {
-        if (salt == 0)
-        {
-            salt = Random.Range(1, int.MaxValue);
-        }
-    }
-
     void ReapplyEnchants(int level)
     {
         ClearOwnedEnchants();
@@ -64,7 +54,12 @@ public class FireEnchantModule : ModuleBase
         }
 
         int lvl = Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel);
-        List<GridCoord> targets = EnchantSeedUtil.BuildTargets(BoundBoard, Cell, ModuleType, salt, lvl);
+        List<GridCoord> targets = EnchantSeedUtil.BuildTargets(
+            BoundBoard,
+            Cell,
+            ModuleType,
+            CardData.InstanceSeed,
+            lvl);
         for (int i = 0; i < targets.Count; i++)
         {
             CellEnchant kind = GetKindForIndex(i);
@@ -76,14 +71,7 @@ public class FireEnchantModule : ModuleBase
         _appliedLevel = lvl;
     }
 
-    protected int Salt
-    {
-        get
-        {
-            EnsureSalt();
-            return salt;
-        }
-    }
+    protected int InstanceSeed => CardData.InstanceSeed;
 
     protected virtual CellEnchant GetKindForIndex(int index) => CellEnchant.Flame;
 
@@ -187,14 +175,15 @@ public static class EnchantSeedUtil
         GridBoard board,
         GridCoord origin,
         ModuleType type,
-        int salt,
+        int instanceSeed,
         int level)
     {
+        // 保留 origin 参数兼容现有调用；附魔布局不再受模块放置格影响。
         var result = new List<GridCoord>(4);
         int lvl = Mathf.Clamp(level, 1, 4);
         for (int step = 1; step <= lvl; step++)
         {
-            int seed = Hash(origin.Col, origin.Row, (int)type, salt, step);
+            int seed = Hash((int)type, instanceSeed, step);
             var rng = new System.Random(seed);
             List<GridCoord> order = AllCellsShuffled(board, rng);
             // 找到第一个不在结果中的候选；不可用则跳过且不补抽
@@ -218,9 +207,14 @@ public static class EnchantSeedUtil
         return result;
     }
 
-    public static CellEnchant RollKind(GridCoord origin, ModuleType type, int salt, int index)
+    public static CellEnchant RollKind(
+        GridCoord origin,
+        ModuleType type,
+        int instanceSeed,
+        int index)
     {
-        int seed = Hash(origin.Col, origin.Row, (int)type, salt, 100 + index);
+        // 与选格相同，origin 仅为兼容参数，不参与随机种子。
+        int seed = Hash((int)type, instanceSeed, 100 + index);
         var rng = new System.Random(seed);
         return RandomKinds[rng.Next(0, RandomKinds.Length)];
     }
@@ -263,7 +257,7 @@ public static class EnchantSeedUtil
         return list;
     }
 
-    static int Hash(int a, int b, int c, int d, int e)
+    static int Hash(int a, int b, int c)
     {
         unchecked
         {
@@ -271,8 +265,6 @@ public static class EnchantSeedUtil
             h = h * 31 + a;
             h = h * 31 + b;
             h = h * 31 + c;
-            h = h * 31 + d;
-            h = h * 31 + e;
             return h == 0 ? 1 : h;
         }
     }

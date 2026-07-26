@@ -118,9 +118,9 @@ public class ArcSparkProjectile : MonoBehaviour
         Vector3 pos = transform.position;
         pos.z = 0f;
 
-        if (_target != null && !_target.IsAlive)
+        if (_target == null || !_target.IsAlive)
         {
-            _target = null;
+            _target = FindNearestAliveEnemy(pos);
         }
 
         if (_target != null)
@@ -174,6 +174,32 @@ public class ArcSparkProjectile : MonoBehaviour
         }
 
         PulseVisual();
+    }
+
+    Enemy FindNearestAliveEnemy(Vector3 origin)
+    {
+        Enemy[] enemies = FindObjectsOfType<Enemy>();
+        Enemy best = null;
+        float bestDistanceSq = float.PositiveInfinity;
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            Enemy enemy = enemies[i];
+            if (enemy == null || !enemy.IsAlive)
+            {
+                continue;
+            }
+
+            Vector3 delta = enemy.transform.position - origin;
+            delta.z = 0f;
+            float distanceSq = delta.sqrMagnitude;
+            if (distanceSq < bestDistanceSq)
+            {
+                bestDistanceSq = distanceSq;
+                best = enemy;
+            }
+        }
+
+        return best;
     }
 
     Enemy FindContactAlongSegment(Vector3 from, Vector3 to)
@@ -258,6 +284,16 @@ public class ArcSparkProjectile : MonoBehaviour
         Destroy(go, 0.08f);
     }
 
+    // 在类最上方定义私有字段，全局只初始化1次随机偏移
+    private float _randomPhase;
+
+    // 物体生成时初始化随机值（仅运行一遍）
+    private void Awake()
+    {
+        // 0~1000随机浮点数，用来错开正弦震动相位
+        _randomPhase = Random.Range(0f, 1000f);
+    }
+
     void PulseVisual()
     {
         if (_core == null)
@@ -265,7 +301,8 @@ public class ArcSparkProjectile : MonoBehaviour
             return;
         }
 
-        float pulse = 0.85f + 0.15f * Mathf.Sin(Time.time * 28f + GetInstanceID());
+        // 替换原先 GetEntityId() 部分
+        float pulse = 0.85f + 0.15f * Mathf.Sin(Time.time * 28f + _randomPhase);
         float core = _style == Style.Ember ? 0.14f : 0.13f;
         _core.transform.localScale = Vector3.one * (core * pulse);
         if (_glow != null)

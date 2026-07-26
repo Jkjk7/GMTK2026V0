@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 手牌/商店/棋盘模块实例数据：类型、等级、投入金币、是否拐弯路径。
+/// 手牌/商店/棋盘模块实例数据：类型、等级、投入金币、路径形态与附魔实例种子。
 /// </summary>
 [System.Serializable]
 public struct ModuleCardData
@@ -11,16 +11,36 @@ public struct ModuleCardData
     public int InvestedGold;
     /// <summary>路径功能模块是否为 L 形拐弯（收束器合成）。</summary>
     public bool Bent;
+    /// <summary>附魔模块实例种子；随卡牌移动和合成保留。</summary>
+    public int InstanceSeed;
 
-    public static ModuleCardData Create(ModuleType type, int level, int investedGold, bool bent = false)
+    public static ModuleCardData Create(
+        ModuleType type,
+        int level,
+        int investedGold,
+        bool bent = false,
+        int instanceSeed = 0)
     {
         return new ModuleCardData
         {
             Type = type,
             Level = Mathf.Max(1, level),
             InvestedGold = Mathf.Max(0, investedGold),
-            Bent = bent && ModuleCatalog.CanBendWithRedirector(type)
+            Bent = bent && ModuleCatalog.CanBendWithRedirector(type),
+            InstanceSeed = NormalizeInstanceSeed(type, instanceSeed)
         };
+    }
+
+    static int NormalizeInstanceSeed(ModuleType type, int instanceSeed)
+    {
+        if (type != ModuleType.FireEnchant && type != ModuleType.Surprise)
+        {
+            return 0;
+        }
+
+        return instanceSeed != 0
+            ? instanceSeed
+            : Random.Range(1, int.MaxValue);
     }
 
     public static ModuleCardData FromShopPurchase(ModuleType type, int level, int pricePaid)
@@ -100,10 +120,20 @@ public struct ModuleCardData
         if (CanBendFuseWith(other))
         {
             ModuleCardData func = Type == ModuleType.Redirector ? other : this;
-            return Create(func.Type, func.Level, InvestedGold + other.InvestedGold, bent: true);
+            return Create(
+                func.Type,
+                func.Level,
+                InvestedGold + other.InvestedGold,
+                bent: true,
+                func.InstanceSeed);
         }
 
-        return Create(Type, Level + 1, InvestedGold + other.InvestedGold, Bent);
+        return Create(
+            Type,
+            Level + 1,
+            InvestedGold + other.InvestedGold,
+            Bent,
+            InstanceSeed);
     }
 
     /// <summary>按 investedGold×30% 返还（向下取整，可为 0）。</summary>

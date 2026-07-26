@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 惊喜：按种子对若干格写入随机种类附魔；同位置结果固定。
+/// 惊喜：按卡牌实例种子对固定格写入固定种类附魔；移动不改布局。
 /// </summary>
 public class SurpriseModule : FireEnchantModule
 {
@@ -9,7 +9,7 @@ public class SurpriseModule : FireEnchantModule
 
     protected override CellEnchant GetKindForIndex(int index)
     {
-        return EnchantSeedUtil.RollKind(Cell, ModuleType, Salt, index);
+        return EnchantSeedUtil.RollKind(Cell, ModuleType, InstanceSeed, index);
     }
 
     public override void RefreshVisual()

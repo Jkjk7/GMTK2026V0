@@ -3,12 +3,13 @@
 ## 1. 卡牌数据（`ModuleCardData`）
 
 ```csharp
-Type, Level, InvestedGold, Bent
+Type, Level, InvestedGold, Bent, InstanceSeed
 ```
 
 - **Level**：攻击类/火焰增幅/附魔/热浪 1–5；矿机 1–3；多数路径功能固定 1。
 - **InvestedGold**：购买价累加；分解返还 `max(1, floor(invested×0.30))`（投入>0 时）。
 - **Bent**：路径功能模块是否为 L 拐弯版。
+- **InstanceSeed**：火附魔/惊喜卡的稳定实例种子；其他模块为 0。
 
 ### 合成规则
 
@@ -79,8 +80,10 @@ Type, Level, InvestedGold, Bent
 
 ### 火附魔 / 惊喜
 - 放置时按种子给 1–4 格写附魔（Lv=格数目标）。
-- 种子：放置格 + 类型 + 等级步进 + 实例 salt；诅咒/不可建造**跳过且不补抽**。
-- 升级：保留实例，确定性再加 1 格。
+- 每个火附魔/惊喜卡在 `ModuleCardData.InstanceSeed` 保存独立种子。
+- 目标格只由模块类型 + 实例种子 + 等级步进决定，与模块放置格无关。
+- 移动、回手牌再放置与升级均保留种子；升级确定性增加 1 格。
+- 诅咒/不可建造格**跳过且不补抽**；目标坐标始终位于 7×7 棋盘内。
 - 拆除：只清「仍是自己写入种类」的格。
 - 火附魔固定 Flame；惊喜每格随机种类。
 
