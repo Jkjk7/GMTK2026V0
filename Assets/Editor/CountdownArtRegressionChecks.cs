@@ -1,6 +1,7 @@
 using System;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>Batch-mode checks for the procedural countdown art fallback.</summary>
 public static class CountdownArtRegressionChecks
@@ -30,6 +31,7 @@ public static class CountdownArtRegressionChecks
             EnemyTypesHaveDistinctCountdownSilhouettes();
             EnemyStatusVisualsFollowAndClear();
             CombatAccentsAreBounded();
+            SharedModuleIconVisuals();
 
             Require(SandClock.InitialSandMs == 100_000, "Initial sand gameplay constant changed.");
             Require(SandClock.BreachPenaltySwarmMs == 3_000, "Swarm penalty gameplay constant changed.");
@@ -130,6 +132,30 @@ public static class CountdownArtRegressionChecks
             UnityEngine.Object.DestroyImmediate(hit.gameObject);
             UnityEngine.Object.DestroyImmediate(melt.gameObject);
             UnityEngine.Object.DestroyImmediate(death.gameObject);
+        }
+    }
+
+    static void SharedModuleIconVisuals()
+    {
+        var go = new GameObject("ModuleIconVisualRegression");
+        try
+        {
+            Image image = go.AddComponent<Image>();
+            ModuleIconVisuals.Apply(image, ModuleType.Spark);
+            Require(
+                image.sprite == CountdownArtResources.LoadModuleSprite(ModuleType.Spark),
+                "UI icon did not use the formal Spark sprite.");
+            Require(image.color == Color.white, "Formal module icon received a flat gameplay tint.");
+            Require(image.preserveAspect, "Formal module icon must preserve its aspect ratio.");
+
+            ModuleIconVisuals.Apply(image, ModuleType.Spark, true);
+            Require(
+                Mathf.Approximately(image.color.a, ModuleIconVisuals.DisabledAlpha),
+                "Disabled module icon alpha is inconsistent.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(go);
         }
     }
 }

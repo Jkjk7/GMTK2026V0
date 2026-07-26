@@ -287,8 +287,7 @@ public class ModuleTooltipView : MonoBehaviour
 
             if (icon != null)
             {
-                icon.sprite = _skin != null ? _skin.GetModuleIcon(card.Type) : PrototypeSprites.Square;
-                icon.color = ModuleCatalog.GetDisplayColor(card.Type);
+                ModuleIconVisuals.Apply(icon, card.Type);
                 icon.enabled = true;
             }
 

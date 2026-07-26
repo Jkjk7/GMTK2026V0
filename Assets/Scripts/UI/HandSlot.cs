@@ -143,9 +143,7 @@ public class HandSlot : MonoBehaviour,
         var rt = _dragIcon.AddComponent<RectTransform>();
         rt.sizeDelta = new Vector2(48f, 48f);
         var img = _dragIcon.AddComponent<Image>();
-        img.sprite = PrototypeSprites.Square;
-        img.color = ModuleCatalog.GetDisplayColor(_card.Type);
-        img.raycastTarget = false;
+        ModuleIconVisuals.Apply(img, _card.Type);
         _dragIcon.transform.position = eventData.position;
     }
 

@@ -26,11 +26,11 @@ public sealed class ModuleSlotView : MonoBehaviour
     SlotVisualState _state = SlotVisualState.Empty;
     ModuleType? _moduleType;
 
-    static readonly Color EmptyBg = new Color(0.12f, 0.12f, 0.15f, 0.85f);
-    static readonly Color NormalBg = new Color(0.16f, 0.17f, 0.22f, 0.95f);
-    static readonly Color HoverBg = new Color(0.22f, 0.28f, 0.38f, 0.98f);
-    static readonly Color SelectedBg = new Color(0.28f, 0.48f, 0.28f, 0.98f);
-    static readonly Color DisabledBg = new Color(0.1f, 0.1f, 0.1f, 0.7f);
+    static readonly Color EmptyBg = new Color(0.07f, 0.06f, 0.1f, 0.52f);
+    static readonly Color NormalBg = new Color(0.1f, 0.08f, 0.14f, 0.68f);
+    static readonly Color HoverBg = new Color(0.18f, 0.15f, 0.22f, 0.78f);
+    static readonly Color SelectedBg = new Color(0.16f, 0.22f, 0.16f, 0.8f);
+    static readonly Color DisabledBg = new Color(0.06f, 0.05f, 0.08f, 0.58f);
 
     public void Bind(
         Image bg,
@@ -111,8 +111,7 @@ public sealed class ModuleSlotView : MonoBehaviour
 
         if (icon != null)
         {
-            icon.sprite = _skin != null ? _skin.GetModuleIcon(card.Type) : PrototypeSprites.Square;
-            icon.color = ModuleCatalog.GetDisplayColor(card.Type);
+            ModuleIconVisuals.Apply(icon, card.Type, !affordable && price >= 0);
         }
 
         if (rarityBar != null)
@@ -221,16 +220,12 @@ public sealed class ModuleSlotView : MonoBehaviour
                 : new Color(0.55f, 0.75f, 1f, 0.55f);
         }
 
-        if (icon != null && _state == SlotVisualState.Disabled && _moduleType != null)
+        if (icon != null && _moduleType != null)
         {
-            Color c = icon.color;
-            c.a = 0.45f;
-            icon.color = c;
-        }
-        else if (icon != null && _moduleType != null)
-        {
-            Color c = ModuleCatalog.GetDisplayColor(_moduleType.Value);
-            icon.color = c;
+            ModuleIconVisuals.Apply(
+                icon,
+                _moduleType.Value,
+                _state == SlotVisualState.Disabled);
         }
     }
 }
