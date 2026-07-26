@@ -1,0 +1,99 @@
+{
+  "root": "Assets/Art/Generated/Countdown",
+  "entries": [
+    {
+      "mode": "sheet",
+      "source": "Sources/environment_ui_sheet.png",
+      "columns": 4,
+      "rows": 2,
+      "names": [
+        "UI/hourglass_frame.png",
+        "UI/timer_plaque.png",
+        "Environment/board_cell.png",
+        "Environment/board_state_overlay.png",
+        "Environment/board_frame.png",
+        "Environment/countdown_ring_ornament.png",
+        "Environment/panel_background.png",
+        "Environment/energy_ball.png"
+      ],
+      "size": 512
+    },
+    {
+      "mode": "opaque",
+      "source": "Sources/battle_lane_backdrop.png",
+      "output": "Environment/battle_lane_backdrop.png",
+      "width": 1536,
+      "height": 512
+    },
+    {
+      "mode": "sheet",
+      "source": "Sources/core_module_sheet.png",
+      "allowMissing": true,
+      "columns": 4,
+      "rows": 2,
+      "names": [
+        "Environment/emitter_body.png",
+        "Modules/module_redirector.png",
+        "Modules/module_projectile.png",
+        "Modules/module_bomb.png",
+        "Modules/module_ice_laser.png",
+        "Modules/module_black_hole.png",
+        "Modules/module_spark.png",
+        "Modules/module_heatwave.png"
+      ],
+      "size": 512
+    },
+    {
+      "mode": "sheet",
+      "source": "Sources/utility_module_sheet.png",
+      "allowMissing": true,
+      "columns": 5,
+      "rows": 2,
+      "names": [
+        "Modules/module_miner.png",
+        "Modules/module_flame_amp.png",
+        "Modules/module_splitter.png",
+        "Modules/module_portal.png",
+        "Modules/module_relay.png",
+        "Modules/module_accelerator.png",
+        "Modules/module_fusion.png",
+        "Modules/module_fission.png",
+        "Modules/module_fire_enchant.png",
+        "Modules/module_surprise.png"
+      ],
+      "size": 512
+    },
+    {
+      "mode": "sheet",
+      "source": "Sources/enemy_sheet.png",
+      "allowMissing": true,
+      "columns": 2,
+      "rows": 2,
+      "names": [
+        "Enemies/enemy_swarm.png",
+        "Enemies/enemy_normal.png",
+        "Enemies/enemy_tank.png",
+        "Enemies/enemy_boss.png"
+      ],
+      "size": 512
+    },
+    {
+      "mode": "sheet",
+      "source": "Sources/vfx_sheet.png",
+      "allowMissing": true,
+      "columns": 4,
+      "rows": 2,
+      "names": [
+        "VFX/ember.png",
+        "VFX/flame_crack.png",
+        "VFX/frost_rim.png",
+        "VFX/melt_burst.png",
+        "VFX/sand_shard.png",
+        "VFX/clock_tick.png",
+        "VFX/gear_fragment.png",
+        "VFX/soft_glow.png"
+      ],
+      "size": 512
+    }
+  ]
+}
