@@ -106,10 +106,10 @@ public class EmitterRunUpgrades : MonoBehaviour
     {
         switch (kind)
         {
-            case EmitterUpgradeKind.FireRate: return "熔炉容量";
-            case EmitterUpgradeKind.BallSpeed: return "球速";
-            case EmitterUpgradeKind.Mass: return "质量";
-            default: return "存活";
+            case EmitterUpgradeKind.FireRate: return GameLocalization.Text("Furnace Capacity", "熔炉容量");
+            case EmitterUpgradeKind.BallSpeed: return GameLocalization.Text("Ball Speed", "球速");
+            case EmitterUpgradeKind.Mass: return GameLocalization.Text("Mass", "质量");
+            default: return GameLocalization.Text("Lifetime", "存活");
         }
     }
 
@@ -121,13 +121,21 @@ public class EmitterRunUpgrades : MonoBehaviour
         switch (kind)
         {
             case EmitterUpgradeKind.FireRate:
-                return $"{name}\n{FurnaceCapsMs[lv]} → {FurnaceCapsMs[next]}ms\n攒沙更快结晶出球";
+                return GameLocalization.Text(
+                    $"{name}\n{FurnaceCapsMs[lv]} → {FurnaceCapsMs[next]}ms\nCrystallize balls faster",
+                    $"{name}\n{FurnaceCapsMs[lv]} → {FurnaceCapsMs[next]}ms\n攒沙更快结晶出球");
             case EmitterUpgradeKind.BallSpeed:
-                return $"{name}\n{BallSpeedCells[lv]:0.#} → {BallSpeedCells[next]:0.#} 格/秒\n球飞得更快";
+                return GameLocalization.Text(
+                    $"{name}\n{BallSpeedCells[lv]:0.#} → {BallSpeedCells[next]:0.#} cells/s\nBalls fly faster",
+                    $"{name}\n{BallSpeedCells[lv]:0.#} → {BallSpeedCells[next]:0.#} 格/秒\n球飞得更快");
             case EmitterUpgradeKind.Mass:
-                return $"{name}\n能量 {MassEnergy[lv]} → {MassEnergy[next]}\n单球充能更多";
+                return GameLocalization.Text(
+                    $"{name}\nEnergy {MassEnergy[lv]} → {MassEnergy[next]}\nMore charge per ball",
+                    $"{name}\n能量 {MassEnergy[lv]} → {MassEnergy[next]}\n单球充能更多");
             default:
-                return $"{name}\n{LifetimeSeconds[lv]:0} → {LifetimeSeconds[next]:0} 秒\n球更耐用";
+                return GameLocalization.Text(
+                    $"{name}\n{LifetimeSeconds[lv]:0} → {LifetimeSeconds[next]:0}s\nBalls last longer",
+                    $"{name}\n{LifetimeSeconds[lv]:0} → {LifetimeSeconds[next]:0} 秒\n球更耐用");
         }
     }
 }

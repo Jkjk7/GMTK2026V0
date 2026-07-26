@@ -187,7 +187,7 @@ public class ShopController : MonoBehaviour
 
         int cost = CurrentRefreshCost;
         bool can = Economy.Instance == null || Economy.Instance.CanAfford(cost);
-        _refreshLabel.text = $"刷新 {cost}";
+        _refreshLabel.text = GameLocalization.Text($"Refresh {cost}", $"刷新 {cost}");
         _refreshLabel.color = can
             ? new Color(0.95f, 0.85f, 0.4f, 1f)
             : new Color(0.5f, 0.35f, 0.3f, 1f);

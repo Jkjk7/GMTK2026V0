@@ -86,11 +86,15 @@ public class BlessingCurseDirector : MonoBehaviour
         for (int i = 0; i < _choices.Count; i++)
         {
             labels.Add(
-                $"祝福：{FormatBlessing(_choices[i].Blessing, tier)}\n束缚：{FormatCurse(_choices[i].Curse, tier)}");
+                GameLocalization.Text(
+                    $"Blessing: {FormatBlessing(_choices[i].Blessing, tier)}\nBinding: {FormatCurse(_choices[i].Curse, tier)}",
+                    $"祝福：{FormatBlessing(_choices[i].Blessing, tier)}\n束缚：{FormatCurse(_choices[i].Curse, tier)}"));
         }
 
         _draftUi.ShowCustom(
-            $"祝福与束缚（第{waveDisplay}波后 · 第{tier}次）",
+            GameLocalization.Text(
+                $"Blessing & Binding (after wave {waveDisplay} · tier {tier})",
+                $"祝福与束缚（第{waveDisplay}波后 · 第{tier}次）"),
             labels,
             OnPickedIndex,
             Finish);
@@ -369,13 +373,13 @@ public class BlessingCurseDirector : MonoBehaviour
     {
         switch (id)
         {
-            case BlessingId.GoldBurst: return $"+{GoldBurstAmount(tier)} 金";
-            case BlessingId.TimeGift: return $"+{TimeGiftMs(tier) / 1000}s 沙";
-            case BlessingId.RareWeapon: return "随机高稀有武器入手牌";
-            case BlessingId.BombRadius: return "炸弹/黑洞范围 ×1.2";
-            case BlessingId.BoardExpandDiscount: return "下次棋盘扩展半价";
-            case BlessingId.BurnDamageUp: return $"灼烧伤害 +5（每{RunModifiers.BurnTickInterval:0.#}秒）";
-            case BlessingId.EnchantRandomCells: return $"随机 {Mathf.Clamp(tier, 1, 4)} 格附魔";
+            case BlessingId.GoldBurst: return GameLocalization.Text($"+{GoldBurstAmount(tier)} gold", $"+{GoldBurstAmount(tier)} 金");
+            case BlessingId.TimeGift: return GameLocalization.Text($"+{TimeGiftMs(tier) / 1000}s sand", $"+{TimeGiftMs(tier) / 1000}s 沙");
+            case BlessingId.RareWeapon: return GameLocalization.Text("Add a random high-rarity weapon to hand", "随机高稀有武器入手牌");
+            case BlessingId.BombRadius: return GameLocalization.Text("Bomb / black-hole radius ×1.2", "炸弹/黑洞范围 ×1.2");
+            case BlessingId.BoardExpandDiscount: return GameLocalization.Text("Next board expansion is half price", "下次棋盘扩展半价");
+            case BlessingId.BurnDamageUp: return GameLocalization.Text($"Burn damage +5 (every {RunModifiers.BurnTickInterval:0.#}s)", $"灼烧伤害 +5（每{RunModifiers.BurnTickInterval:0.#}秒）");
+            case BlessingId.EnchantRandomCells: return GameLocalization.Text($"Enchant {Mathf.Clamp(tier, 1, 4)} random cells", $"随机 {Mathf.Clamp(tier, 1, 4)} 格附魔");
             default: return id.ToString();
         }
     }
@@ -385,11 +389,11 @@ public class BlessingCurseDirector : MonoBehaviour
         int n = Mathf.Clamp(tier, 1, 4);
         switch (id)
         {
-            case CurseId.CurseCells: return $"诅咒 {n} 格（不可放置）";
-            case CurseId.LockModules: return $"锁定 {n} 个已放置模块";
-            case CurseId.TimeTax: return $"-{TimeTaxMs(tier) / 1000}s 沙";
-            case CurseId.PoolPurge: return "商店池移除 2 个模块";
-            case CurseId.EnemyHaste: return "敌人移速 +8%";
+            case CurseId.CurseCells: return GameLocalization.Text($"Curse {n} cells (cannot build)", $"诅咒 {n} 格（不可放置）");
+            case CurseId.LockModules: return GameLocalization.Text($"Lock {n} placed modules", $"锁定 {n} 个已放置模块");
+            case CurseId.TimeTax: return GameLocalization.Text($"-{TimeTaxMs(tier) / 1000}s sand", $"-{TimeTaxMs(tier) / 1000}s 沙");
+            case CurseId.PoolPurge: return GameLocalization.Text("Remove 2 modules from the shop pool", "商店池移除 2 个模块");
+            case CurseId.EnemyHaste: return GameLocalization.Text("Enemy speed +8%", "敌人移速 +8%");
             default: return id.ToString();
         }
     }

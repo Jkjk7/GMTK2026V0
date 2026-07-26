@@ -57,7 +57,7 @@ public class PrepPhasePanel : MonoBehaviour
 
         if (readyButtonLabel != null)
         {
-            readyButtonLabel.text = "准备完毕 [Space]";
+            readyButtonLabel.text = GameLocalization.Text("Ready [Space]", "准备完毕 [Space]");
         }
 
         SetPrepVisible(false);
@@ -115,12 +115,16 @@ public class PrepPhasePanel : MonoBehaviour
         SetPrepVisible(true);
         if (titleText != null)
         {
-            titleText.text = $"第 {wave} 波准备阶段";
+            titleText.text = GameLocalization.Text(
+                $"Wave {wave} Preparation",
+                $"第 {wave} 波准备阶段");
         }
 
         if (hintText != null)
         {
-            hintText.text = "购买、合成并调整模块";
+            hintText.text = GameLocalization.Text(
+                "Buy, merge, and arrange modules",
+                "购买、合成并调整模块");
         }
 
         if (countdownText != null)
@@ -166,7 +170,7 @@ public class PrepPhasePanel : MonoBehaviour
 
         if (digit <= 0)
         {
-            countdownText.text = "开始";
+            countdownText.text = GameLocalization.Text("START", "开始");
             countdownText.fontSize = 64;
             countdownText.color = new Color(1f, 0.35f, 0.35f, 1f);
             CancelInvoke(nameof(ClearCountdown));

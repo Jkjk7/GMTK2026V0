@@ -9,6 +9,8 @@ public static class ModuleCatalog
     const int BaseEnergyCapacity = 5;
     const float BaseFireInterval = 0.2f;
 
+    static string L(string english, string chinese) => GameLocalization.Text(english, chinese);
+
     static readonly ModuleType[] AllTypes =
     {
         ModuleType.Redirector,
@@ -96,10 +98,10 @@ public static class ModuleCatalog
     {
         switch (rarity)
         {
-            case ModuleRarity.Rare: return "稀有";
-            case ModuleRarity.Epic: return "史诗";
-            case ModuleRarity.Legendary: return "传奇";
-            default: return "普通";
+            case ModuleRarity.Rare: return L("Rare", "稀有");
+            case ModuleRarity.Epic: return L("Epic", "史诗");
+            case ModuleRarity.Legendary: return L("Legendary", "传奇");
+            default: return L("Common", "普通");
         }
     }
 
@@ -168,23 +170,23 @@ public static class ModuleCatalog
     {
         switch (type)
         {
-            case ModuleType.Redirector: return "收束器";
-            case ModuleType.Projectile: return "查理激光塔";
-            case ModuleType.Bomb: return "大卫炸弹塔";
-            case ModuleType.IceLaser: return "雪花发射塔";
-            case ModuleType.Miner: return "比特币采矿机";
-            case ModuleType.BlackHole: return "黑洞发射器";
-            case ModuleType.FlameAmp: return "火焰增幅";
-            case ModuleType.Spark: return "火花发射塔";
-            case ModuleType.Splitter: return "分裂器";
-            case ModuleType.Portal: return "传送门";
-            case ModuleType.Relay: return "中续器";
-            case ModuleType.Accelerator: return "加速器";
-            case ModuleType.Fusion: return "核聚变";
-            case ModuleType.Fission: return "核裂变";
-            case ModuleType.FireEnchant: return "火附魔";
-            case ModuleType.Surprise: return "惊喜";
-            case ModuleType.Heatwave: return "热浪";
+            case ModuleType.Redirector: return L("Redirector", "收束器");
+            case ModuleType.Projectile: return L("Charlie Laser Tower", "查理激光塔");
+            case ModuleType.Bomb: return L("David Bomb Tower", "大卫炸弹塔");
+            case ModuleType.IceLaser: return L("Snowflake Launcher", "雪花发射塔");
+            case ModuleType.Miner: return L("Bitcoin Miner", "比特币采矿机");
+            case ModuleType.BlackHole: return L("Black Hole Launcher", "黑洞发射器");
+            case ModuleType.FlameAmp: return L("Flame Amplifier", "火焰增幅");
+            case ModuleType.Spark: return L("Spark Launcher", "火花发射塔");
+            case ModuleType.Splitter: return L("Splitter", "分裂器");
+            case ModuleType.Portal: return L("Portal", "传送门");
+            case ModuleType.Relay: return L("Relay", "中续器");
+            case ModuleType.Accelerator: return L("Accelerator", "加速器");
+            case ModuleType.Fusion: return L("Fusion", "核聚变");
+            case ModuleType.Fission: return L("Fission", "核裂变");
+            case ModuleType.FireEnchant: return L("Fire Enchanter", "火附魔");
+            case ModuleType.Surprise: return L("Surprise", "惊喜");
+            case ModuleType.Heatwave: return L("Heatwave", "热浪");
             default: return type.ToString();
         }
     }
@@ -194,7 +196,7 @@ public static class ModuleCatalog
         string baseName = GetDisplayName(card.Type);
         if (card.Bent)
         {
-            baseName += "（拐弯）";
+            baseName += L(" (Bent)", "（拐弯）");
         }
 
         if (IsAttackModule(card.Type) && card.Level > 1)
@@ -217,23 +219,23 @@ public static class ModuleCatalog
     {
         switch (type)
         {
-            case ModuleType.Projectile: return "单体";
+            case ModuleType.Projectile: return L("Single Target", "单体");
             case ModuleType.Bomb: return "AOE";
-            case ModuleType.IceLaser: return "控制";
-            case ModuleType.Miner: return "经济";
-            case ModuleType.Redirector: return "路径";
-            case ModuleType.BlackHole: return "聚怪";
-            case ModuleType.FlameAmp: return "灼烧";
-            case ModuleType.Spark: return "火花";
-            case ModuleType.Splitter: return "分裂";
-            case ModuleType.Portal: return "传送";
-            case ModuleType.Relay: return "续航";
-            case ModuleType.Accelerator: return "加速";
-            case ModuleType.Fusion: return "聚变";
-            case ModuleType.Fission: return "裂变";
-            case ModuleType.FireEnchant: return "附魔";
-            case ModuleType.Surprise: return "附魔";
-            case ModuleType.Heatwave: return "灼烧";
+            case ModuleType.IceLaser: return L("Control", "控制");
+            case ModuleType.Miner: return L("Economy", "经济");
+            case ModuleType.Redirector: return L("Routing", "路径");
+            case ModuleType.BlackHole: return L("Crowd Control", "聚怪");
+            case ModuleType.FlameAmp: return L("Burn", "灼烧");
+            case ModuleType.Spark: return L("Spark", "火花");
+            case ModuleType.Splitter: return L("Split", "分裂");
+            case ModuleType.Portal: return L("Teleport", "传送");
+            case ModuleType.Relay: return L("Sustain", "续航");
+            case ModuleType.Accelerator: return L("Speed", "加速");
+            case ModuleType.Fusion: return L("Fusion", "聚变");
+            case ModuleType.Fission: return L("Fission", "裂变");
+            case ModuleType.FireEnchant: return L("Enchant", "附魔");
+            case ModuleType.Surprise: return L("Enchant", "附魔");
+            case ModuleType.Heatwave: return L("Burn", "灼烧");
             default: return string.Empty;
         }
     }
@@ -243,39 +245,39 @@ public static class ModuleCatalog
         switch (type)
         {
             case ModuleType.Projectile:
-                return "对最近的敌人发射激光造成少量伤害";
+                return L("Fires a laser at the nearest enemy.", "对最近的敌人发射激光造成少量伤害");
             case ModuleType.Redirector:
-                return "将光球沿直角改向，连通两个相邻方向口";
+                return L("Turns energy balls at a right angle.", "将光球沿直角改向，连通两个相邻方向口");
             case ModuleType.Bomb:
-                return "向最左敌人投掷炸弹，落地后造成范围爆炸伤害";
+                return L("Throws an explosive bomb at the leading enemy.", "向最左敌人投掷炸弹，落地后造成范围爆炸伤害");
             case ModuleType.IceLaser:
-                return "射出弧线淡蓝白雪花弹，造成恒定 5 点伤害并施加 30% 寒冷；升级延长减速时长";
+                return L("Fires a snowflake for 5 damage and 30% chill; upgrades extend the slow.", "射出弧线淡蓝白雪花弹，造成恒定 5 点伤害并施加 30% 寒冷；升级延长减速时长");
             case ModuleType.Miner:
-                return "消耗固定能量开采比特币；升级大幅提高每次产金";
+                return L("Consumes energy to mine gold; upgrades improve each payout.", "消耗固定能量开采比特币；升级大幅提高每次产金");
             case ModuleType.BlackHole:
-                return "向最近敌人投掷黑洞，落地后大范围吸引敌人向中心聚拢；射速 3 秒一发，越靠近中心吸力越强";
+                return L("Launches a black hole every 3 seconds that pulls enemies toward its center.", "向最近敌人投掷黑洞，落地后大范围吸引敌人向中心聚拢；射速 3 秒一发，越靠近中心吸力越强");
             case ModuleType.FlameAmp:
-                return "场上被动提高灼烧每次跳动伤害；多座叠加";
+                return L("Passively increases burn tick damage; multiple amplifiers stack.", "场上被动提高灼烧每次跳动伤害；多座叠加");
             case ModuleType.Spark:
-                return "射出弧线橙红火花弹，命中施加灼烧；适合与雪花触发融化";
+                return L("Applies burn; combine with snowflakes to trigger Melt.", "射出弧线橙红火花弹，命中施加灼烧；适合与雪花触发融化");
             case ModuleType.Splitter:
-                return "T 形一分二：原球销毁，左右口各出一球（同能量、剩余寿命减半）";
+                return L("Splits one ball into two equal-energy balls with half remaining life.", "T 形一分二：原球销毁，左右口各出一球（同能量、剩余寿命减半）");
             case ModuleType.Portal:
-                return "场上最多 2 座；成对时球保持飞行方向传送到另一门";
+                return L("A pair teleports balls while preserving their direction; maximum two.", "场上最多 2 座；成对时球保持飞行方向传送到另一门");
             case ModuleType.Relay:
-                return "吸收能量至 20；储能后下一球刷新寿命并清空储能";
+                return L("Stores 20 energy, then refreshes the next ball's lifetime.", "吸收能量至 20；储能后下一球刷新寿命并清空储能");
             case ModuleType.Accelerator:
-                return "使未加速过的球速度 ×1.5（每球仅一次）";
+                return L("Accelerates each eligible ball to ×1.5 speed once.", "使未加速过的球速度 ×1.5（每球仅一次）");
             case ModuleType.Fusion:
-                return "吸收 5 颗球后射出 1 颗：能量相加，寿命与速度取平均";
+                return L("Fuses 5 balls into one with combined energy and averaged life and speed.", "吸收 5 颗球后射出 1 颗：能量相加，寿命与速度取平均");
             case ModuleType.Fission:
-                return "吸收能量 ≥5 后，0.5 秒内依次射出 5 颗高速默认球";
+                return L("After storing 5 energy, fires 5 fast default balls over 0.5 seconds.", "吸收能量 ≥5 后，0.5 秒内依次射出 5 颗高速默认球");
             case ModuleType.FireEnchant:
-                return "按固定种子给若干格写入灼烧附魔；升级多附魔 1 格";
+                return L("Enchant fixed seeded cells with burn; upgrades add one cell.", "按固定种子给若干格写入灼烧附魔；升级多附魔 1 格");
             case ModuleType.Surprise:
-                return "按固定种子给若干格写入随机附魔；升级多附魔 1 格";
+                return L("Apply random enchants to fixed seeded cells; upgrades add one cell.", "按固定种子给若干格写入随机附魔；升级多附魔 1 格");
             case ModuleType.Heatwave:
-                return "储能满后释放热浪：全屏施加灼烧，冷却 5 秒";
+                return L("At full charge, burns every enemy; 5-second cooldown.", "储能满后释放热浪：全屏施加灼烧，冷却 5 秒");
             default:
                 return string.Empty;
         }
@@ -286,39 +288,39 @@ public static class ModuleCatalog
         switch (type)
         {
             case ModuleType.Projectile:
-                return "查理工厂倾心制造的防御措施";
+                return L("Charlie's favorite factory-made defense.", "查理工厂倾心制造的防御措施");
             case ModuleType.Redirector:
-                return "把能量弯到该去的地方";
+                return L("Bend energy toward where it belongs.", "把能量弯到该去的地方");
             case ModuleType.Bomb:
-                return "大卫不喜欢精细活，只喜欢一声巨响";
+                return L("David prefers one loud bang to delicate work.", "大卫不喜欢精细活，只喜欢一声巨响");
             case ModuleType.IceLaser:
-                return "不是激光，是会拐弯的小雪花";
+                return L("Not a laser—just a very determined snowflake.", "不是激光，是会拐弯的小雪花");
             case ModuleType.Miner:
-                return "为了更香的电子金币";
+                return L("For shinier electronic gold.", "为了更香的电子金币");
             case ModuleType.BlackHole:
-                return "时空工厂的禁售库存，专治散装怪物";
+                return L("Forbidden factory stock for tightly packing monsters.", "时空工厂的禁售库存，专治散装怪物");
             case ModuleType.FlameAmp:
-                return "把整条航道烧得更烫一点";
+                return L("Make the whole lane run hotter.", "把整条航道烧得更烫一点");
             case ModuleType.Spark:
-                return "像 Noita 里那样噼里啪啦往外飞";
+                return L("Crackling sparks in every direction.", "像 Noita 里那样噼里啪啦往外飞");
             case ModuleType.Splitter:
-                return "一球拆两半，寿命也对半砍";
+                return L("One ball becomes two; lifetime pays the price.", "一球拆两半，寿命也对半砍");
             case ModuleType.Portal:
-                return "这边进，那边出，方向别晕";
+                return L("Enter here, leave there—keep your bearings.", "这边进，那边出，方向别晕");
             case ModuleType.Relay:
-                return "先吃饱，再给路过的球续命";
+                return L("Fill up first, then renew a passing ball.", "先吃饱，再给路过的球续命");
             case ModuleType.Accelerator:
-                return "油门踩一次就够了";
+                return L("One push on the throttle is enough.", "油门踩一次就够了");
             case ModuleType.Fusion:
-                return "五球归一心，能量叠满仓";
+                return L("Five become one, with energy combined.", "五球归一心，能量叠满仓");
             case ModuleType.Fission:
-                return "攒够就炸成五连发";
+                return L("Save enough, then burst into five.", "攒够就炸成五连发");
             case ModuleType.FireEnchant:
-                return "把格子烫出烙印";
+                return L("Brand the board with fire.", "把格子烫出烙印");
             case ModuleType.Surprise:
-                return "盒子一开，谁知道是啥附魔";
+                return L("Open the box and discover the enchant.", "盒子一开，谁知道是啥附魔");
             case ModuleType.Heatwave:
-                return "整片战场一起出汗";
+                return L("Make the whole battlefield sweat.", "整片战场一起出汗");
             default:
                 return string.Empty;
         }

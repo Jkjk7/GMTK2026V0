@@ -82,7 +82,7 @@ public class GoldPanel : MonoBehaviour
     {
         if (goldText != null)
         {
-            goldText.text = "金币 " + gold;
+            goldText.text = GameLocalization.Text("Gold ", "金币 ") + gold;
         }
     }
 
@@ -96,14 +96,14 @@ public class GoldPanel : MonoBehaviour
         ShowDelta(0, new Color(0.7f, 0.15f, 0.1f, 1f));
         if (deltaText != null)
         {
-            deltaText.text = "不足";
+            deltaText.text = GameLocalization.Text("Not enough", "不足");
             _deltaTimer = 1f;
         }
     }
 
     void ShowDelta(int amount, Color color)
     {
-        if (deltaText == null || amount == 0 && deltaText.text == "不足")
+        if (deltaText == null || amount == 0 && deltaText.text == GameLocalization.Text("Not enough", "不足"))
         {
             if (amount != 0 && deltaText != null)
             {

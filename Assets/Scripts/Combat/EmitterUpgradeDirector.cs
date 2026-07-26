@@ -46,7 +46,9 @@ public class EmitterUpgradeDirector : MonoBehaviour
         }
 
         _draftUi.ShowCustom(
-            $"发射器强化！（第{waveDisplay}波后）",
+            GameLocalization.Text(
+                $"Emitter Upgrade! (after wave {waveDisplay})",
+                $"发射器强化！（第{waveDisplay}波后）"),
             labels,
             OnPickedIndex,
             Finish);

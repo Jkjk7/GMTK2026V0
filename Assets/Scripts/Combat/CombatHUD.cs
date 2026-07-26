@@ -131,7 +131,9 @@ public class CombatHUD : MonoBehaviour
         if (breachText != null)
         {
             breachText.gameObject.SetActive(true);
-            breachText.text = $"漏怪！沙漏 -{penaltyMs / 1000f:0.0} 秒";
+            breachText.text = GameLocalization.Text(
+                $"Breach! Hourglass -{penaltyMs / 1000f:0.0}s",
+                $"漏怪！沙漏 -{penaltyMs / 1000f:0.0} 秒");
             breachText.color = new Color(1f, 0.45f, 0.4f, 1f);
         }
 
@@ -161,18 +163,24 @@ public class CombatHUD : MonoBehaviour
         {
             statusText.color = new Color(0.45f, 0.9f, 0.65f, 1f);
             int sec = _waves != null ? Mathf.CeilToInt(_waves.PrepRemaining) : 0;
-            statusText.text = $"第 {wave} 波准备 {sec}s | 伤害 {damage}";
+            statusText.text = GameLocalization.Text(
+                $"Wave {wave} prep {sec}s | Damage {damage}",
+                $"第 {wave} 波准备 {sec}s | 伤害 {damage}");
             return;
         }
 
         if (_waves != null && _waves.IsCountdownPhase)
         {
             statusText.color = new Color(1f, 0.75f, 0.3f, 1f);
-            statusText.text = $"即将开战… | 波次 {wave}/{totalWaves}";
+            statusText.text = GameLocalization.Text(
+                $"Battle incoming... | Wave {wave}/{totalWaves}",
+                $"即将开战… | 波次 {wave}/{totalWaves}");
             return;
         }
 
         statusText.color = Color.white;
-        statusText.text = $"波次 {wave}/{totalWaves} | 敌人 {enemies} | 伤害 {damage}";
+        statusText.text = GameLocalization.Text(
+            $"Wave {wave}/{totalWaves} | Enemies {enemies} | Damage {damage}",
+            $"波次 {wave}/{totalWaves} | 敌人 {enemies} | 伤害 {damage}");
     }
 }

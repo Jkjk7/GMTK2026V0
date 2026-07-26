@@ -55,7 +55,9 @@ public class DraftChoiceView : MonoBehaviour
 
         if (titleText != null)
         {
-            titleText.text = "发现新模块！选择一个加入商店池";
+            titleText.text = GameLocalization.Text(
+                "New module discovered! Add one to the shop pool",
+                "发现新模块！选择一个加入商店池");
         }
 
         for (int i = 0; i < buttons.Length; i++)
@@ -73,7 +75,9 @@ public class DraftChoiceView : MonoBehaviour
             string line = string.IsNullOrEmpty(tag) ? name : $"{name}\n[{tag}]";
             if (opt.ReplaceType.HasValue)
             {
-                line += $"\n(替换{ModuleCatalog.GetDisplayName(opt.ReplaceType.Value)})";
+                line += GameLocalization.Text(
+                    $"\n(Replaces {ModuleCatalog.GetDisplayName(opt.ReplaceType.Value)})",
+                    $"\n(替换{ModuleCatalog.GetDisplayName(opt.ReplaceType.Value)})");
             }
 
             if (buttonLabels != null && i < buttonLabels.Length && buttonLabels[i] != null)
@@ -95,7 +99,9 @@ public class DraftChoiceView : MonoBehaviour
 
         if (titleText != null)
         {
-            titleText.text = string.IsNullOrEmpty(title) ? "请选择" : title;
+            titleText.text = string.IsNullOrEmpty(title)
+                ? GameLocalization.Text("Choose one", "请选择")
+                : title;
         }
 
         for (int i = 0; i < buttons.Length; i++)

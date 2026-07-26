@@ -98,7 +98,9 @@ public class RunStatsHud : MonoBehaviour
             var label = _toggle.GetComponentInChildren<Text>();
             if (label != null)
             {
-                label.text = expanded ? "收起增幅" : "查看已有增幅";
+                label.text = expanded
+                    ? GameLocalization.Text("Hide Upgrades", "收起增幅")
+                    : GameLocalization.Text("View Upgrades", "查看已有增幅");
             }
 
             var btnRt = _toggle.transform as RectTransform;
@@ -153,10 +155,14 @@ public class RunStatsHud : MonoBehaviour
         float speed = mod != null ? mod.EnemySpeedMult : 1f;
         int enchants = _board != null ? _board.CountEnchants() : 0;
 
-        _detail.text =
+        _detail.text = GameLocalization.Text(
+            $"Burn: {RunModifiers.BaseBurnDamagePerTick}+{burnExtra} = {burn} / {RunModifiers.BurnTickInterval:0.#}s\n" +
+            $"Explosion / pull radius: ×{aoe:0.##}\n" +
+            $"Enemy speed: ×{speed:0.##}\n" +
+            $"Enchanted cells: {enchants}",
             $"灼烧：{RunModifiers.BaseBurnDamagePerTick}+{burnExtra} = {burn} / {RunModifiers.BurnTickInterval:0.#}秒\n" +
             $"爆炸/吸引范围：×{aoe:0.##}\n" +
             $"敌人移速：×{speed:0.##}\n" +
-            $"附魔格：{enchants}";
+            $"附魔格：{enchants}");
     }
 }

@@ -705,7 +705,7 @@ public class GameBootstrap : MonoBehaviour
         headerText.fontSize = 20;
         headerText.alignment = TextAnchor.MiddleCenter;
         headerText.color = new Color(0.75f, 0.8f, 0.95f, 1f);
-        headerText.text = "模块仓";
+        headerText.text = GameLocalization.Text("MODULE STORAGE", "模块仓");
 
         return go.transform;
     }
@@ -724,7 +724,7 @@ public class GameBootstrap : MonoBehaviour
         text.fontSize = 28;
         text.color = Color.white;
         text.alignment = TextAnchor.MiddleLeft;
-        text.text = "准备中…";
+        text.text = GameLocalization.Text("Preparing...", "准备中…");
 
         var bgGo = new GameObject("StatusBg");
         bgGo.transform.SetParent(go.transform, false);
@@ -910,7 +910,9 @@ public class GameBootstrap : MonoBehaviour
         text.fontSize = 18;
         text.color = new Color(0.85f, 0.88f, 0.95f, 1f);
         text.alignment = TextAnchor.MiddleLeft;
-        text.text = "拖棋盘可移动/合成/分解 | 点灰格扩展棋盘 | 悬停详情 | Space准备 | F刷新";
+        text.text = GameLocalization.Text(
+            "Drag: move/merge/scrap | Click grey cells: expand | Hover: details | Space: ready | F: refresh",
+            "拖棋盘可移动/合成/分解 | 点灰格扩展棋盘 | 悬停详情 | Space准备 | F刷新");
         return text;
     }
 
@@ -940,11 +942,15 @@ public class GameBootstrap : MonoBehaviour
             int cost = expand.GetNextExpandCost();
             if (cost <= 0)
             {
-                text.text = $"棋盘：{expand.UnlockedSize}×{expand.UnlockedSize}（已满）";
+                text.text = GameLocalization.Text(
+                    $"Board: {expand.UnlockedSize}×{expand.UnlockedSize} (MAX)",
+                    $"棋盘：{expand.UnlockedSize}×{expand.UnlockedSize}（已满）");
             }
             else
             {
-                text.text = $"棋盘：{expand.UnlockedSize}×{expand.UnlockedSize} → {expand.GetNextSize()}×{expand.GetNextSize()}（{cost}金，点灰格）";
+                text.text = GameLocalization.Text(
+                    $"Board: {expand.UnlockedSize}×{expand.UnlockedSize} → {expand.GetNextSize()}×{expand.GetNextSize()} ({cost} gold; click grey cell)",
+                    $"棋盘：{expand.UnlockedSize}×{expand.UnlockedSize} → {expand.GetNextSize()}×{expand.GetNextSize()}（{cost}金，点灰格）");
             }
         }
 
@@ -1048,7 +1054,7 @@ public class GameBootstrap : MonoBehaviour
         title.fontSize = 26;
         title.alignment = TextAnchor.MiddleCenter;
         title.color = new Color(0.95f, 0.9f, 0.45f, 1f);
-        title.text = "准备阶段";
+        title.text = GameLocalization.Text("PREPARATION", "准备阶段");
 
         var timerGo = new GameObject("Timer");
         timerGo.transform.SetParent(root.transform, false);
@@ -1077,7 +1083,7 @@ public class GameBootstrap : MonoBehaviour
         hint.fontSize = 16;
         hint.alignment = TextAnchor.MiddleCenter;
         hint.color = new Color(0.8f, 0.85f, 0.75f, 1f);
-        hint.text = "购买、合成并调整模块";
+        hint.text = GameLocalization.Text("Buy, merge, and arrange modules", "购买、合成并调整模块");
 
         var barBgGo = new GameObject("ProgressBg");
         barBgGo.transform.SetParent(root.transform, false);
@@ -1121,7 +1127,7 @@ public class GameBootstrap : MonoBehaviour
         readyLabel.fontSize = 16;
         readyLabel.alignment = TextAnchor.MiddleCenter;
         readyLabel.color = Color.white;
-        readyLabel.text = "准备完毕 [Space]";
+        readyLabel.text = GameLocalization.Text("READY [Space]", "准备完毕 [Space]");
         readyLabel.raycastTarget = false;
         readyGo.SetActive(false);
 
@@ -1341,10 +1347,10 @@ public class GameBootstrap : MonoBehaviour
 
         Button cancel = MakeBtn("Cancel", new Vector2(0.08f, 0.06f), new Vector2(0.45f, 0.24f),
             new Color(0.3f, 0.3f, 0.35f, 1f), out Text cancelLabel);
-        cancelLabel.text = "取消";
+        cancelLabel.text = GameLocalization.Text("Cancel", "取消");
         Button confirm = MakeBtn("Confirm", new Vector2(0.55f, 0.06f), new Vector2(0.92f, 0.24f),
             new Color(0.55f, 0.25f, 0.15f, 1f), out Text confirmLabel);
-        confirmLabel.text = "确认";
+        confirmLabel.text = GameLocalization.Text("Confirm", "确认");
 
         var view = root.AddComponent<ConfirmPromptView>();
         view.Bind(group, title, body, warn, confirm, cancel, confirmLabel);
@@ -1383,7 +1389,7 @@ public class GameBootstrap : MonoBehaviour
         value.fontStyle = FontStyle.Bold;
         value.alignment = TextAnchor.MiddleCenter;
         value.color = new Color(0.35f, 0.2f, 0.08f, 1f);
-        value.text = "金币 " + Economy.StartingGold;
+        value.text = GameLocalization.Text("Gold ", "金币 ") + Economy.StartingGold;
         value.raycastTarget = false;
 
         var deltaGo = new GameObject("Delta");
@@ -1435,7 +1441,7 @@ public class GameBootstrap : MonoBehaviour
         titleRt.sizeDelta = new Vector2(0f, 26f);
         var title = titleGo.AddComponent<Text>();
         title.font = font;
-        title.text = "商店";
+        title.text = GameLocalization.Text("SHOP", "商店");
         title.alignment = TextAnchor.MiddleLeft;
         title.color = new Color(0.7f, 0.7f, 0.8f);
         title.fontSize = 18;
@@ -1460,7 +1466,7 @@ public class GameBootstrap : MonoBehaviour
         refreshLabel.fontSize = 16;
         refreshLabel.alignment = TextAnchor.MiddleCenter;
         refreshLabel.color = new Color(0.95f, 0.85f, 0.4f, 1f);
-        refreshLabel.text = "刷新 3";
+        refreshLabel.text = GameLocalization.Text("Refresh 3", "刷新 3");
         refreshLabel.raycastTarget = false;
 
         var listGo = new GameObject("Slots");
@@ -1548,7 +1554,7 @@ public class GameBootstrap : MonoBehaviour
         labelRt.offsetMax = Vector2.zero;
         var label = labelGo.AddComponent<Text>();
         label.font = font;
-        label.text = "空";
+        label.text = GameLocalization.Text("Empty", "空");
         label.alignment = TextAnchor.MiddleCenter;
         label.color = new Color(0.55f, 0.55f, 0.6f, 1f);
         label.fontSize = 17;
@@ -1600,7 +1606,7 @@ public class GameBootstrap : MonoBehaviour
         titleRt.sizeDelta = new Vector2(0f, 24f);
         var title = titleGo.AddComponent<Text>();
         title.font = font;
-        title.text = "手牌 (8)";
+        title.text = GameLocalization.Text("HAND (8)", "手牌 (8)");
         title.alignment = TextAnchor.MiddleCenter;
         title.color = new Color(0.7f, 0.75f, 0.85f);
         title.fontSize = 18;
@@ -1694,7 +1700,7 @@ public class GameBootstrap : MonoBehaviour
         label.fontSize = 15;
         label.alignment = TextAnchor.MiddleCenter;
         label.color = Color.white;
-        label.text = "空";
+        label.text = GameLocalization.Text("Empty", "空");
         label.raycastTarget = false;
 
         var view = slotGo.AddComponent<ModuleSlotView>();
@@ -1774,7 +1780,7 @@ public class GameBootstrap : MonoBehaviour
         btnLabel.alignment = TextAnchor.MiddleCenter;
         btnLabel.color = new Color(0.95f, 0.85f, 0.55f, 1f);
         btnLabel.raycastTarget = false;
-        btnLabel.text = "查看已有增幅";
+        btnLabel.text = GameLocalization.Text("View Upgrades", "查看已有增幅");
 
         var hud = root.AddComponent<RunStatsHud>();
         hud.Bind(
@@ -1827,7 +1833,7 @@ public class GameBootstrap : MonoBehaviour
         caption.alignment = TextAnchor.UpperCenter;
         caption.color = new Color(0.75f, 0.78f, 0.85f, 0.9f);
         caption.raycastTarget = false;
-        caption.text = "剩余波数";
+        caption.text = GameLocalization.Text("WAVES LEFT", "剩余波数");
 
         var hud = root.AddComponent<WaveCountdownHud>();
         hud.Bind(label, outgoing, waves);

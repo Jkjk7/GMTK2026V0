@@ -50,7 +50,9 @@ public class ScrapZone : MonoBehaviour
 
         if (_label != null)
         {
-            _label.text = "分解\n返还部分金币";
+            _label.text = GameLocalization.Text(
+                "SCRAP\nRefund some gold",
+                "分解\n返还部分金币");
             _label.color = new Color(0.7f, 0.6f, 0.4f, 0.85f);
         }
     }
@@ -68,7 +70,9 @@ public class ScrapZone : MonoBehaviour
 
         if (_label != null)
         {
-            _label.text = $"分解「{ModuleCatalog.GetDisplayName(card)}」\n返还 {card.ScrapRefund} 金币";
+            _label.text = GameLocalization.Text(
+                $"Scrap \"{ModuleCatalog.GetDisplayName(card)}\"\nRefund {card.ScrapRefund} gold",
+                $"分解「{ModuleCatalog.GetDisplayName(card)}」\n返还 {card.ScrapRefund} 金币");
             _label.color = new Color(1f, 0.9f, 0.4f, 1f);
         }
     }

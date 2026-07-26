@@ -287,11 +287,15 @@ public class PlacementController : MonoBehaviour
         }
 
         _confirm?.Show(
-            $"扩展棋盘到 {next}×{next}？",
-            $"解锁外围格子\n消耗 {cost} 金币",
-            can ? $"确认 -{cost}" : "金币不足",
+            GameLocalization.Text($"Expand board to {next}×{next}?", $"扩展棋盘到 {next}×{next}？"),
+            GameLocalization.Text(
+                $"Unlock the outer cells\nCost: {cost} gold",
+                $"解锁外围格子\n消耗 {cost} 金币"),
+            can
+                ? GameLocalization.Text($"Confirm -{cost}", $"确认 -{cost}")
+                : GameLocalization.Text("Insufficient Gold", "金币不足"),
             can,
-            can ? string.Empty : "金币不足",
+            can ? string.Empty : GameLocalization.Text("Insufficient Gold", "金币不足"),
             () => _boardExpand.TryExpand(),
             null);
         return true;
@@ -454,18 +458,26 @@ public class PlacementController : MonoBehaviour
 
         string name = ModuleCatalog.GetDisplayName(card);
         string feeLine = inCombat
-            ? $"战斗中移动费用：{cost} 金币（同拆除）"
-            : "准备阶段移动：免费";
-        string warn = canAfford ? string.Empty : "金币不足";
+            ? GameLocalization.Text(
+                $"Combat move cost: {cost} gold (same as dismantle)",
+                $"战斗中移动费用：{cost} 金币（同拆除）")
+            : GameLocalization.Text("Preparation move: free", "准备阶段移动：免费");
+        string warn = canAfford
+            ? string.Empty
+            : GameLocalization.Text("Insufficient Gold", "金币不足");
         if (!canAfford)
         {
             Economy.Instance?.NotifyInsufficient();
         }
 
-        string confirmText = cost > 0 ? $"确认移动 -{cost}" : "确认移动";
+        string confirmText = cost > 0
+            ? GameLocalization.Text($"Confirm Move -{cost}", $"确认移动 -{cost}")
+            : GameLocalization.Text("Confirm Move", "确认移动");
         _confirm?.Show(
-            $"拆除并移动「{name}」？",
-            $"{feeLine}\n从 ({from.Col},{from.Row}) → ({to.Col},{to.Row})",
+            GameLocalization.Text($"Dismantle and move \"{name}\"?", $"拆除并移动「{name}」？"),
+            GameLocalization.Text(
+                $"{feeLine}\nFrom ({from.Col},{from.Row}) → ({to.Col},{to.Row})",
+                $"{feeLine}\n从 ({from.Col},{from.Row}) → ({to.Col},{to.Row})"),
             confirmText,
             canAfford,
             warn,
@@ -704,9 +716,11 @@ public class PlacementController : MonoBehaviour
         int refund = card.ScrapRefund;
         string name = ModuleCatalog.GetDisplayName(card);
         _confirm?.Show(
-            $"确定永久分解「{name}」？",
-            $"将返还 {refund} 金币\n此操作无法撤销",
-            "确认分解",
+            GameLocalization.Text($"Permanently scrap \"{name}\"?", $"确定永久分解「{name}」？"),
+            GameLocalization.Text(
+                $"Refund {refund} gold\nThis cannot be undone",
+                $"将返还 {refund} 金币\n此操作无法撤销"),
+            GameLocalization.Text("Confirm Scrap", "确认分解"),
             true,
             string.Empty,
             ExecutePendingScrap,
@@ -745,9 +759,11 @@ public class PlacementController : MonoBehaviour
         int refund = card.ScrapRefund;
         string name = ModuleCatalog.GetDisplayName(card);
         _confirm?.Show(
-            $"确定永久分解「{name}」？",
-            $"将从战场移除并返还 {refund} 金币\n此操作无法撤销",
-            "确认分解",
+            GameLocalization.Text($"Permanently scrap \"{name}\"?", $"确定永久分解「{name}」？"),
+            GameLocalization.Text(
+                $"Remove from the board and refund {refund} gold\nThis cannot be undone",
+                $"将从战场移除并返还 {refund} 金币\n此操作无法撤销"),
+            GameLocalization.Text("Confirm Scrap", "确认分解"),
             true,
             string.Empty,
             ExecutePendingBoardScrap,
@@ -897,23 +913,27 @@ public class PlacementController : MonoBehaviour
 
         string name = ModuleCatalog.GetDisplayName(card);
         string feeLine = inCombat
-            ? $"战斗中拆除费用：{cost} 金币"
-            : "准备阶段拆除：免费";
-        string stockLine = handFull ? "库存已满，无法拆除" : "拆除后返回库存";
+            ? GameLocalization.Text($"Combat dismantle cost: {cost} gold", $"战斗中拆除费用：{cost} 金币")
+            : GameLocalization.Text("Preparation dismantle: free", "准备阶段拆除：免费");
+        string stockLine = handFull
+            ? GameLocalization.Text("Storage full; cannot dismantle", "库存已满，无法拆除")
+            : GameLocalization.Text("Returns to storage after dismantling", "拆除后返回库存");
         string warn = string.Empty;
         if (handFull)
         {
-            warn = "库存已满，无法拆除";
+            warn = GameLocalization.Text("Storage full; cannot dismantle", "库存已满，无法拆除");
         }
         else if (!canAfford)
         {
-            warn = "金币不足";
+            warn = GameLocalization.Text("Insufficient Gold", "金币不足");
             Economy.Instance?.NotifyInsufficient();
         }
 
-        string confirmText = cost > 0 ? $"确认拆除 -{cost}" : "确认拆除";
+        string confirmText = cost > 0
+            ? GameLocalization.Text($"Confirm Dismantle -{cost}", $"确认拆除 -{cost}")
+            : GameLocalization.Text("Confirm Dismantle", "确认拆除");
         _confirm?.Show(
-            $"拆除「{name}」？",
+            GameLocalization.Text($"Dismantle \"{name}\"?", $"拆除「{name}」？"),
             $"{feeLine}\n{stockLine}",
             confirmText,
             canConfirm,

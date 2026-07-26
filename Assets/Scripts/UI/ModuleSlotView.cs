@@ -63,7 +63,7 @@ public sealed class ModuleSlotView : MonoBehaviour
         _state = SlotVisualState.Empty;
         if (nameText != null)
         {
-            nameText.text = "空";
+            nameText.text = GameLocalization.Text("Empty", "空");
             nameText.color = new Color(0.55f, 0.55f, 0.6f, 1f);
         }
 
