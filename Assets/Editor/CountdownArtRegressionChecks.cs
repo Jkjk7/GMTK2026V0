@@ -19,6 +19,11 @@ public static class CountdownArtRegressionChecks
             foreach (ModuleType type in Enum.GetValues(typeof(ModuleType)))
             {
                 Require(ModuleSkinApplicator.HasStyle(type), $"Missing module visual style for {type}.");
+                Sprite direct = CountdownArtResources.LoadModuleSprite(type);
+                Sprite skinIcon = GameSkin.LoadOrCreateRuntime().GetModuleIcon(type);
+                Require(direct != null, $"Missing runtime module sprite for {type}.");
+                Require(direct != PrototypeSprites.Square, $"{type} still uses the square fallback.");
+                Require(skinIcon == direct, $"{type} does not use the shared module sprite.");
             }
 
             VisibleCountdownResourcesExist();

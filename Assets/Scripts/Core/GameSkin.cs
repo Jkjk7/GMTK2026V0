@@ -50,15 +50,7 @@ public sealed class GameSkin : ScriptableObject
 
     public Sprite GetModuleIcon(ModuleType type)
     {
-        switch (type)
-        {
-            case ModuleType.Redirector:
-                return ResolveSquare(redirectorIcon);
-            case ModuleType.Projectile:
-                return ResolveSquare(projectileIcon);
-            default:
-                return PrototypeSprites.Square;
-        }
+        return CountdownArtResources.LoadModuleSprite(type);
     }
 
     public Sprite GetSlotBackground(bool selected, bool empty)
