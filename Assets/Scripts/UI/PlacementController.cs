@@ -1474,6 +1474,7 @@ public class PlacementController : MonoBehaviour
         if (module != null)
         {
             module.ApplyCardData(card);
+            ModuleSkinApplicator.Apply(module);
         }
 
         return module;
@@ -1674,9 +1675,20 @@ public class PlacementController : MonoBehaviour
             if (_ghostOther != null)
             {
                 _ghostOther.enabled = false;
+                ModuleSkinApplicator.Apply(_ghostOther);
             }
 
             go.SetActive(false);
+        }
+
+        if (_ghostRedirector != null)
+        {
+            ModuleSkinApplicator.Apply(_ghostRedirector);
+        }
+
+        if (_ghostProjectile != null)
+        {
+            ModuleSkinApplicator.Apply(_ghostProjectile);
         }
     }
 

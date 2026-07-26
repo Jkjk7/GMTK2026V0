@@ -52,6 +52,7 @@ public class GameBootstrap : MonoBehaviour
     {
         SetupCamera();
         EnsureEventSystem();
+        _skin = GameSkin.LoadOrCreateRuntime();
 
         Camera worldCam = Camera.main;
 
@@ -125,6 +126,11 @@ public class GameBootstrap : MonoBehaviour
         var sandClock = sandClockGo.AddComponent<SandClock>();
         sandClock.Initialize(session);
 
+        var ringGo = new GameObject("CountdownRing");
+        ringGo.transform.SetParent(worldRoot, false);
+        var ring = ringGo.AddComponent<CountdownRingView>();
+        ring.Initialize(sandClock, new Vector3(0f, 0.2f, 0f), 7.2f);
+
         emitter.Initialize(board, ballManager, session, sandClock);
 
         var ballHudGo = new GameObject("BallCountHud");
@@ -167,8 +173,6 @@ public class GameBootstrap : MonoBehaviour
         canvas.transform.SetParent(layoutGo.transform, false);
 
         CreateGameShell(canvas.transform);
-
-        _skin = GameSkin.LoadOrCreateRuntime();
 
         var audioGo = new GameObject("UIAudioFeedback");
         audioGo.transform.SetParent(layoutGo.transform, false);

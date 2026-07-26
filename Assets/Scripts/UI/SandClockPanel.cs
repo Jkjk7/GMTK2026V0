@@ -8,8 +8,6 @@ using UnityEngine.UI;
 /// </summary>
 public class SandClockPanel : MonoBehaviour
 {
-    const int WarningThresholdMs = 20_000;
-
     static readonly Color NormalColor = new Color(0.95f, 0.88f, 0.62f, 1f);
     static readonly Color WarningColor = new Color(1f, 0.4f, 0.35f, 1f);
     static readonly Color GainColor = new Color(0.5f, 0.95f, 0.55f, 1f);
@@ -139,13 +137,17 @@ public class SandClockPanel : MonoBehaviour
 
         int ms = _clock != null ? _clock.RemainingMs : 0;
         _countdownText.text = FormatMs(ms);
-        _countdownText.color = ms <= WarningThresholdMs ? WarningColor : NormalColor;
+        bool warning = CountdownVisualRules.IsWarning(ms);
+        _countdownText.color = warning ? WarningColor : NormalColor;
+        _countdownText.transform.localScale = warning
+            ? Vector3.one * (1.08f + 0.05f * Mathf.Sin(Time.unscaledTime * 8f))
+            : Vector3.one;
 
         // 沙漏上下腔按剩余比例简单填色（相对开局值，可溢出封顶）
         if (_glassTop != null && _glassBottom != null)
         {
             float ratio = Mathf.Clamp01(ms / (float)SandClock.InitialSandMs);
-            Color sand = ms <= WarningThresholdMs ? WarningColor : NormalColor;
+            Color sand = warning ? WarningColor : NormalColor;
             _glassTop.color = Color.Lerp(new Color(sand.r, sand.g, sand.b, 0.15f), sand, ratio);
             _glassBottom.color = new Color(sand.r, sand.g, sand.b, 0.35f);
         }
