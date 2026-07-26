@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
@@ -173,6 +174,7 @@ public class GameBootstrap : MonoBehaviour
         canvas.transform.SetParent(layoutGo.transform, false);
 
         CreateGameShell(canvas.transform);
+        CreateLanguageButton(canvas.transform, font);
 
         var audioGo = new GameObject("UIAudioFeedback");
         audioGo.transform.SetParent(layoutGo.transform, false);
@@ -526,6 +528,52 @@ public class GameBootstrap : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
         go.AddComponent<GraphicRaycaster>();
         return canvas;
+    }
+
+    void CreateLanguageButton(Transform canvas, Font font)
+    {
+        var go = new GameObject("LanguageButton");
+        go.transform.SetParent(canvas, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.91f, 0.94f);
+        rt.anchorMax = new Vector2(0.985f, 0.985f);
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+
+        var image = go.AddComponent<Image>();
+        image.color = new Color(0.12f, 0.09f, 0.16f, 0.96f);
+        var button = go.AddComponent<Button>();
+
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(go.transform, false);
+        var labelRt = labelGo.AddComponent<RectTransform>();
+        StretchFull(labelRt);
+        var label = labelGo.AddComponent<Text>();
+        label.font = font;
+        label.fontSize = 20;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = new Color(1f, 0.84f, 0.46f, 1f);
+        label.raycastTarget = false;
+        label.text = GameLocalization.IsChinese ? "EN" : "中文";
+
+        button.onClick.AddListener(() =>
+        {
+            GameLanguage next = GameLocalization.IsChinese
+                ? GameLanguage.English
+                : GameLanguage.SimplifiedChinese;
+            GameLocalization.SetLanguage(next);
+
+            Scene active = SceneManager.GetActiveScene();
+            if (active.buildIndex >= 0)
+            {
+                SceneManager.LoadScene(active.buildIndex);
+            }
+            else if (!string.IsNullOrEmpty(active.name))
+            {
+                SceneManager.LoadScene(active.name);
+            }
+        });
     }
 
     /// <summary>
