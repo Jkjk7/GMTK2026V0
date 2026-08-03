@@ -43,8 +43,7 @@ The submission branch is tested with **Unity 6000.5.4f1**.
 3. Open the game scene in `Assets/Scenes`, then press Play. The runtime bootstrap can also assemble
    the prototype when no bootstrap object is present.
 
-For itch.io, make a WebGL build and ZIP the build contents so `index.html`, `Build/`, and
-`TemplateData/` are at the archive root.
+Data and Graphs see in Docs
 
 ## Repository Layout
 
@@ -53,8 +52,7 @@ Assets/Scripts/                  Gameplay and UI code
 Assets/Art/Generated/Countdown/ Generated and processed countdown artwork
 Assets/Editor/                   Batch-mode regression checks
 Tools/Art/                       Deterministic PNG processing pipeline
-docs/agent-handoff/              System and handoff documentation
-docs/superpowers/                Design specifications and implementation plans
+Docs/                            Data and Graphs
 ```
 
 ## Team
