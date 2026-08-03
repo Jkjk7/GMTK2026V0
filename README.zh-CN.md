@@ -41,8 +41,7 @@
 3. 打开 `Assets/Scenes` 中的游戏场景并点击 Play。场景中没有启动器时，运行时引导程序也会
    自动组装原型。
 
-发布到 itch.io 时，请生成 WebGL 构建，并把构建内容压缩为 ZIP；压缩包根目录应直接包含
-`index.html`、`Build/` 和 `TemplateData/`。
+数值表请见Docs
 
 ## 仓库结构
 
@@ -51,8 +50,7 @@ Assets/Scripts/                  游戏与 UI 代码
 Assets/Art/Generated/Countdown/ 生成并处理后的倒计时美术
 Assets/Editor/                   批处理回归检查
 Tools/Art/                       确定性的 PNG 处理管线
-docs/agent-handoff/              系统说明与交接文档
-docs/superpowers/                设计规范与实施计划
+Docs                             数值表
 ```
 
 ## 团队
