@@ -109,3 +109,11 @@ InitTestScene*.unity*
 # Local Codex worktrees and execution scratch
 /.worktrees/
 /.superpowers/
+
+# Cursor / local-only agent materials (not for public remote)
+.cursor/
+local-docs/
+
+# Excel lock / temp files
+~$*
+docs/~$*
