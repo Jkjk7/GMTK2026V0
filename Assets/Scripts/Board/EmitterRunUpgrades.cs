@@ -21,7 +21,8 @@ public class EmitterRunUpgrades : MonoBehaviour
     // 熔炉容量（毫秒）：2000/1400/1050/800 ≈ 0.5/0.7/0.95/1.25 球每秒
     public static readonly int[] FurnaceCapsMs = { 2000, 1400, 1050, 800 };
     public static readonly float[] BallSpeedCells = { 4.0f, 5.5f, 7.0f, 8.5f };
-    public static readonly int[] MassEnergy = { 1, 2, 3, 4 }; // 削弱：原 1/2/5/10 太强
+    // 质量=单球能量。四档 1/1.5/2/2.5（原 1/2/3/4 后期吞吐过高）
+    public static readonly float[] MassEnergy = { 1f, 1.5f, 2f, 2.5f };
     public static readonly float[] LifetimeSeconds = { 12f, 20f, 32f, 50f };
 
     public static EmitterRunUpgrades Instance { get; private set; }
@@ -38,7 +39,7 @@ public class EmitterRunUpgrades : MonoBehaviour
 
     public int FurnaceCapMs => FurnaceCapsMs[_fireRateLevel];
     public float BallSpeed => BallSpeedCells[_ballSpeedLevel];
-    public int Mass => MassEnergy[_massLevel];
+    public float Mass => MassEnergy[_massLevel];
     public float Lifetime => LifetimeSeconds[_lifetimeLevel];
 
     void Awake()
@@ -130,8 +131,8 @@ public class EmitterRunUpgrades : MonoBehaviour
                     $"{name}\n{BallSpeedCells[lv]:0.#} → {BallSpeedCells[next]:0.#} 格/秒\n球飞得更快");
             case EmitterUpgradeKind.Mass:
                 return GameLocalization.Text(
-                    $"{name}\nEnergy {MassEnergy[lv]} → {MassEnergy[next]}\nMore charge per ball",
-                    $"{name}\n能量 {MassEnergy[lv]} → {MassEnergy[next]}\n单球充能更多");
+                    $"{name}\nEnergy {MassEnergy[lv]:0.#} → {MassEnergy[next]:0.#}\nMore charge per ball",
+                    $"{name}\n能量 {MassEnergy[lv]:0.#} → {MassEnergy[next]:0.#}\n单球充能更多");
             default:
                 return GameLocalization.Text(
                     $"{name}\n{LifetimeSeconds[lv]:0} → {LifetimeSeconds[next]:0}s\nBalls last longer",

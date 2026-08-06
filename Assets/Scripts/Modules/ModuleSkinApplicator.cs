@@ -19,6 +19,46 @@ public sealed class ModuleSkinApplicator : MonoBehaviour
             return false;
         }
 
+        // 烈焰墙用红色三角原型，不套用正式贴图
+        if (module.ModuleType == ModuleType.FlameWall)
+        {
+            ModuleSkinApplicator existing = module.GetComponent<ModuleSkinApplicator>();
+            if (existing != null)
+            {
+                if (Application.isPlaying)
+                {
+                    Object.Destroy(existing);
+                }
+                else
+                {
+                    Object.DestroyImmediate(existing);
+                }
+            }
+
+            module.RefreshVisual();
+            return false;
+        }
+
+        // 原型模式：去掉覆盖组件，让各模块自己的方块/色块视觉生效
+        if (!CountdownArtResources.UseFormalArt)
+        {
+            ModuleSkinApplicator existing = module.GetComponent<ModuleSkinApplicator>();
+            if (existing != null)
+            {
+                if (Application.isPlaying)
+                {
+                    Object.Destroy(existing);
+                }
+                else
+                {
+                    Object.DestroyImmediate(existing);
+                }
+            }
+
+            module.RefreshVisual();
+            return false;
+        }
+
         ModuleSkinApplicator controller = module.GetComponent<ModuleSkinApplicator>();
         if (controller == null)
         {

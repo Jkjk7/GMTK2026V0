@@ -19,6 +19,7 @@ public class MinerModule : ModuleBase
     Transform _energyHud;
     SpriteRenderer _energyHudFill;
     TextMesh _levelLabel;
+    ModuleCooldownHud _cooldownHud;
 
     public override ModuleType ModuleType => global::ModuleType.Miner;
     public int CurrentEnergy => currentEnergy;
@@ -29,6 +30,7 @@ public class MinerModule : ModuleBase
     public void ClearEnergy()
     {
         currentEnergy = 0;
+        ClearEnergyResidue();
         RefreshVisual();
     }
 
@@ -90,10 +92,18 @@ public class MinerModule : ModuleBase
 
     void Update()
     {
+        float cdTotal = cooldownSeconds * EnchantFireIntervalMultiplier;
         if (_cooldown > 0f)
         {
             _cooldown -= Time.deltaTime;
         }
+
+        if (_cooldownHud == null)
+        {
+            _cooldownHud = ModuleCooldownHud.Ensure(transform, new Vector3(0f, 1.15f, 0f));
+        }
+
+        _cooldownHud.SetCooldown(_cooldown > 0f ? _cooldown : 0f, cdTotal);
 
         if (currentEnergy < energyCost || _cooldown > 0f)
         {
@@ -106,7 +116,7 @@ public class MinerModule : ModuleBase
         }
 
         currentEnergy -= energyCost;
-        _cooldown = cooldownSeconds * EnchantCooldownMultiplier;
+        _cooldown = cdTotal;
         int gold = Mathf.Max(1, goldPerCycle);
         if (GoldDropService.Instance != null)
         {
@@ -153,7 +163,7 @@ public class MinerModule : ModuleBase
             return;
         }
 
-        currentEnergy = Mathf.Min(energyCapacity, currentEnergy + ball.Energy);
+        currentEnergy = AbsorbBallEnergy(ball, currentEnergy, energyCapacity);
         RefreshVisual();
     }
 

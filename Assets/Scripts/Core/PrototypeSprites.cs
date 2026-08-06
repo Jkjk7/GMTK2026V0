@@ -8,6 +8,7 @@ public static class PrototypeSprites
 {
     static Sprite s_Square;
     static Sprite s_Circle;
+    static Sprite s_Triangle;
 
     /// <summary>
     /// 1x1 白色方块 Sprite（可被 SpriteRenderer.color 染色）。
@@ -59,4 +60,53 @@ public static class PrototypeSprites
             return s_Circle;
         }
     }
+
+    /// <summary>
+    /// 朝上实心三角（可染色），用于烈焰墙等易辨认图标。
+    /// </summary>
+    public static Sprite Triangle
+    {
+        get
+        {
+            if (s_Triangle == null)
+            {
+                const int size = 32;
+                Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                // 顶点朝上：顶 (cx, top)、左下、右下
+                float cx = (size - 1) * 0.5f;
+                Vector2 a = new Vector2(cx, size - 2f);
+                Vector2 b = new Vector2(2f, 2f);
+                Vector2 c = new Vector2(size - 3f, 2f);
+                for (int y = 0; y < size; y++)
+                {
+                    for (int x = 0; x < size; x++)
+                    {
+                        tex.SetPixel(x, y, PointInTriangle(new Vector2(x, y), a, b, c)
+                            ? Color.white
+                            : Color.clear);
+                    }
+                }
+
+                tex.Apply();
+                tex.filterMode = FilterMode.Bilinear;
+                s_Triangle = Sprite.Create(
+                    tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
+            }
+
+            return s_Triangle;
+        }
+    }
+
+    static bool PointInTriangle(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
+    {
+        float d1 = Sign(p, a, b);
+        float d2 = Sign(p, b, c);
+        float d3 = Sign(p, c, a);
+        bool hasNeg = d1 < 0f || d2 < 0f || d3 < 0f;
+        bool hasPos = d1 > 0f || d2 > 0f || d3 > 0f;
+        return !(hasNeg && hasPos);
+    }
+
+    static float Sign(Vector2 p1, Vector2 p2, Vector2 p3) =>
+        (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
 }

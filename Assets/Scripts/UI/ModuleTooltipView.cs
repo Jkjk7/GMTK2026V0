@@ -32,9 +32,13 @@ public class ModuleTooltipView : MonoBehaviour
     bool _hoverHasModule;
     float _hoverTimer;
     const float HoverDelaySeconds = 0.7f;
-    static readonly Vector2 SizeModuleOnly = new Vector2(340f, 300f);
-    static readonly Vector2 SizeEnchantOnly = new Vector2(300f, 170f);
-    static readonly Vector2 SizeBoth = new Vector2(340f, 390f);
+    static readonly Vector2 SizeModuleOnly = new Vector2(440f, 560f);
+    static readonly Vector2 SizeEnchantOnly = new Vector2(320f, 180f);
+    static readonly Vector2 SizeBoth = new Vector2(440f, 660f);
+    const string HighlightOpen = "<color=#FFD060><b>";
+    const string HighlightClose = "</b></color>";
+    const string DimOpen = "<color=#8AA0B8>";
+    const string DimClose = "</color>";
 
     void OnEnable()
     {
@@ -77,6 +81,12 @@ public class ModuleTooltipView : MonoBehaviour
         moduleBlock = moduleSection;
         enchantBlock = enchantSection;
         _skin = skin;
+        if (statsText != null)
+        {
+            statsText.supportRichText = true;
+            statsText.verticalOverflow = VerticalWrapMode.Overflow;
+        }
+
         HideImmediate();
     }
 
@@ -123,20 +133,20 @@ public class ModuleTooltipView : MonoBehaviour
 
     public static string GetEnchantDisplayName(CellEnchant enchant)
     {
-        switch (enchant)
+        switch (CellEnchantRules.Normalize(enchant))
         {
             case CellEnchant.Flame: return GameLocalization.Text("Flame Enchant", "火焰附魔");
             case CellEnchant.DamageUp: return GameLocalization.Text("Damage Enchant", "伤害附魔");
             case CellEnchant.Frost: return GameLocalization.Text("Frost Enchant", "寒霜附魔");
             case CellEnchant.Shrink: return GameLocalization.Text("Rapid Enchant", "缩小附魔");
-            case CellEnchant.Cooldown: return GameLocalization.Text("Cooldown Enchant", "冷却附魔");
+            case CellEnchant.Weak: return GameLocalization.Text("Weak Enchant", "虚弱附魔");
             default: return GameLocalization.Text("Enchant", "附魔");
         }
     }
 
     public static string GetEnchantDescription(CellEnchant enchant)
     {
-        switch (enchant)
+        switch (CellEnchantRules.Normalize(enchant))
         {
             case CellEnchant.Flame:
                 return GameLocalization.Text(
@@ -144,20 +154,20 @@ public class ModuleTooltipView : MonoBehaviour
                     "此格模块造成伤害时，对目标施加 3 秒灼烧。");
             case CellEnchant.DamageUp:
                 return GameLocalization.Text(
-                    "Final damage from this cell is multiplied by 1.2.",
-                    "此格模块最终伤害 ×1.2。");
+                    $"Final damage from this cell is multiplied by {CellEnchantRules.DamageUpMult:0.#}.",
+                    $"此格模块最终伤害 ×{CellEnchantRules.DamageUpMult:0.#}。");
             case CellEnchant.Frost:
                 return GameLocalization.Text(
                     "Damage from this cell applies 3 seconds of chill (30% slow).",
                     "此格模块造成伤害时，施加 3 秒寒冷（30% 减速）。");
             case CellEnchant.Shrink:
                 return GameLocalization.Text(
-                    "Damage ×0.5; attack speed is doubled.",
-                    "此格模块伤害 ×0.5，射速翻倍。");
-            case CellEnchant.Cooldown:
+                    $"Damage ×{CellEnchantRules.ShrinkDamageMult:0.#}; fire rate is doubled.",
+                    $"此格模块伤害 ×{CellEnchantRules.ShrinkDamageMult:0.#}，射速翻倍。");
+            case CellEnchant.Weak:
                 return GameLocalization.Text(
-                    "Cooldown-based modules on this cell recover twice as fast.",
-                    "此格有冷却的模块冷却时间减半（如采矿机）。");
+                    $"Final damage ×{CellEnchantRules.WeakDamageMult:0.#}; fire interval ×{CellEnchantRules.WeakIntervalMult:0.#}.",
+                    $"此格模块最终伤害 ×{CellEnchantRules.WeakDamageMult:0.#}，开火间隔 ×{CellEnchantRules.WeakIntervalMult:0.#}。");
             default:
                 return string.Empty;
         }
@@ -434,195 +444,462 @@ public class ModuleTooltipView : MonoBehaviour
         return Color.Lerp(c, Color.white, 0.25f);
     }
 
+    struct StatSnap
+    {
+        public string Attack;
+        public string Rate;
+        public string Cost;
+        public string Cap;
+        public string Effect;
+    }
+
     static string BuildStats(ModuleCardData card, ModuleBase live)
     {
-        if (card.Type == ModuleType.Bomb)
+        int maxLv = GetTooltipMaxLevel(card.Type);
+        int curLv = Mathf.Clamp(card.Level, 1, maxLv);
+        StatSnap current = BuildStatSnap(card, live, curLv);
+        var sb = new System.Text.StringBuilder(256);
+        AppendCurrentStatBlock(sb, current);
+
+        string liveEnergy = LiveEnergyLine(live);
+        if (!string.IsNullOrEmpty(liveEnergy))
         {
-            int dmg = live is BombModule b ? b.DamagePerShot : ModuleCatalog.GetBombDamage(card.Level);
-            float radius = live is BombModule b2 ? b2.AoeRadius : ModuleCatalog.GetBombRadius(card.Level);
-            string energy = live is BombModule liveB
-                ? $"储能：{liveB.CurrentEnergy}/{liveB.EnergyCapacity}"
-                : "储能上限：20";
-            return $"伤害：{dmg}\n射速：1.5/秒\n范围：{radius:0.#}\n{energy}";
+            sb.Append('\n').Append(liveEnergy);
         }
 
-        if (card.Type == ModuleType.BlackHole)
+        if (maxLv > 1)
         {
-            float radius = live is BlackHoleModule bh
-                ? bh.PullRadius
-                : ModuleCatalog.GetBlackHoleRadius(card.Level);
-            float dur = live is BlackHoleModule bh2
-                ? bh2.PullDuration
-                : ModuleCatalog.GetBlackHoleDuration(card.Level);
-            string energy = live is BlackHoleModule liveH
-                ? $"储能：{liveH.CurrentEnergy}/{liveH.EnergyCapacity}"
-                : "储能上限：5";
-            return $"吸引半径：{radius:0.#}\n持续：{dur:0.#}秒\n射速：3秒/发\n能耗：5\n{energy}";
+            sb.Append("\n\n升级");
+            for (int lv = 1; lv <= maxLv; lv++)
+            {
+                if (lv == curLv)
+                {
+                    continue;
+                }
+
+                string diff = FormatStatDiff(lv, BuildStatSnap(card, live, lv), current);
+                if (string.IsNullOrEmpty(diff))
+                {
+                    continue;
+                }
+
+                sb.Append('\n');
+                if (lv > curLv)
+                {
+                    sb.Append(HighlightOpen).Append(diff).Append(HighlightClose);
+                }
+                else
+                {
+                    sb.Append(DimOpen).Append(diff).Append(DimClose);
+                }
+            }
         }
 
-        if (card.Type == ModuleType.IceLaser)
+        return sb.ToString();
+    }
+
+    static int GetTooltipMaxLevel(ModuleType type)
+    {
+        if (type == ModuleType.Miner)
         {
-            int dmg = live is IceLaserModule ice
-                ? ice.DamagePerShot
-                : ModuleCatalog.GetIceDamage(card.Level);
-            float interval = live is IceLaserModule ice2
-                ? ice2.FireInterval
-                : ModuleCatalog.GetFireInterval(card.Level);
-            float rps = interval > 0.0001f ? 1f / interval : 0f;
-            float slowDur = live is IceLaserModule ice3
-                ? ice3.SlowDuration
-                : ModuleCatalog.GetIceSlowDuration(card.Level);
-            int cap = live is IceLaserModule ice4
-                ? ice4.EnergyCapacity
-                : ModuleCatalog.GetEnergyCapacity(card.Level);
-            string energy = live is IceLaserModule liveI
-                ? $"储能：{liveI.CurrentEnergy}/{liveI.EnergyCapacity}"
-                : $"储能上限：{cap}";
-            return $"伤害：{dmg}\n射速：{rps:0.#}/秒\n寒冷：{ModuleCatalog.IceSlowPercent * 100f:0}% / {slowDur:0.#}秒\n{energy}";
+            return 3;
         }
 
-        if (card.Type == ModuleType.Miner)
+        if (type == ModuleType.FireEnchant || type == ModuleType.Surprise)
         {
-            int cost = MinerModule.FixedEnergyCost;
-            int gold = live is MinerModule m
-                ? m.GoldPerCycle
-                : ModuleCatalog.GetMinerGoldAmount(card.Level);
-            string energy = live is MinerModule liveM
-                ? $"储能：{liveM.CurrentEnergy}/{liveM.EnergyCapacity}"
-                : $"储能上限：{cost}";
-            return $"产出：{cost} 能 → {gold} 金\n冷却：3 秒\n{energy}";
+            return 4;
         }
 
-        if (card.Type == ModuleType.FlameAmp)
+        if (ModuleCatalog.IsItemModule(type))
         {
-            int bonus = live is FlameAmpModule amp
-                ? amp.BurnBonus
-                : ModuleCatalog.GetFlameAmpBonus(card.Level);
-            return $"灼烧增幅：+{bonus}/{RunModifiers.BurnTickInterval:0.#}秒\n被动：场上生效，可叠加";
+            return 1;
         }
 
-        if (card.Type == ModuleType.Spark)
+        if (ModuleCatalog.IsAttackModule(type)
+            || type == ModuleType.FlameAmp
+            || type == ModuleType.IceAmp
+            || type == ModuleType.Heatwave
+            || type == ModuleType.FrostFreeze)
         {
-            int dmg = live is SparkModule s
-                ? s.DamagePerShot
-                : ModuleCatalog.GetSparkDamage(card.Level);
-            float interval = live is SparkModule s2
-                ? s2.FireInterval
-                : ModuleCatalog.GetSparkFireInterval(card.Level);
-            float burn = live is SparkModule s3
-                ? s3.BurnDuration
-                : ModuleCatalog.GetSparkBurnDuration(card.Level);
-            int cap = live is SparkModule s4
-                ? s4.EnergyCapacity
-                : ModuleCatalog.GetSparkEnergyCapacity(card.Level);
-            int cost = live is SparkModule s5
-                ? s5.EnergyPerShot
-                : ModuleCatalog.GetSparkEnergyPerShot(card.Level);
-            float rps = interval > 0.0001f ? 1f / interval : 0f;
-            string energy = live is SparkModule liveS
-                ? $"储能：{liveS.CurrentEnergy}/{liveS.EnergyCapacity}"
-                : $"储能上限：{cap}";
-            return $"伤害：{dmg}\n射速：{rps:0.#}/秒\n灼烧：{burn:0.#}秒\n能耗：{cost}\n{energy}";
+            return ModulePricing.MaxAttackLevel;
         }
 
-        if (card.Type == ModuleType.Heatwave)
+        return 1;
+    }
+
+    static StatSnap BuildStatSnap(ModuleCardData card, ModuleBase live, int level)
+    {
+        int lv = Mathf.Max(1, level);
+        CellEnchant enchant = ResolveLiveEnchant(live);
+        float chillSlow = ResolveChillSlowPercent();
+
+        switch (card.Type)
         {
-            float burn = ModuleCatalog.GetHeatwaveBurnDuration(card.Level);
-            string energy = live is HeatwaveModule hw
-                ? $"储能：{hw.CurrentEnergy}/{hw.EnergyCapacity}"
-                : "储能：0/20";
-            return $"全屏灼烧：{burn:0.#}秒\n能耗：20\n冷却：5秒\n{energy}";
+            case ModuleType.Projectile:
+                return Snap(
+                    Attack: Attack(ModuleCatalog.GetDamagePerShot(lv), enchant),
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(
+                        ModuleCatalog.GetFireInterval(lv), enchant)),
+                    Cost: "1",
+                    Cap: Int(ModuleCatalog.GetEnergyCapacity(lv)));
+
+            case ModuleType.Bomb:
+                return Snap(
+                    Attack: Attack(ModuleCatalog.GetBombDamage(lv), enchant),
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(1f / 1.5f, enchant)),
+                    Cost: "5",
+                    Cap: Int(ModuleCatalog.GetBombEnergyCapacity(lv)),
+                    Effect: $"AOE半径{ModuleCatalog.GetBombRadius(lv):0.#}");
+
+            case ModuleType.IceLaser:
+                return Snap(
+                    Attack: Attack(ModuleCatalog.GetIceDamage(lv), enchant),
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(
+                        ModuleCatalog.GetIceFireInterval(lv), enchant)),
+                    Cost: Int(ModuleCatalog.GetIceEnergyPerShot(lv)),
+                    Cap: Int(ModuleCatalog.GetIceEnergyCapacity(lv)),
+                    Effect: $"[寒冷]{ModuleCatalog.GetIceSlowDuration(lv):0.#}秒（减速{chillSlow * 100f:0}%）");
+
+            case ModuleType.Spark:
+                return Snap(
+                    Attack: Attack(ModuleCatalog.GetSparkDamage(lv), enchant),
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(
+                        ModuleCatalog.GetSparkFireInterval(lv), enchant)),
+                    Cost: Int(ModuleCatalog.GetSparkEnergyPerShot(lv)),
+                    Cap: Int(ModuleCatalog.GetSparkEnergyCapacity(lv)),
+                    Effect: $"[灼烧]{ModuleCatalog.GetSparkBurnDuration(lv):0.#}秒");
+
+            case ModuleType.LaserCannon:
+                return Snap(
+                    Attack: Attack(ModuleCatalog.GetLaserCannonDamage(lv), enchant),
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(1f, enchant)),
+                    Cost: "5",
+                    Cap: "5");
+
+            case ModuleType.ArcaneMissile:
+                return Snap(
+                    Attack: Attack(ModuleCatalog.GetArcaneMissileDamage(lv), enchant),
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(
+                        ModuleCatalog.GetArcaneMissileFireInterval(lv), enchant)),
+                    Cost: Int(ModuleCatalog.GetArcaneMissileEnergyPerShot(lv)),
+                    Cap: Int(ModuleCatalog.GetArcaneMissileEnergyCapacity(lv)),
+                    Effect: "索敌最右");
+
+            case ModuleType.BlackHole:
+                return Snap(
+                    Cost: Int(ModuleCatalog.GetBlackHoleEnergyPerShot(lv)),
+                    Cap: Int(ModuleCatalog.GetBlackHoleEnergyCapacity(lv)),
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(
+                        ModuleCatalog.GetBlackHoleFireInterval(lv), enchant)),
+                    Effect: $"半径{ModuleCatalog.GetBlackHoleRadius(lv):0.#} 持续{ModuleCatalog.GetBlackHoleDuration(lv):0.#}秒 吸力{ModuleCatalog.GetBlackHolePullStrength(lv):0.#}");
+
+            case ModuleType.Heatwave:
+                return Snap(
+                    Cost: Int(HeatwaveModule.EnergyCost),
+                    Cap: Int(HeatwaveModule.EnergyCap),
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(
+                        ModuleCatalog.GetHeatwaveFireInterval(lv), enchant)),
+                    Effect: $"全屏[灼烧]{ModuleCatalog.GetHeatwaveBurnDuration(lv):0.#}秒");
+
+            case ModuleType.FlameWall:
+                return Snap(
+                    Attack: Attack(ModuleCatalog.GetFlameWallDamage(lv), enchant),
+                    Cost: $"{ModuleCatalog.GetFlameWallEnergyDrainPerSecond(lv):0.#}/秒",
+                    Cap: Int(ModuleCatalog.GetFlameWallEnergyCapacity(lv)),
+                    Effect: $"中线火墙；穿过[灼烧]{ModuleCatalog.GetFlameWallBurnDuration(lv):0.#}秒");
+
+            case ModuleType.FlameBlessing:
+                return Snap(Effect: "一次性：目标格变为火焰附魔");
+
+            case ModuleType.Purify:
+                return Snap(Effect: "一次性：清除目标格诅咒/锁定/附魔");
+
+            case ModuleType.FrostMushroom:
+                return Snap(Effect: $"一次性：全体冻结1秒并[寒冷]{2f:0.#}秒（减速{chillSlow * 100f:0}%）");
+
+            case ModuleType.FrostFreeze:
+                return Snap(
+                    Cost: Int(FrostFreezeModule.EnergyCost),
+                    Cap: Int(FrostFreezeModule.EnergyCap),
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(
+                        ModuleCatalog.GetFrostFreezeFireInterval(lv), enchant)),
+                    Effect: $"全屏[寒冷]{ModuleCatalog.GetFrostFreezeChillDuration(lv):0.#}秒（减速{chillSlow * 100f:0}%）");
+
+            case ModuleType.Miner:
+                return Snap(
+                    Attack: $"{ModuleCatalog.GetMinerGoldAmount(lv)}金",
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(3f, enchant)),
+                    Cost: Int(MinerModule.FixedEnergyCost),
+                    Cap: Int(MinerModule.FixedEnergyCost),
+                    Effect: "每次开火产出金币");
+
+            case ModuleType.FlameAmp:
+                return Snap(
+                    Effect: $"灼烧+{ModuleCatalog.GetFlameAmpBonus(lv)}/{RunModifiers.BurnTickInterval:0.#}秒（被动可叠加）");
+
+            case ModuleType.IceAmp:
+            {
+                float bonus = ModuleCatalog.GetIceAmpSlowBonus(lv);
+                return Snap(
+                    Effect: $"寒冷减速+{bonus * 100f:0}%（总上限{ModuleCatalog.MaxChillSlowPercent * 100f:0}%，被动可叠加）");
+            }
+
+            case ModuleType.FireEnchant:
+                return Snap(Effect: $"灼烧附魔{lv}格（种子固定）");
+
+            case ModuleType.Surprise:
+                return Snap(Effect: $"随机附魔{lv}格（种子固定）");
+
+            case ModuleType.Splitter:
+                return Snap(Effect: "T 形一分二，寿命减半");
+
+            case ModuleType.Portal:
+                return Snap(Effect: PathShapeLabel(card, live) + "；成对传送保方向，最多2座");
+
+            case ModuleType.Relay:
+                return Snap(
+                    Cap: Int(RelayModule.EnergyCap),
+                    Effect: PathShapeLabel(card, live) + "；穿过汲能，满后刷新寿命");
+
+            case ModuleType.Accelerator:
+                return Snap(Effect: PathShapeLabel(card, live) + "；速度×1.5（每球一次）");
+
+            case ModuleType.Fusion:
+            {
+                string progress = live is FusionModule f
+                    ? $"；进度{f.AbsorbedCount}/{FusionModule.BallsNeeded}"
+                    : string.Empty;
+                return Snap(Effect: PathShapeLabel(card, live) + "；5球合成1球" + progress);
+            }
+
+            case ModuleType.Fission:
+                return Snap(
+                    Cap: Int(FissionModule.EnergyThreshold),
+                    Effect: PathShapeLabel(card, live) + "；≥5能→0.5秒射5颗默认球（裂变球不再被核裂变吸收）");
+
+            case ModuleType.Redirector:
+            {
+                string facing = live is RedirectorModule red
+                    ? OrientationLabel(red.Orientation)
+                    : string.Empty;
+                string effect = string.IsNullOrEmpty(facing)
+                    ? "直角改向"
+                    : $"直角改向（{facing}）";
+                return Snap(Effect: effect);
+            }
+
+            default:
+                if (live is PathEffectModule path)
+                {
+                    string shape = path.Shape == PathShape.Bent ? "L 拐弯"
+                        : path.Shape == PathShape.Tee ? "T 形" : "直通";
+                    return Snap(Effect: $"路径模块 · {shape}");
+                }
+
+                return card.Bent ? Snap(Effect: "路径：拐弯版") : Snap(Effect: "直角改向");
+        }
+    }
+
+    static CellEnchant ResolveLiveEnchant(ModuleBase live)
+    {
+        if (live == null || live.BoundBoard == null)
+        {
+            return CellEnchant.None;
         }
 
-        if (card.Type == ModuleType.FireEnchant || card.Type == ModuleType.Surprise)
+        return live.CellEnchant;
+    }
+
+    static float ResolveChillSlowPercent()
+    {
+        return RunModifiers.Instance != null
+            ? RunModifiers.Instance.GetEffectiveChillSlowPercent()
+            : ModuleCatalog.IceSlowPercent;
+    }
+
+    static string Attack(int rawDamage, CellEnchant enchant) =>
+        Int(CellEnchantRules.ScaleDamage(rawDamage, enchant));
+
+    static StatSnap Snap(
+        string Attack = null,
+        string Rate = null,
+        string Cost = null,
+        string Cap = null,
+        string Effect = null) =>
+        new StatSnap
         {
-            int cells = Mathf.Clamp(card.Level, 1, 4);
-            string kind = card.Type == ModuleType.FireEnchant ? "灼烧附魔" : "随机附魔";
-            return $"附魔格数：{cells}\n种类：{kind}\n同位置种子固定；诅咒格跳过不补抽";
+            Attack = Attack ?? string.Empty,
+            Rate = Rate ?? string.Empty,
+            Cost = Cost ?? string.Empty,
+            Cap = Cap ?? string.Empty,
+            Effect = Effect ?? string.Empty
+        };
+
+    static string Int(int v) => v.ToString();
+
+    static string Sec(float seconds) => $"{seconds:0.#}秒";
+
+    /// <summary>射速 ≥0.5 次/秒显示 X/秒，否则显示间隔秒数。</summary>
+    static string FormatFireRate(float intervalSeconds)
+    {
+        if (intervalSeconds <= 0.0001f)
+        {
+            return string.Empty;
         }
 
-        if (card.Type == ModuleType.Splitter)
+        float rate = 1f / intervalSeconds;
+        if (rate < 0.5f)
         {
-            return "形状：T 形\n效果：一分二，寿命减半\n不可与收束器合成拐弯";
+            return Sec(intervalSeconds);
         }
 
-        if (card.Type == ModuleType.Portal)
-        {
-            string shape = card.Bent ? "L 拐弯" : "直通";
-            return $"形状：{shape}\n场上最多 2 座\n成对传送，保持飞行方向";
-        }
+        return $"{rate:0.#}/秒";
+    }
 
-        if (card.Type == ModuleType.Relay)
-        {
-            string shape = card.Bent ? "L 拐弯" : "直通";
-            string energy = live is RelayModule r
-                ? $"储能：{r.StoredEnergy}/{RelayModule.EnergyCap}"
-                : $"储能上限：{RelayModule.EnergyCap}";
-            return $"形状：{shape}\n吸收能量；下一球刷新寿命\n{energy}";
-        }
-
-        if (card.Type == ModuleType.Accelerator)
-        {
-            string shape = card.Bent ? "L 拐弯" : "直通";
-            return $"形状：{shape}\n速度 ×1.5（每球一次）";
-        }
-
-        if (card.Type == ModuleType.Fusion)
-        {
-            string shape = card.Bent ? "L 拐弯" : "直通";
-            string prog = live is FusionModule f
-                ? $"进度：{f.AbsorbedCount}/{FusionModule.BallsNeeded}"
-                : $"需吸收：{FusionModule.BallsNeeded} 球";
-            return $"形状：{shape}\n5 球合成 1 球\n{prog}";
-        }
-
-        if (card.Type == ModuleType.Fission)
-        {
-            string shape = card.Bent ? "L 拐弯" : "直通";
-            string energy = live is FissionModule fi
-                ? $"储能：{fi.StoredEnergy}/{FissionModule.EnergyThreshold}"
-                : $"阈值：{FissionModule.EnergyThreshold}";
-            return $"形状：{shape}\n≥5 能 → 0.5s 射 5 颗默认球\n{energy}";
-        }
-
-        if (card.Type == ModuleType.Projectile)
-        {
-            int dmg = live is ProjectileModule p
-                ? p.DamagePerShot
-                : ModuleCatalog.GetDamagePerShot(card.Level);
-            float interval = live is ProjectileModule p2
-                ? p2.FireInterval
-                : ModuleCatalog.GetFireInterval(card.Level);
-            int cap = live is ProjectileModule p3
-                ? p3.EnergyCapacity
-                : ModuleCatalog.GetEnergyCapacity(card.Level);
-            float rps = interval > 0.0001f ? 1f / interval : 0f;
-
-            string energyLine = live is ProjectileModule liveProj
-                ? $"储能：{liveProj.CurrentEnergy}/{cap}"
-                : $"储能上限：{cap}";
-
-            return $"伤害：{dmg}\n射速：{rps:0.#}/秒\n{energyLine}";
-        }
-
-        if (live is RedirectorModule red)
-        {
-            return $"功能：直角改向\n朝向：{OrientationLabel(red.Orientation)}";
-        }
-
+    static string PathShapeLabel(ModuleCardData card, ModuleBase live)
+    {
         if (live is PathEffectModule path)
         {
-            string shape = path.Shape == PathShape.Bent ? "L 拐弯"
-                : path.Shape == PathShape.Tee ? "T 形" : "直通";
-            return $"路径模块\n形状：{shape}\n朝向：{path.OrientationIndex}";
+            return path.Shape == PathShape.Bent ? "L拐弯"
+                : path.Shape == PathShape.Tee ? "T形" : "直通";
         }
 
-        if (card.Bent)
+        return card.Bent ? "L拐弯" : "直通";
+    }
+
+    static void AppendCurrentStatBlock(System.Text.StringBuilder sb, StatSnap s)
+    {
+        void Line(string label, string value)
         {
-            return "路径：拐弯版";
+            if (string.IsNullOrEmpty(value))
+            {
+                return;
+            }
+
+            if (sb.Length > 0)
+            {
+                sb.Append('\n');
+            }
+
+            sb.Append(label).Append(value);
         }
 
-        return "功能：直角改向";
+        Line("攻击力：", s.Attack);
+        Line("射速：", s.Rate);
+        Line("能耗：", s.Cost);
+        Line("储能：", s.Cap);
+        Line("效果：", s.Effect);
+    }
+
+    static string FormatStatDiff(int level, StatSnap target, StatSnap current)
+    {
+        var parts = new System.Collections.Generic.List<string>(4);
+        AddDiff(parts, "攻击力", target.Attack, current.Attack);
+        AddDiff(parts, "射速", target.Rate, current.Rate);
+        AddDiff(parts, "能耗", target.Cost, current.Cost);
+        AddDiff(parts, "储能", target.Cap, current.Cap);
+        AddDiff(parts, "效果", target.Effect, current.Effect);
+        if (parts.Count == 0)
+        {
+            return null;
+        }
+
+        return $"Lv{level}：" + string.Join(" · ", parts);
+    }
+
+    static void AddDiff(
+        System.Collections.Generic.List<string> parts,
+        string label,
+        string target,
+        string current)
+    {
+        if (string.IsNullOrEmpty(target) && string.IsNullOrEmpty(current))
+        {
+            return;
+        }
+
+        if (target == current)
+        {
+            return;
+        }
+
+        parts.Add(string.IsNullOrEmpty(target) ? $"{label} —" : $"{label} {target}");
+    }
+
+    static string LiveEnergyLine(ModuleBase live)
+    {
+        if (live == null)
+        {
+            return null;
+        }
+
+        if (live is LaserCannonModule cannon)
+        {
+            return $"当前储能：{cannon.CurrentEnergy}/{cannon.EnergyCapacity}";
+        }
+
+        if (live is ProjectileModule p)
+        {
+            return $"当前储能：{p.CurrentEnergy}/{p.EnergyCapacity}";
+        }
+
+        if (live is BombModule b)
+        {
+            return $"当前储能：{b.CurrentEnergy}/{b.EnergyCapacity}";
+        }
+
+        if (live is IceLaserModule ice)
+        {
+            return $"当前储能：{ice.CurrentEnergy}/{ice.EnergyCapacity}";
+        }
+
+        if (live is MinerModule m)
+        {
+            return $"当前储能：{m.CurrentEnergy}/{m.EnergyCapacity}";
+        }
+
+        if (live is SparkModule s)
+        {
+            return $"当前储能：{s.CurrentEnergy}/{s.EnergyCapacity}";
+        }
+
+        if (live is BlackHoleModule bh)
+        {
+            return $"当前储能：{bh.CurrentEnergy}/{bh.EnergyCapacity}";
+        }
+
+        if (live is HeatwaveModule hw)
+        {
+            return $"当前储能：{hw.CurrentEnergy}/{hw.EnergyCapacity}";
+        }
+
+        if (live is FlameWallModule fw)
+        {
+            string wall = fw.IsWallActive ? "·火墙开启" : string.Empty;
+            return $"当前储能：{fw.CurrentEnergy}/{fw.EnergyCapacity}{wall}";
+        }
+
+        if (live is FrostFreezeModule ff)
+        {
+            return $"当前储能：{ff.CurrentEnergy}/{ff.EnergyCapacity}";
+        }
+
+        if (live is ArcaneMissileModule am)
+        {
+            return $"当前储能：{am.CurrentEnergy}/{am.EnergyCapacity}";
+        }
+
+        if (live is RelayModule relay)
+        {
+            return $"当前储能：{relay.StoredEnergy}/{RelayModule.EnergyCap}";
+        }
+
+        if (live is FissionModule fission)
+        {
+            return $"当前储能：{fission.StoredEnergy}/{FissionModule.EnergyThreshold}";
+        }
+
+        return null;
     }
 
     static string OrientationLabel(int orientation)
@@ -691,6 +968,7 @@ public class ModuleTooltipView : MonoBehaviour
     void SetVisible(bool visible)
     {
         _visible = visible;
+        gameObject.SetActive(true);
         if (group != null)
         {
             group.alpha = visible ? 1f : 0f;
@@ -698,10 +976,9 @@ public class ModuleTooltipView : MonoBehaviour
             group.interactable = false;
         }
 
-        gameObject.SetActive(true);
-        if (!visible && group != null)
+        if (visible)
         {
-            group.alpha = 0f;
+            transform.SetAsLastSibling();
         }
     }
 }

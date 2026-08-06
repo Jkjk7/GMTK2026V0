@@ -71,24 +71,9 @@ public class RunModulePool : MonoBehaviour
 
     public bool TryRemove(ModuleType type)
     {
-        // 保底：至少保留激光与收束器之一不可同时被掏空核心
-        if (type == ModuleType.Projectile || type == ModuleType.Redirector)
+        if (!CanRemove(type))
         {
-            bool hasOtherCore = false;
-            for (int i = 0; i < _unlocked.Count; i++)
-            {
-                ModuleType t = _unlocked[i];
-                if (t != type && (t == ModuleType.Projectile || t == ModuleType.Redirector))
-                {
-                    hasOtherCore = true;
-                    break;
-                }
-            }
-
-            if (!hasOtherCore)
-            {
-                return false;
-            }
+            return false;
         }
 
         return _unlocked.Remove(type);
@@ -106,14 +91,14 @@ public class RunModulePool : MonoBehaviour
         float total = 0f;
         for (int i = 0; i < list.Count; i++)
         {
-            total += ModuleCatalog.GetShopWeight(ModuleCatalog.GetRarity(list[i]), stage);
+            total += ModuleCatalog.GetShopWeight(list[i], stage);
         }
 
         float roll = Random.value * Mathf.Max(0.001f, total);
         float acc = 0f;
         for (int i = 0; i < list.Count; i++)
         {
-            acc += ModuleCatalog.GetShopWeight(ModuleCatalog.GetRarity(list[i]), stage);
+            acc += ModuleCatalog.GetShopWeight(list[i], stage);
             if (roll <= acc)
             {
                 return list[i];
@@ -135,31 +120,7 @@ public class RunModulePool : MonoBehaviour
             return ModuleType.Redirector;
         }
 
-        var attacks = new List<ModuleType>();
-        var utils = new List<ModuleType>();
-        for (int i = 0; i < _unlocked.Count; i++)
-        {
-            ModuleType t = _unlocked[i];
-            if (ModuleCatalog.IsAttackModule(t))
-            {
-                attacks.Add(t);
-            }
-            else
-            {
-                utils.Add(t);
-            }
-        }
-
-        if (slotIndex < 4 && attacks.Count > 0)
-        {
-            return RollWeighted(attacks, waveNumber);
-        }
-
-        if (slotIndex == 4 && utils.Count > 0)
-        {
-            return RollWeighted(utils, waveNumber);
-        }
-
+        // 六格公平：全部已解锁按稀有度权重抽取（可重复类型）
         return RollWeighted(_unlocked, waveNumber);
     }
 
@@ -196,16 +157,25 @@ public class RunModulePool : MonoBehaviour
         return result;
     }
 
-    /// <summary>按稀有度从池中移除最多 count 个（不含无法移除的核心保底失败项）。</summary>
-    public int PurgeByRarity(ModuleRarity rarity, int count)
+    /// <summary>按稀有度挑选最多 count 个可移除模块（不实际移除），供诅咒预览。</summary>
+    public List<ModuleType> PickPurgeByRarity(ModuleRarity rarity, int count)
     {
         var candidates = new List<ModuleType>();
         for (int i = 0; i < _unlocked.Count; i++)
         {
-            if (ModuleCatalog.GetRarity(_unlocked[i]) == rarity)
+            ModuleType t = _unlocked[i];
+            if (ModuleCatalog.GetRarity(t) != rarity)
             {
-                candidates.Add(_unlocked[i]);
+                continue;
             }
+
+            // 与 TryRemove 保底一致：不可同时掏空激光与收束器的预览也不选会死锁的
+            if (!CanRemove(t))
+            {
+                continue;
+            }
+
+            candidates.Add(t);
         }
 
         for (int i = 0; i < candidates.Count; i++)
@@ -214,10 +184,75 @@ public class RunModulePool : MonoBehaviour
             (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
         }
 
-        int removed = 0;
-        for (int i = 0; i < candidates.Count && removed < count; i++)
+        if (candidates.Count > count)
         {
-            if (TryRemove(candidates[i]))
+            candidates.RemoveRange(count, candidates.Count - count);
+        }
+
+        return candidates;
+    }
+
+    public bool CanRemove(ModuleType type)
+    {
+        if (!_unlocked.Contains(type))
+        {
+            return false;
+        }
+
+        if (type == ModuleType.Projectile || type == ModuleType.Redirector)
+        {
+            bool hasOtherCore = false;
+            for (int i = 0; i < _unlocked.Count; i++)
+            {
+                ModuleType t = _unlocked[i];
+                if (t == type)
+                {
+                    continue;
+                }
+
+                if (t == ModuleType.Projectile || t == ModuleType.Redirector)
+                {
+                    hasOtherCore = true;
+                    break;
+                }
+            }
+
+            if (!hasOtherCore)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>按稀有度从池中移除最多 count 个（不含无法移除的核心保底失败项）。</summary>
+    public int PurgeByRarity(ModuleRarity rarity, int count)
+    {
+        List<ModuleType> picks = PickPurgeByRarity(rarity, count);
+        int removed = 0;
+        for (int i = 0; i < picks.Count; i++)
+        {
+            if (TryRemove(picks[i]))
+            {
+                removed++;
+            }
+        }
+
+        return removed;
+    }
+
+    public int PurgeSpecific(IReadOnlyList<ModuleType> types)
+    {
+        if (types == null || types.Count == 0)
+        {
+            return 0;
+        }
+
+        int removed = 0;
+        for (int i = 0; i < types.Count; i++)
+        {
+            if (TryRemove(types[i]))
             {
                 removed++;
             }

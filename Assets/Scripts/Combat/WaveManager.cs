@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 波次：准备 → 3-2-1 → 按固定配额刷怪 → 清场 →（可选解锁草稿）→ 下一波准备。
+/// 波次：准备（等玩家就绪）→ 3-2-1 → 按固定配额刷怪 → 清场 →（可选解锁草稿）→ 下一波准备。
 /// </summary>
 public class WaveManager : MonoBehaviour
 {
@@ -25,7 +25,7 @@ public class WaveManager : MonoBehaviour
         Complete
     }
 
-    [Header("Waves (25)")]
+    [Header("Waves (26)")]
     [SerializeField] WaveConfig[] waves;
 
     [Header("Countdown")]
@@ -62,6 +62,13 @@ public class WaveManager : MonoBehaviour
     public float PrepRemaining => _phase == Phase.Preparing ? Mathf.Max(0f, _timer) : 0f;
     public float PrepDuration => _prepDuration;
     public int CountdownDigit => _countdownDigit;
+
+    /// <summary>开发者跳波：准备/倒计时/战斗可跳；草稿与结束不可。</summary>
+    public bool CanDevSkipCurrentWave =>
+        _phase == Phase.Preparing
+        || _phase == Phase.Countdown
+        || _phase == Phase.Spawning
+        || _phase == Phase.WaitingClear;
 
     public event Action<int, int> OnWaveChanged;
     public event Action OnAllWavesComplete;
@@ -101,15 +108,18 @@ public class WaveManager : MonoBehaviour
 
     void EnsureDefaultWaves()
     {
-        // Roguelike25：始终使用 25 波固定配额表
-        waves = new WaveConfig[25];
-        for (int i = 0; i < 25; i++)
+        // 25 常规波 + 第 26 波终局 Boss
+        int total = WaveSpawnBudget.WaveCount;
+        waves = new WaveConfig[total];
+        for (int i = 0; i < total; i++)
         {
             int display = i + 1;
             waves[i] = new WaveConfig
             {
                 pointBudget = WaveSpawnBudget.GetDefaultBudget(display),
-                spawnInterval = WaveSpawnBudget.GetSpawnInterval(display),
+                spawnInterval = WaveSpawnBudget.IsBossWave(display)
+                    ? 1.2f
+                    : WaveSpawnBudget.GetSpawnInterval(display),
                 guaranteedTanks = WaveSpawnBudget.GetGuaranteedTanks(display)
             };
         }
@@ -152,8 +162,9 @@ public class WaveManager : MonoBehaviour
         _waveRewardsGranted = false;
         _spawnQueue.Clear();
         _phase = Phase.Preparing;
-        _prepDuration = ModulePricing.GetPrepSeconds(CurrentWaveDisplay);
-        _timer = _prepDuration;
+        // 准备阶段无时限，直到玩家 RequestReady
+        _prepDuration = 0f;
+        _timer = 0f;
 
         _session?.EnterPreparing();
         PrepareBoardForPrepPhase();
@@ -230,18 +241,35 @@ public class WaveManager : MonoBehaviour
         {
             heatwaves[i]?.ClearEnergy();
         }
+
+        FrostFreezeModule[] frosts = FindObjectsOfType<FrostFreezeModule>();
+        for (int i = 0; i < frosts.Length; i++)
+        {
+            frosts[i]?.ClearEnergy();
+        }
+
+        ArcaneMissileModule[] arcanes = FindObjectsOfType<ArcaneMissileModule>();
+        for (int i = 0; i < arcanes.Length; i++)
+        {
+            arcanes[i]?.ClearEnergy();
+        }
+
+        LaserCannonModule[] cannons = FindObjectsOfType<LaserCannonModule>();
+        for (int i = 0; i < cannons.Length; i++)
+        {
+            cannons[i]?.ClearEnergy();
+        }
+
+        FlameWallModule[] flameWalls = FindObjectsOfType<FlameWallModule>();
+        for (int i = 0; i < flameWalls.Length; i++)
+        {
+            flameWalls[i]?.ClearEnergy();
+        }
     }
 
     void TickPreparing()
     {
-        _timer -= Time.deltaTime;
-        OnPrepTick?.Invoke(Mathf.Max(0f, _timer), _prepDuration);
-        if (_timer > 0f)
-        {
-            return;
-        }
-
-        StartCountdown();
+        // 无自动倒计时：仅等待 RequestReady() / Space
     }
 
     public void RequestReady()
@@ -335,6 +363,96 @@ public class WaveManager : MonoBehaviour
             return;
         }
 
+        FinishWaveAfterClear(skipDrafts: false);
+    }
+
+    /// <summary>
+    /// 开发者模式：击杀场上敌人与未生成配额（给击杀奖励），发放波末奖励，
+    /// 仍走模块/熔炉/祝福抉择链，再进入下一波准备。
+    /// </summary>
+    public bool TryDevSkipCurrentWave()
+    {
+        if (!CanDevSkipCurrentWave)
+        {
+            return false;
+        }
+
+        EnsureCombatBudgetReady();
+        GrantKillRewardsForUnspawned();
+        KillActiveEnemiesForReward();
+        _spawnedThisWave = _spawnQueue.Count;
+        _phase = Phase.WaitingClear;
+        FinishWaveAfterClear(skipDrafts: false);
+        return true;
+    }
+
+    void EnsureCombatBudgetReady()
+    {
+        if (_spawnQueue.Count > 0)
+        {
+            return;
+        }
+
+        _spawnQueue.AddRange(WaveSpawnBudget.BuildQueue(CurrentWaveDisplay));
+        _spawnedThisWave = 0;
+        _waveRewardsGranted = false;
+        _session?.EnterCombat();
+        WaveGoldBudget.Instance?.BeginWave(CurrentWaveDisplay, _spawnQueue);
+        SandClock.Instance?.BeginWave(CurrentWaveDisplay);
+        OnCombatStarted?.Invoke();
+    }
+
+    void GrantKillRewardsForUnspawned()
+    {
+        if (WaveGoldBudget.Instance == null)
+        {
+            return;
+        }
+
+        Vector3 from = _lane != null ? _lane.GetSpawnPosition() : Vector3.zero;
+        for (int i = _spawnedThisWave; i < _spawnQueue.Count; i++)
+        {
+            WaveSpawnBudget.SpawnEntry entry = _spawnQueue[i];
+            int gold = WaveGoldBudget.Instance.RollKillGold(entry.Type);
+            if (gold > 0 && GoldDropService.Instance != null)
+            {
+                GoldDropService.Instance.GrantGoldWithFly(gold, from);
+            }
+
+            if (!entry.SandBuff)
+            {
+                continue;
+            }
+
+            int burst = SandClock.GetSandBuffBurstMs(
+                SandClock.Instance != null ? SandClock.Instance.CurrentWaveDisplay : CurrentWaveDisplay);
+            if (SandVfxService.Instance != null)
+            {
+                SandVfxService.Instance.GrantSandWithFly(burst, from);
+            }
+            else
+            {
+                SandClock.Instance?.GrantKillSand(entry.Type, true);
+            }
+        }
+    }
+
+    void KillActiveEnemiesForReward()
+    {
+        for (int i = _activeEnemies.Count - 1; i >= 0; i--)
+        {
+            Enemy enemy = _activeEnemies[i];
+            if (enemy != null)
+            {
+                enemy.KillForReward();
+            }
+        }
+
+        _activeEnemies.Clear();
+    }
+
+    void FinishWaveAfterClear(bool skipDrafts)
+    {
         GrantWaveEndRewards();
 
         if (_waveIndex >= waves.Length - 1)
@@ -344,7 +462,7 @@ public class WaveManager : MonoBehaviour
         }
 
         int finishedWave = CurrentWaveDisplay;
-        if (TryBeginDraftChain(finishedWave))
+        if (!skipDrafts && TryBeginDraftChain(finishedWave))
         {
             return;
         }
@@ -440,7 +558,6 @@ public class WaveManager : MonoBehaviour
         }
 
         _waveRewardsGranted = true;
-        SandClock.Instance?.GrantWaveClearReward();
 
         if (WaveGoldBudget.Instance == null)
         {

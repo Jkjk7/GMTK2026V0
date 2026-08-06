@@ -8,5 +8,6 @@ public enum CellEnchant
     DamageUp = 2,
     Frost = 3,
     Shrink = 4,
-    Cooldown = 5
+    // 5 曾为 Cooldown，已删除；运行时见 CellEnchantRules.Normalize
+    Weak = 6
 }

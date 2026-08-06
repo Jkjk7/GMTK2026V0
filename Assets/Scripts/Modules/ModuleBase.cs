@@ -20,15 +20,11 @@ public abstract class ModuleBase : MonoBehaviour
     public CellEnchant CellEnchant =>
         Board != null ? Board.GetEnchant(Cell) : CellEnchant.None;
 
-    /// <summary>缩小附魔：射速翻倍 → 间隔 ×0.5。</summary>
+    /// <summary>开火间隔倍率：缩小 ×0.5，虚弱 ×1.2。</summary>
     public float EnchantFireIntervalMultiplier =>
-        CellEnchant == CellEnchant.Shrink ? 0.5f : 1f;
+        CellEnchantRules.GetFireIntervalMultiplier(CellEnchant);
 
-    /// <summary>冷却附魔：有冷却的模块减半。</summary>
-    public float EnchantCooldownMultiplier =>
-        CellEnchant == CellEnchant.Cooldown ? 0.5f : 1f;
-
-    /// <summary>祝福束缚：永久锁定，不可移动/拆除/合成，仍可开火。</summary>
+    /// <summary>祝福束缚：永久锁定，不可移动/拆除/互换，仍可开火与被合成升级。</summary>
     public bool IsPermanentlyLocked { get; private set; }
 
     SpriteRenderer _lockMark;
@@ -95,4 +91,32 @@ public abstract class ModuleBase : MonoBehaviour
     public virtual void SetOrientationIndex(int value)
     {
     }
+
+    /// <summary>
+    /// 吸收球能量到整数储能。0.5 等小数跨球累积，满容后丢弃余数。
+    /// </summary>
+    protected int AbsorbBallEnergy(EnergyBall ball, int current, int capacity)
+    {
+        if (ball == null || capacity <= 0)
+        {
+            return current;
+        }
+
+        float sum = current + _energyResidue + Mathf.Max(0f, ball.Energy);
+        int next = Mathf.Min(capacity, Mathf.FloorToInt(sum + 1e-4f));
+        _energyResidue = Mathf.Max(0f, sum - next);
+        if (next >= capacity)
+        {
+            _energyResidue = 0f;
+        }
+
+        return next;
+    }
+
+    protected void ClearEnergyResidue()
+    {
+        _energyResidue = 0f;
+    }
+
+    float _energyResidue;
 }

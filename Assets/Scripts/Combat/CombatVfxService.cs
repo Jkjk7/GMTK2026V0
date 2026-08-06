@@ -14,6 +14,15 @@ public static class CombatVfxService
         Spawn("DeathAccent", position, PrototypeSprites.Square,
             new Color(0.71f, 0.51f, 0.28f, 1f), 0.32f, 0.82f);
 
+    /// <summary>金盾破碎：半透明碎块向外飞散。</summary>
+    public static void SpawnShieldShatter(Vector3 position, float size = 1f)
+    {
+        var go = new GameObject("ShieldShatter");
+        go.transform.position = position;
+        var fx = go.AddComponent<ShieldShatterVfx>();
+        fx.Initialize(size);
+    }
+
     static TransientSpriteVfx Spawn(
         string name, Vector3 position, Sprite sprite, Color color, float lifetime, float size)
     {

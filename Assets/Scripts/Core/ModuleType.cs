@@ -52,5 +52,29 @@ public enum ModuleType
     Surprise = 15,
 
     /// <summary>热浪：全屏灼烧攻击塔。</summary>
-    Heatwave = 16
+    Heatwave = 16,
+
+    /// <summary>查理激光炮：厚激光高伤，储能同炸弹。</summary>
+    LaserCannon = 17,
+
+    /// <summary>冰霜冻结：全屏寒冷（热浪对位）。</summary>
+    FrostFreeze = 18,
+
+    /// <summary>奥数飞弹：紫色索敌飞弹，锁定最右敌人。</summary>
+    ArcaneMissile = 19,
+
+    /// <summary>寒冰增幅：场上提高寒冷减速，总减速上限 70%。</summary>
+    IceAmp = 20,
+
+    /// <summary>烈焰墙：持续通道墙，穿过受伤并灼烧，按秒持续耗能。</summary>
+    FlameWall = 21,
+
+    /// <summary>火焰祝福：一次性将目标格变为火焰附魔。</summary>
+    FlameBlessing = 22,
+
+    /// <summary>净化：一次性清除目标格诅咒、锁定与附魔。</summary>
+    Purify = 23,
+
+    /// <summary>寒冰菇：战斗中一次性冻结全体敌人并施加寒冷。</summary>
+    FrostMushroom = 24
 }

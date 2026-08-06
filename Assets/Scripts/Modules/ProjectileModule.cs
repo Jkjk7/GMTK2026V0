@@ -41,6 +41,7 @@ public class ProjectileModule : ModuleBase
     public void ClearEnergy()
     {
         currentEnergy = 0;
+        ClearEnergyResidue();
         RefreshVisual();
     }
 
@@ -53,10 +54,9 @@ public class ProjectileModule : ModuleBase
     void ApplyLevelStats(int level)
     {
         int lvl = Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel);
-        damagePerShot = Mathf.RoundToInt(baseDamagePerShot * Mathf.Pow(1.8f, lvl - 1));
-        energyCapacity = baseEnergyCapacity + (lvl - 1) * 2;
-        // 约 +10% 射速 / 级
-        fireInterval = Mathf.Max(0.05f, 0.1f / (1f + 0.10f * (lvl - 1)));
+        damagePerShot = ModuleCatalog.GetDamagePerShot(lvl);
+        energyCapacity = ModuleCatalog.GetEnergyCapacity(lvl);
+        fireInterval = ModuleCatalog.GetFireInterval(lvl);
         currentEnergy = Mathf.Min(currentEnergy, energyCapacity);
         EnsureLevelLabel(lvl);
         RefreshVisual();
@@ -108,7 +108,13 @@ public class ProjectileModule : ModuleBase
 
         if (currentEnergy <= 0)
         {
-            _fireTimer = 0f;
+            // 能量不足时保持就绪：补能后立刻开火
+            _fireTimer = fireInterval * EnchantFireIntervalMultiplier;
+            return;
+        }
+
+        if (FindLeftmostEnemy() == null)
+        {
             return;
         }
 
@@ -131,8 +137,7 @@ public class ProjectileModule : ModuleBase
             return;
         }
 
-        int gain = ball.Energy;
-        currentEnergy = Mathf.Min(energyCapacity, currentEnergy + gain);
+        currentEnergy = AbsorbBallEnergy(ball, currentEnergy, energyCapacity);
         RefreshVisual();
     }
 
@@ -144,9 +149,6 @@ public class ProjectileModule : ModuleBase
         Enemy target = FindLeftmostEnemy();
         if (target == null)
         {
-            // 没有目标时仍消耗能量，避免能量卡死；也可改为不消耗，原型选择消耗。
-            currentEnergy = Mathf.Max(0, currentEnergy - 1);
-            RefreshVisual();
             return;
         }
 

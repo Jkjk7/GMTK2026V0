@@ -43,21 +43,11 @@ public static class CombatDamage
             enchant = source.BoundBoard.GetEnchant(source.Cell);
         }
 
-        float mult = 1f;
-        if (enchant == CellEnchant.DamageUp)
-        {
-            mult *= 1.2f;
-        }
-        else if (enchant == CellEnchant.Shrink)
-        {
-            mult *= 0.5f;
-        }
-
         bool wasBurning = target.IsBurning;
         bool wasChilled = target.IsChilled;
         bool melt = (fx.IsChillHit && wasBurning) || (fx.IsBurnHit && wasChilled);
 
-        int damage = Mathf.Max(1, Mathf.RoundToInt(rawDamage * mult));
+        int damage = CellEnchantRules.ScaleDamage(rawDamage, enchant);
         if (melt)
         {
             damage = Mathf.Max(1, Mathf.RoundToInt(damage * 1.5f));
@@ -76,7 +66,10 @@ public static class CombatDamage
 
         float burnSec = fx.ApplyBurnSeconds;
         float chillSec = fx.ApplyChillSeconds;
-        float chillPct = fx.ChillPercent > 0f ? fx.ChillPercent : ModuleCatalog.IceSlowPercent;
+        // [寒冷] 是状态；减速是其效果。实际减速 = 基础30% + 寒冰增幅，上限70%。
+        float chillPct = RunModifiers.Instance != null
+            ? RunModifiers.Instance.GetEffectiveChillSlowPercent()
+            : ModuleCatalog.IceSlowPercent;
 
         if (enchant == CellEnchant.Flame)
         {

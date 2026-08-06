@@ -62,11 +62,6 @@ public class BoardExpandService : MonoBehaviour
             return 0;
         }
 
-        if (RunModifiers.Instance != null && RunModifiers.Instance.NextExpandHalfPrice)
-        {
-            return Mathf.Max(1, baseCost / 2);
-        }
-
         return baseCost;
     }
 
@@ -98,7 +93,6 @@ public class BoardExpandService : MonoBehaviour
             return false;
         }
 
-        RunModifiers.Instance?.TryConsumeExpandHalfPrice();
         _unlockedSize = GetNextSize();
         RefreshLockVisuals();
         return true;

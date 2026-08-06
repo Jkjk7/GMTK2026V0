@@ -24,17 +24,20 @@ public class GameBootstrap : MonoBehaviour
 
     GameSkin _skin;
 
-    static bool s_autoSpawnChecked;
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    static void AutoSpawnIfMissing()
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
+    static void HookSceneLoaded()
     {
-        if (s_autoSpawnChecked)
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (!GameFlow.IsGameScene(scene.name))
         {
             return;
         }
 
-        s_autoSpawnChecked = true;
         if (FindObjectOfType<GameBootstrap>() != null)
         {
             return;
@@ -46,6 +49,7 @@ public class GameBootstrap : MonoBehaviour
 
     void Awake()
     {
+        GameSettings.EnsureLoaded();
         BuildPrototype();
     }
 
@@ -127,21 +131,6 @@ public class GameBootstrap : MonoBehaviour
         var sandClock = sandClockGo.AddComponent<SandClock>();
         sandClock.Initialize(session);
 
-        var ringGo = new GameObject("CountdownRing");
-        ringGo.transform.SetParent(worldRoot, false);
-        var ring = ringGo.AddComponent<CountdownRingView>();
-        Vector3 ringCenter = new Vector3(0f, 0.2f, 0f);
-        float ringRadius = 7.2f;
-        if (worldCam != null)
-        {
-            float depth = Mathf.Abs(worldCam.transform.position.z);
-            ringCenter = worldCam.ViewportToWorldPoint(new Vector3(0.38f, 0.53f, depth));
-            Vector3 ringEdge = worldCam.ViewportToWorldPoint(new Vector3(0.65f, 0.53f, depth));
-            ringRadius = Mathf.Abs(ringEdge.x - ringCenter.x);
-            ringCenter.z = 0f;
-        }
-        ring.Initialize(sandClock, ringCenter, ringRadius);
-
         emitter.Initialize(board, ballManager, session, sandClock);
 
         var ballHudGo = new GameObject("BallCountHud");
@@ -184,7 +173,6 @@ public class GameBootstrap : MonoBehaviour
         canvas.transform.SetParent(layoutGo.transform, false);
 
         CreateGameShell(canvas.transform);
-        CreateLanguageButton(canvas.transform, font);
 
         var audioGo = new GameObject("UIAudioFeedback");
         audioGo.transform.SetParent(layoutGo.transform, false);
@@ -271,12 +259,13 @@ public class GameBootstrap : MonoBehaviour
         placement.Initialize(
             board, hand, board.ModulesRoot, session, worldCam, _skin, waveManager, scrap, confirm, tooltip,
             boardExpand);
+        blessDirector.BindPlacement(placement);
 
         CreateHintLabel(canvas.transform, font);
         CreateBoardExpandHint(canvas.transform, font, boardExpand);
 
         ValidateRedirectorTable();
-        Debug.Log("[GameBootstrap] Roguelike25：稀有度 / 黑洞 / 祝福束缚 / 25 波。");
+        Debug.Log("[GameBootstrap] Roguelike：稀有度 / 黑洞 / 祝福束缚 / 26 波（终局 Boss）。");
     }
 
     void BuildHudAndWire(
@@ -320,6 +309,82 @@ public class GameBootstrap : MonoBehaviour
             tracker,
             uiAudio);
         layout.combatHud = combatHud;
+
+        CreateDeveloperToolsHud(canvas, font, waveManager);
+    }
+
+    void CreateDeveloperToolsHud(Transform canvas, Font font, WaveManager waveManager)
+    {
+        if (!GameSettings.DeveloperMode)
+        {
+            return;
+        }
+
+        var root = new GameObject("DeveloperToolsHud");
+        root.transform.SetParent(canvas, false);
+        var rootRt = root.AddComponent<RectTransform>();
+        rootRt.anchorMin = new Vector2(0.62f, 0.94f);
+        rootRt.anchorMax = new Vector2(0.985f, 0.985f);
+        rootRt.offsetMin = Vector2.zero;
+        rootRt.offsetMax = Vector2.zero;
+
+        var layout = root.AddComponent<HorizontalLayoutGroup>();
+        layout.spacing = 8f;
+        layout.childAlignment = TextAnchor.MiddleRight;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = true;
+
+        Button skipBtn = CreateDevToolButton(
+            root.transform,
+            font,
+            "SkipWaveButton",
+            GameLocalization.Text("Skip Wave", "跳过本波"),
+            new Color(0.28f, 0.14f, 0.12f, 0.95f),
+            out Text skipLabel);
+
+        Button goldBtn = CreateDevToolButton(
+            root.transform,
+            font,
+            "GoldPlusButton",
+            GameLocalization.Text("Gold +100", "金币+100"),
+            new Color(0.22f, 0.2f, 0.1f, 0.95f),
+            out _);
+
+        var hud = root.AddComponent<DeveloperToolsHud>();
+        hud.Initialize(waveManager, skipBtn, skipLabel, goldBtn);
+    }
+
+    static Button CreateDevToolButton(
+        Transform parent,
+        Font font,
+        string name,
+        string labelText,
+        Color bgColor,
+        out Text label)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.AddComponent<RectTransform>();
+        var image = go.AddComponent<Image>();
+        image.color = bgColor;
+        var button = go.AddComponent<Button>();
+        button.targetGraphic = image;
+
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(go.transform, false);
+        var labelRt = labelGo.AddComponent<RectTransform>();
+        StretchFull(labelRt);
+        label = labelGo.AddComponent<Text>();
+        label.font = font;
+        label.fontSize = 16;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = new Color(0.95f, 0.85f, 0.4f, 1f);
+        label.raycastTarget = false;
+        label.text = labelText;
+        return button;
     }
 
     static Transform CreateAnchor(Transform parent, string name, Vector3 worldPos)
@@ -544,52 +609,6 @@ public class GameBootstrap : MonoBehaviour
         return canvas;
     }
 
-    void CreateLanguageButton(Transform canvas, Font font)
-    {
-        var go = new GameObject("LanguageButton");
-        go.transform.SetParent(canvas, false);
-        var rt = go.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0.91f, 0.94f);
-        rt.anchorMax = new Vector2(0.985f, 0.985f);
-        rt.offsetMin = Vector2.zero;
-        rt.offsetMax = Vector2.zero;
-
-        var image = go.AddComponent<Image>();
-        image.color = new Color(0.12f, 0.09f, 0.16f, 0.96f);
-        var button = go.AddComponent<Button>();
-
-        var labelGo = new GameObject("Label");
-        labelGo.transform.SetParent(go.transform, false);
-        var labelRt = labelGo.AddComponent<RectTransform>();
-        StretchFull(labelRt);
-        var label = labelGo.AddComponent<Text>();
-        label.font = font;
-        label.fontSize = 20;
-        label.fontStyle = FontStyle.Bold;
-        label.alignment = TextAnchor.MiddleCenter;
-        label.color = new Color(1f, 0.84f, 0.46f, 1f);
-        label.raycastTarget = false;
-        label.text = GameLocalization.IsChinese ? "EN" : "中文";
-
-        button.onClick.AddListener(() =>
-        {
-            GameLanguage next = GameLocalization.IsChinese
-                ? GameLanguage.English
-                : GameLanguage.SimplifiedChinese;
-            GameLocalization.SetLanguage(next);
-
-            Scene active = SceneManager.GetActiveScene();
-            if (active.buildIndex >= 0)
-            {
-                SceneManager.LoadScene(active.buildIndex);
-            }
-            else if (!string.IsNullOrEmpty(active.name))
-            {
-                SceneManager.LoadScene(active.name);
-            }
-        });
-    }
-
     /// <summary>
     /// 外框背景。旧 ui_game_frame 按 80/20 布局绘制，与 60/40 新布局错位并遮挡棋盘，
     /// 暂时禁用（useLegacyFrame=false），先用程序化纯色分区验证布局；新背景资源就绪后再开回。
@@ -696,6 +715,14 @@ public class GameBootstrap : MonoBehaviour
     {
         if (image == null)
         {
+            return;
+        }
+
+        if (!CountdownArtResources.UseFormalEnvironmentArt)
+        {
+            image.sprite = PrototypeSprites.Square;
+            image.type = Image.Type.Simple;
+            image.color = new Color(0.12f, 0.14f, 0.18f, alpha);
             return;
         }
 
@@ -1046,6 +1073,8 @@ public class GameBootstrap : MonoBehaviour
 
         var buttons = new Button[3];
         var labels = new Text[3];
+        var icons = new Image[3];
+        var descs = new Text[3];
         float[] x0 = { 0.04f, 0.36f, 0.68f };
         float[] x1 = { 0.32f, 0.64f, 0.96f };
         for (int i = 0; i < 3; i++)
@@ -1053,7 +1082,7 @@ public class GameBootstrap : MonoBehaviour
             var btnGo = new GameObject($"Choice{i}");
             btnGo.transform.SetParent(root.transform, false);
             var brt = btnGo.AddComponent<RectTransform>();
-            brt.anchorMin = new Vector2(x0[i], 0.12f);
+            brt.anchorMin = new Vector2(x0[i], 0.08f);
             brt.anchorMax = new Vector2(x1[i], 0.78f);
             brt.offsetMin = Vector2.zero;
             brt.offsetMax = Vector2.zero;
@@ -1061,22 +1090,53 @@ public class GameBootstrap : MonoBehaviour
             img.color = new Color(0.18f, 0.22f, 0.28f, 1f);
             buttons[i] = btnGo.AddComponent<Button>();
 
+            var iconGo = new GameObject("Icon");
+            iconGo.transform.SetParent(btnGo.transform, false);
+            var iconRt = iconGo.AddComponent<RectTransform>();
+            iconRt.anchorMin = new Vector2(0.2f, 0.62f);
+            iconRt.anchorMax = new Vector2(0.8f, 0.92f);
+            iconRt.offsetMin = Vector2.zero;
+            iconRt.offsetMax = Vector2.zero;
+            icons[i] = iconGo.AddComponent<Image>();
+            icons[i].preserveAspect = true;
+            icons[i].raycastTarget = false;
+
             var lg = new GameObject("Label");
             lg.transform.SetParent(btnGo.transform, false);
             var lrt = lg.AddComponent<RectTransform>();
-            StretchFull(lrt);
+            lrt.anchorMin = new Vector2(0.06f, 0.38f);
+            lrt.anchorMax = new Vector2(0.94f, 0.62f);
+            lrt.offsetMin = Vector2.zero;
+            lrt.offsetMax = Vector2.zero;
             labels[i] = lg.AddComponent<Text>();
             labels[i].font = font;
-            labels[i].fontSize = 16;
+            labels[i].fontSize = 15;
+            labels[i].fontStyle = FontStyle.Bold;
             labels[i].alignment = TextAnchor.MiddleCenter;
             labels[i].color = Color.white;
             labels[i].raycastTarget = false;
             labels[i].horizontalOverflow = HorizontalWrapMode.Wrap;
             labels[i].verticalOverflow = VerticalWrapMode.Overflow;
+
+            var dg = new GameObject("Desc");
+            dg.transform.SetParent(btnGo.transform, false);
+            var drt = dg.AddComponent<RectTransform>();
+            drt.anchorMin = new Vector2(0.06f, 0.04f);
+            drt.anchorMax = new Vector2(0.94f, 0.38f);
+            drt.offsetMin = Vector2.zero;
+            drt.offsetMax = Vector2.zero;
+            descs[i] = dg.AddComponent<Text>();
+            descs[i].font = font;
+            descs[i].fontSize = 12;
+            descs[i].alignment = TextAnchor.UpperCenter;
+            descs[i].color = new Color(0.82f, 0.86f, 0.92f, 1f);
+            descs[i].raycastTarget = false;
+            descs[i].horizontalOverflow = HorizontalWrapMode.Wrap;
+            descs[i].verticalOverflow = VerticalWrapMode.Overflow;
         }
 
         var view = root.AddComponent<DraftChoiceView>();
-        view.Bind(group, title, buttons, labels);
+        view.Bind(group, title, buttons, labels, icons, descs);
         return view;
     }
 
@@ -1098,13 +1158,13 @@ public class GameBootstrap : MonoBehaviour
         var titleGo = new GameObject("Title");
         titleGo.transform.SetParent(root.transform, false);
         var titleRt = titleGo.AddComponent<RectTransform>();
-        titleRt.anchorMin = new Vector2(0.05f, 0.62f);
-        titleRt.anchorMax = new Vector2(0.95f, 0.95f);
+        titleRt.anchorMin = new Vector2(0.05f, 0.78f);
+        titleRt.anchorMax = new Vector2(0.95f, 0.96f);
         titleRt.offsetMin = Vector2.zero;
         titleRt.offsetMax = Vector2.zero;
         var title = titleGo.AddComponent<Text>();
         title.font = font;
-        title.fontSize = 26;
+        title.fontSize = 22;
         title.alignment = TextAnchor.MiddleCenter;
         title.color = new Color(0.95f, 0.9f, 0.45f, 1f);
         title.text = GameLocalization.Text("PREPARATION", "准备阶段");
@@ -1112,53 +1172,60 @@ public class GameBootstrap : MonoBehaviour
         var timerGo = new GameObject("Timer");
         timerGo.transform.SetParent(root.transform, false);
         var timerRt = timerGo.AddComponent<RectTransform>();
-        timerRt.anchorMin = new Vector2(0.05f, 0.38f);
-        timerRt.anchorMax = new Vector2(0.95f, 0.65f);
+        timerRt.anchorMin = new Vector2(0.05f, 0.64f);
+        timerRt.anchorMax = new Vector2(0.95f, 0.78f);
         timerRt.offsetMin = Vector2.zero;
         timerRt.offsetMax = Vector2.zero;
         var timer = timerGo.AddComponent<Text>();
         timer.font = font;
-        timer.fontSize = 36;
+        timer.fontSize = 22;
         timer.fontStyle = FontStyle.Bold;
         timer.alignment = TextAnchor.MiddleCenter;
         timer.color = new Color(0.25f, 0.55f, 0.35f, 1f);
-        timer.text = "00:20";
+        timer.text = GameLocalization.Text("Waiting…", "等待中…");
 
         var hintGo = new GameObject("Hint");
         hintGo.transform.SetParent(root.transform, false);
         var hintRt = hintGo.AddComponent<RectTransform>();
-        hintRt.anchorMin = new Vector2(0.05f, 0.22f);
-        hintRt.anchorMax = new Vector2(0.95f, 0.4f);
+        hintRt.anchorMin = new Vector2(0.05f, 0.52f);
+        hintRt.anchorMax = new Vector2(0.95f, 0.64f);
         hintRt.offsetMin = Vector2.zero;
         hintRt.offsetMax = Vector2.zero;
         var hint = hintGo.AddComponent<Text>();
         hint.font = font;
-        hint.fontSize = 16;
+        hint.fontSize = 14;
         hint.alignment = TextAnchor.MiddleCenter;
         hint.color = new Color(0.8f, 0.85f, 0.75f, 1f);
         hint.text = GameLocalization.Text("Buy, merge, and arrange modules", "购买、合成并调整模块");
 
-        var barBgGo = new GameObject("ProgressBg");
-        barBgGo.transform.SetParent(root.transform, false);
-        var barBgRt = barBgGo.AddComponent<RectTransform>();
-        barBgRt.anchorMin = new Vector2(0.1f, 0.12f);
-        barBgRt.anchorMax = new Vector2(0.9f, 0.2f);
-        barBgRt.offsetMin = Vector2.zero;
-        barBgRt.offsetMax = Vector2.zero;
-        var barBg = barBgGo.AddComponent<Image>();
-        barBg.color = new Color(0.15f, 0.18f, 0.16f, 0.9f);
+        // 原进度条 + 敌人条区域：居中色圆预览下波敌人
+        var previewGo = new GameObject("WavePreview");
+        previewGo.transform.SetParent(root.transform, false);
+        var previewRt = previewGo.AddComponent<RectTransform>();
+        previewRt.anchorMin = new Vector2(0.06f, 0.04f);
+        previewRt.anchorMax = new Vector2(0.94f, 0.50f);
+        previewRt.offsetMin = Vector2.zero;
+        previewRt.offsetMax = Vector2.zero;
 
-        var barFillGo = new GameObject("ProgressFill");
-        barFillGo.transform.SetParent(barBgGo.transform, false);
-        var barFillRt = barFillGo.AddComponent<RectTransform>();
-        StretchFull(barFillRt);
-        var barFill = barFillGo.AddComponent<Image>();
-        barFill.sprite = PrototypeSprites.Square;
-        barFill.type = Image.Type.Filled;
-        barFill.fillMethod = Image.FillMethod.Horizontal;
-        barFill.fillOrigin = (int)Image.OriginHorizontal.Left;
-        barFill.fillAmount = 1f;
-        barFill.color = new Color(0.35f, 0.85f, 0.55f, 0.95f);
+        var tipGo = new GameObject("PreviewTip");
+        tipGo.transform.SetParent(root.transform, false);
+        var tipRt = tipGo.AddComponent<RectTransform>();
+        tipRt.anchorMin = new Vector2(0.05f, -0.55f);
+        tipRt.anchorMax = new Vector2(0.95f, -0.05f);
+        tipRt.offsetMin = Vector2.zero;
+        tipRt.offsetMax = Vector2.zero;
+        var tip = tipGo.AddComponent<Text>();
+        tip.font = font;
+        tip.fontSize = 14;
+        tip.alignment = TextAnchor.UpperCenter;
+        tip.color = new Color(0.9f, 0.92f, 0.95f, 1f);
+        tip.raycastTarget = false;
+        tip.horizontalOverflow = HorizontalWrapMode.Wrap;
+        tip.verticalOverflow = VerticalWrapMode.Overflow;
+        tipGo.SetActive(false);
+
+        var preview = previewGo.AddComponent<WavePreviewStrip>();
+        preview.Bind(previewGo.transform, font, tip);
 
         var readyGo = new GameObject("ReadyButton");
         readyGo.transform.SetParent(canvas, false);
@@ -1202,7 +1269,7 @@ public class GameBootstrap : MonoBehaviour
         cd.raycastTarget = false;
 
         var panel = root.AddComponent<PrepPhasePanel>();
-        panel.Bind(title, timer, hint, cd, barFill, readyBtn, readyLabel, group, waves, session);
+        panel.Bind(title, timer, hint, cd, readyBtn, readyLabel, group, waves, session, preview);
         return panel;
     }
 
@@ -1214,7 +1281,7 @@ public class GameBootstrap : MonoBehaviour
         rt.anchorMin = new Vector2(0.5f, 0.5f);
         rt.anchorMax = new Vector2(0.5f, 0.5f);
         rt.pivot = new Vector2(0f, 1f);
-        rt.sizeDelta = new Vector2(340f, 300f);
+        rt.sizeDelta = new Vector2(440f, 560f);
         var group = root.AddComponent<CanvasGroup>();
         group.blocksRaycasts = false;
         group.interactable = false;
@@ -1253,6 +1320,7 @@ public class GameBootstrap : MonoBehaviour
             t.raycastTarget = false;
             t.horizontalOverflow = HorizontalWrapMode.Wrap;
             t.verticalOverflow = VerticalWrapMode.Overflow;
+            t.resizeTextForBestFit = false;
             return t;
         }
 
@@ -1264,8 +1332,8 @@ public class GameBootstrap : MonoBehaviour
         var iconGo = new GameObject("Icon");
         iconGo.transform.SetParent(moduleGo.transform, false);
         var iconRt = iconGo.AddComponent<RectTransform>();
-        iconRt.anchorMin = new Vector2(0.05f, 0.72f);
-        iconRt.anchorMax = new Vector2(0.26f, 0.95f);
+        iconRt.anchorMin = new Vector2(0.05f, 0.78f);
+        iconRt.anchorMax = new Vector2(0.22f, 0.96f);
         iconRt.offsetMin = Vector2.zero;
         iconRt.offsetMax = Vector2.zero;
         var icon = iconGo.AddComponent<Image>();
@@ -1275,38 +1343,40 @@ public class GameBootstrap : MonoBehaviour
         Text name = MakeText(
             moduleGo.transform,
             "Name",
-            new Vector2(0.3f, 0.82f), new Vector2(0.95f, 0.95f),
-            22, new Color(1f, 0.9f, 0.5f, 1f), FontStyle.Bold, TextAnchor.MiddleLeft);
+            new Vector2(0.26f, 0.86f), new Vector2(0.96f, 0.96f),
+            20, new Color(1f, 0.9f, 0.5f, 1f), FontStyle.Bold, TextAnchor.MiddleLeft);
 
         Text rarity = MakeText(
             moduleGo.transform,
             "Rarity",
-            new Vector2(0.3f, 0.72f), new Vector2(0.95f, 0.82f),
-            15, new Color(0.75f, 0.4f, 1f, 1f), FontStyle.Bold, TextAnchor.MiddleLeft);
+            new Vector2(0.26f, 0.78f), new Vector2(0.96f, 0.86f),
+            13, new Color(0.75f, 0.4f, 1f, 1f), FontStyle.Bold, TextAnchor.MiddleLeft);
 
         Text desc = MakeText(
             moduleGo.transform,
             "Description",
-            new Vector2(0.06f, 0.42f), new Vector2(0.94f, 0.7f),
-            17, new Color(0.92f, 0.94f, 0.96f, 1f), FontStyle.Normal, TextAnchor.UpperLeft);
+            new Vector2(0.05f, 0.64f), new Vector2(0.95f, 0.76f),
+            13, new Color(0.92f, 0.94f, 0.96f, 1f), FontStyle.Normal, TextAnchor.UpperLeft);
 
         Text stats = MakeText(
             moduleGo.transform,
             "Stats",
-            new Vector2(0.06f, 0.18f), new Vector2(0.94f, 0.4f),
-            15, new Color(0.75f, 0.88f, 1f, 1f), FontStyle.Normal, TextAnchor.UpperLeft);
+            new Vector2(0.05f, 0.10f), new Vector2(0.95f, 0.62f),
+            12, new Color(0.75f, 0.88f, 1f, 1f), FontStyle.Normal, TextAnchor.UpperLeft);
+        stats.supportRichText = true;
+        stats.lineSpacing = 1.05f;
 
         Text flavor = MakeText(
             moduleGo.transform,
             "Flavor",
-            new Vector2(0.06f, 0.03f), new Vector2(0.94f, 0.16f),
-            13, new Color(0.55f, 0.58f, 0.62f, 0.95f), FontStyle.Italic, TextAnchor.UpperLeft);
+            new Vector2(0.05f, 0.015f), new Vector2(0.95f, 0.09f),
+            11, new Color(0.55f, 0.58f, 0.62f, 0.95f), FontStyle.Italic, TextAnchor.UpperLeft);
 
         var enchantGo = new GameObject("EnchantBlock");
         enchantGo.transform.SetParent(root.transform, false);
         var enchantRt = enchantGo.AddComponent<RectTransform>();
         enchantRt.anchorMin = new Vector2(0.04f, 0.02f);
-        enchantRt.anchorMax = new Vector2(0.96f, 0.24f);
+        enchantRt.anchorMax = new Vector2(0.96f, 0.22f);
         enchantRt.offsetMin = Vector2.zero;
         enchantRt.offsetMax = Vector2.zero;
         var enchantBg = enchantGo.AddComponent<Image>();
@@ -1317,13 +1387,13 @@ public class GameBootstrap : MonoBehaviour
             enchantGo.transform,
             "EnchantTitle",
             new Vector2(0.04f, 0.55f), new Vector2(0.96f, 0.95f),
-            15, new Color(1f, 0.65f, 0.3f, 1f), FontStyle.Bold, TextAnchor.MiddleLeft);
+            14, new Color(1f, 0.65f, 0.3f, 1f), FontStyle.Bold, TextAnchor.MiddleLeft);
 
         Text enchantDesc = MakeText(
             enchantGo.transform,
             "EnchantDesc",
             new Vector2(0.04f, 0.08f), new Vector2(0.96f, 0.55f),
-            14, new Color(0.88f, 0.9f, 0.94f, 1f), FontStyle.Normal, TextAnchor.UpperLeft);
+            12, new Color(0.88f, 0.9f, 0.94f, 1f), FontStyle.Normal, TextAnchor.UpperLeft);
 
         enchantGo.SetActive(false);
 
@@ -1488,16 +1558,40 @@ public class GameBootstrap : MonoBehaviour
         titleGo.transform.SetParent(panelGo.transform, false);
         var titleRt = titleGo.AddComponent<RectTransform>();
         titleRt.anchorMin = new Vector2(0f, 1f);
-        titleRt.anchorMax = new Vector2(0.55f, 1f);
+        titleRt.anchorMax = new Vector2(0.38f, 1f);
         titleRt.pivot = new Vector2(0f, 1f);
         titleRt.anchoredPosition = new Vector2(8f, -4f);
         titleRt.sizeDelta = new Vector2(0f, 26f);
         var title = titleGo.AddComponent<Text>();
         title.font = font;
-        title.text = GameLocalization.Text("SHOP", "商店");
+        title.text = GameLocalization.Text("SHOP Lv1", "商店 Lv1");
         title.alignment = TextAnchor.MiddleLeft;
         title.color = new Color(0.7f, 0.7f, 0.8f);
-        title.fontSize = 18;
+        title.fontSize = 16;
+
+        var lockBtnGo = new GameObject("LockButton");
+        lockBtnGo.transform.SetParent(panelGo.transform, false);
+        var lockRt = lockBtnGo.AddComponent<RectTransform>();
+        lockRt.anchorMin = new Vector2(0.38f, 1f);
+        lockRt.anchorMax = new Vector2(0.55f, 1f);
+        lockRt.pivot = new Vector2(0.5f, 1f);
+        lockRt.anchoredPosition = new Vector2(0f, -4f);
+        lockRt.sizeDelta = new Vector2(0f, 26f);
+        var lockBg = lockBtnGo.AddComponent<Image>();
+        lockBg.color = new Color(0.18f, 0.2f, 0.26f, 0.95f);
+        var lockBtn = lockBtnGo.AddComponent<Button>();
+        lockBtn.targetGraphic = lockBg;
+        var lockLabelGo = new GameObject("Label");
+        lockLabelGo.transform.SetParent(lockBtnGo.transform, false);
+        var lockLabelRt = lockLabelGo.AddComponent<RectTransform>();
+        StretchFull(lockLabelRt);
+        var lockLabel = lockLabelGo.AddComponent<Text>();
+        lockLabel.font = font;
+        lockLabel.fontSize = 14;
+        lockLabel.alignment = TextAnchor.MiddleCenter;
+        lockLabel.color = new Color(0.9f, 0.88f, 0.75f, 1f);
+        lockLabel.text = GameLocalization.Text("Lock", "锁定");
+        lockLabel.raycastTarget = false;
 
         var refreshBtnGo = new GameObject("RefreshButton");
         refreshBtnGo.transform.SetParent(panelGo.transform, false);
@@ -1519,7 +1613,7 @@ public class GameBootstrap : MonoBehaviour
         refreshLabel.fontSize = 16;
         refreshLabel.alignment = TextAnchor.MiddleCenter;
         refreshLabel.color = new Color(0.95f, 0.85f, 0.4f, 1f);
-        refreshLabel.text = GameLocalization.Text("Refresh 3", "刷新 3");
+        refreshLabel.text = GameLocalization.Text("Refresh 5", "刷新 5");
         refreshLabel.raycastTarget = false;
 
         var listGo = new GameObject("Slots");
@@ -1542,6 +1636,7 @@ public class GameBootstrap : MonoBehaviour
 
         var shop = panelGo.AddComponent<ShopController>();
         refreshBtn.onClick.AddListener(shop.TryRefreshPaid);
+        lockBtn.onClick.AddListener(shop.ToggleLock);
 
         var slots = new ShopSlot[ShopController.SlotCount];
         for (int i = 0; i < ShopController.SlotCount; i++)
@@ -1549,7 +1644,7 @@ public class GameBootstrap : MonoBehaviour
             slots[i] = CreateShopSlot(listGo.transform, font, shop, i, skin);
         }
 
-        shop.Initialize(hand, slots, session, waves, refreshLabel);
+        shop.Initialize(hand, slots, session, waves, refreshLabel, title, lockLabel, lockBg);
         return shop;
     }
 
@@ -1865,7 +1960,7 @@ public class GameBootstrap : MonoBehaviour
             t.alignment = TextAnchor.MiddleCenter;
             t.color = Color.white;
             t.raycastTarget = false;
-            t.text = "25";
+            t.text = "26";
             return t;
         }
 

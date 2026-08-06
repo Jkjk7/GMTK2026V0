@@ -17,23 +17,42 @@ public static class CountdownArtRegressionChecks
             Require(CountdownVisualRules.IsWarning(20_000), "20,000 ms must enter warning state.");
             Require(!CountdownVisualRules.IsWarning(20_001), "20,001 ms must remain normal.");
 
-            foreach (ModuleType type in Enum.GetValues(typeof(ModuleType)))
+            if (CountdownArtResources.UseFormalArt)
             {
-                Require(ModuleSkinApplicator.HasStyle(type), $"Missing module visual style for {type}.");
-                Sprite direct = CountdownArtResources.LoadModuleSprite(type);
-                Sprite skinIcon = GameSkin.LoadOrCreateRuntime().GetModuleIcon(type);
-                Require(direct != null, $"Missing runtime module sprite for {type}.");
-                Require(direct != PrototypeSprites.Square, $"{type} still uses the square fallback.");
-                Require(skinIcon == direct, $"{type} does not use the shared module sprite.");
+                foreach (ModuleType type in Enum.GetValues(typeof(ModuleType)))
+                {
+                    Require(ModuleSkinApplicator.HasStyle(type), $"Missing module visual style for {type}.");
+                    Sprite direct = CountdownArtResources.LoadModuleSprite(type);
+                    Sprite skinIcon = GameSkin.LoadOrCreateRuntime().GetModuleIcon(type);
+                    Require(direct != null, $"Missing runtime module sprite for {type}.");
+                    Require(direct != PrototypeSprites.Square, $"{type} still uses the square fallback.");
+                    Require(skinIcon == direct, $"{type} does not use the shared module sprite.");
+                }
+
+                VisibleCountdownResourcesExist();
+                SharedModuleIconVisuals();
+                PlacedModuleUsesFormalSkin();
+                RingAndHourglassUseFormalArt();
+            }
+            else
+            {
+                // 原型方块模式：只强制沙漏正式图仍可加载；模块应回到方块
+                Require(
+                    Resources.Load<Texture2D>(CountdownArtResources.HourglassFramePath) != null,
+                    "Hourglass frame is not runtime-loadable.");
+                foreach (ModuleType type in Enum.GetValues(typeof(ModuleType)))
+                {
+                    Require(
+                        CountdownArtResources.LoadModuleSprite(type) == PrototypeSprites.Square,
+                        $"{type} should use prototype square while UseFormalArt=false.");
+                }
+
+                PrototypeModuleIconVisuals();
             }
 
-            VisibleCountdownResourcesExist();
             EnemyTypesHaveDistinctCountdownSilhouettes();
             EnemyStatusVisualsFollowAndClear();
             CombatAccentsAreBounded();
-            SharedModuleIconVisuals();
-            PlacedModuleUsesFormalSkin();
-            RingAndHourglassUseFormalArt();
 
             Require(SandClock.InitialSandMs == 100_000, "Initial sand gameplay constant changed.");
             Require(SandClock.BreachPenaltySwarmMs == 3_000, "Swarm penalty gameplay constant changed.");
@@ -154,6 +173,27 @@ public static class CountdownArtRegressionChecks
             Require(
                 Mathf.Approximately(image.color.a, ModuleIconVisuals.DisabledAlpha),
                 "Disabled module icon alpha is inconsistent.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(go);
+        }
+    }
+
+    static void PrototypeModuleIconVisuals()
+    {
+        var go = new GameObject("ModuleIconPrototypeRegression");
+        try
+        {
+            Image image = go.AddComponent<Image>();
+            ModuleIconVisuals.Apply(image, ModuleType.Spark);
+            Require(image.sprite == PrototypeSprites.Square, "Prototype UI icon must be a square.");
+            Color expected = ModuleCatalog.GetDisplayColor(ModuleType.Spark);
+            Require(
+                Mathf.Approximately(image.color.r, expected.r) &&
+                Mathf.Approximately(image.color.g, expected.g) &&
+                Mathf.Approximately(image.color.b, expected.b),
+                "Prototype UI icon should use module display color.");
         }
         finally
         {

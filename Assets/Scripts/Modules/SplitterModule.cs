@@ -19,7 +19,7 @@ public class SplitterModule : PathEffectModule
             return false;
         }
 
-        int energy = ball.Energy;
+        float energy = ball.Energy;
         float remLife = ball.RemainingLifetime * 0.5f;
         float speed = ball.SpeedCellsPerSecond;
         Vector3 center = Board.CellToWorld(Cell);
@@ -42,7 +42,7 @@ public class SplitterModule : PathEffectModule
         EnergyBallManager mgr,
         Vector3 center,
         GridDirection dir,
-        int energy,
+        float energy,
         float life,
         float speed)
     {

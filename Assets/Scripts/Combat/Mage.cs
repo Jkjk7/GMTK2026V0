@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// 终点法师：仅作为防线终点的占位视觉与位置锚点。
-/// 漏怪不再清屏扣命，改为按敌人类型向 SandClock 罚沙。
+/// 漏怪按类型罚沙；Boss 漏入则直接败北。
 /// </summary>
 public class Mage : MonoBehaviour
 {
@@ -18,10 +18,16 @@ public class Mage : MonoBehaviour
     }
 
     /// <summary>
-    /// 敌人到达终点：按类型罚沙（不清屏）。
+    /// 敌人到达终点：按类型罚沙；Boss 到达则立刻败北。
     /// </summary>
     public void OnEnemyBreach(EnemyGoldType type, bool sandBuff = false)
     {
+        if (type == EnemyGoldType.Boss)
+        {
+            SandClock.Instance?.ForceDefeat();
+            return;
+        }
+
         SandClock.Instance?.ApplyBreachPenalty(type, sandBuff);
     }
 

@@ -16,10 +16,16 @@ public class Enemy : MonoBehaviour
     float _baseScale = 0.9f;
     float _slowPercent;
     float _slowTimer;
+    float _freezeTimer;
     float _burnTimer;
     float _burnTickAcc;
     float _hitFlashTimer;
     Vector3 _externalPull;
+    float _shieldTimer;
+    bool _moveLocked;
+    const int ShieldBlockThreshold = 30;
+    SpriteRenderer _shieldAura;
+    SpriteRenderer _shieldRing;
 
     BattleLane _lane;
     Mage _mage;
@@ -28,11 +34,14 @@ public class Enemy : MonoBehaviour
 
     public bool IsAlive => _alive;
     public bool HasSandBuff => _sandBuff;
+    public bool IsFrozen => _freezeTimer > 0f;
     public bool IsBurning => _burnTimer > 0f;
     public bool IsChilled => _slowTimer > 0f && _slowPercent > 0f;
     public EnemyGoldType GoldType => goldType;
     public int MaxHitPoints => maxHitPoints;
     public int CurrentHitPoints => _currentHp;
+
+    EnemyHpBar _hpBar;
 
     public void Initialize(
         BattleLane lane,
@@ -52,10 +61,84 @@ public class Enemy : MonoBehaviour
         _alive = true;
         _slowPercent = 0f;
         _slowTimer = 0f;
+        _freezeTimer = 0f;
         _burnTimer = 0f;
         _burnTickAcc = 0f;
         _hitFlashTimer = 0f;
         EnsureVisual();
+        _hpBar = EnemyHpBar.Attach(this, goldType == EnemyGoldType.Boss);
+        _hpBar?.Refresh(_currentHp, maxHitPoints);
+
+        if (goldType == EnemyGoldType.Disassembler || goldType == EnemyGoldType.ShieldCaster)
+        {
+            var caster = GetComponent<EnemyCasterAbility>();
+            if (caster == null)
+            {
+                caster = gameObject.AddComponent<EnemyCasterAbility>();
+            }
+
+            caster.Initialize(this, goldType);
+        }
+    }
+
+    public void SetMoveLocked(bool locked)
+    {
+        _moveLocked = locked;
+    }
+
+    public bool HasDamageShield => _shieldTimer > 0f;
+
+    public void ApplyDamageShield(float durationSeconds)
+    {
+        if (!_alive || durationSeconds <= 0f)
+        {
+            return;
+        }
+
+        _shieldTimer = Mathf.Max(_shieldTimer, durationSeconds);
+        EnsureShieldFx();
+        SetShieldFxVisible(true);
+        RefreshDisplayColor();
+    }
+
+    public void ClearDamageShield(bool shatter = false)
+    {
+        if (_shieldTimer <= 0f)
+        {
+            return;
+        }
+
+        Vector3 pos = transform.position;
+        float size = Mathf.Max(0.6f, transform.localScale.x);
+        _shieldTimer = 0f;
+        SetShieldFxVisible(false);
+        RefreshDisplayColor();
+        if (shatter)
+        {
+            CombatVfxService.SpawnShieldShatter(pos, size);
+        }
+    }
+
+    public static void ClearAllDamageShields(bool shatter = false)
+    {
+        Enemy[] enemies = FindObjectsOfType<Enemy>();
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            enemies[i]?.ClearDamageShield(shatter);
+        }
+    }
+
+    public static void ApplyShieldToAllAlive(float durationSeconds)
+    {
+        Enemy[] enemies = FindObjectsOfType<Enemy>();
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            Enemy e = enemies[i];
+            if (e != null && e.IsAlive)
+            {
+                e.ApplyDamageShield(durationSeconds);
+            }
+        }
     }
 
     void ApplyTypeStats(EnemyGoldType type, int waveDisplay)
@@ -68,6 +151,8 @@ public class Enemy : MonoBehaviour
                 break;
             case EnemyGoldType.Tank:
             case EnemyGoldType.Boss:
+            case EnemyGoldType.Disassembler:
+            case EnemyGoldType.ShieldCaster:
                 _baseMoveSpeed = 0.75f;
                 break;
             default:
@@ -89,6 +174,21 @@ public class Enemy : MonoBehaviour
         _slowPercent = Mathf.Clamp01(Mathf.Max(_slowPercent, percent));
         _slowTimer = Mathf.Max(_slowTimer, duration);
         if (!wasSlowed)
+        {
+            RefreshDisplayColor();
+        }
+    }
+
+    public void ApplyFreeze(float duration)
+    {
+        if (!_alive || duration <= 0f)
+        {
+            return;
+        }
+
+        bool wasFrozen = IsFrozen;
+        _freezeTimer = Mathf.Max(_freezeTimer, duration);
+        if (!wasFrozen)
         {
             RefreshDisplayColor();
         }
@@ -189,10 +289,32 @@ public class Enemy : MonoBehaviour
             }
         }
 
+        if (_freezeTimer > 0f)
+        {
+            _freezeTimer -= Time.deltaTime;
+            if (_freezeTimer <= 0f)
+            {
+                _freezeTimer = 0f;
+                RefreshDisplayColor();
+            }
+        }
+
         TickBurn();
 
+        if (_shieldTimer > 0f)
+        {
+            _shieldTimer -= Time.deltaTime;
+            PulseShieldFx();
+            if (_shieldTimer <= 0f)
+            {
+                _shieldTimer = 0f;
+                SetShieldFxVisible(false);
+                RefreshDisplayColor();
+            }
+        }
+
         float haste = RunModifiers.Instance != null ? RunModifiers.Instance.EnemySpeedMult : 1f;
-        float speed = _baseMoveSpeed * haste * (1f - _slowPercent);
+        float speed = (_moveLocked || IsFrozen) ? 0f : _baseMoveSpeed * haste * (1f - _slowPercent);
         float newX = transform.position.x - speed * Time.deltaTime;
         Vector3 pos = new Vector3(newX, _lane.LaneY, 0f);
         if (_externalPull.sqrMagnitude > 0.000001f)
@@ -268,13 +390,26 @@ public class Enemy : MonoBehaviour
             return;
         }
 
+        if (_shieldTimer > 0f)
+        {
+            if (amount <= ShieldBlockThreshold)
+            {
+                FlashHit();
+                return;
+            }
+
+            ClearDamageShield(shatter: true);
+        }
+
         _currentHp = Mathf.Max(0, _currentHp - amount);
         if (DamageTracker.Instance != null)
         {
             DamageTracker.Instance.AddDamage(amount);
         }
 
+        DamageNumberPopup.TrySpawn(transform.position, amount);
         FlashHit();
+        _hpBar?.Refresh(_currentHp, maxHitPoints);
 
         if (_currentHp <= 0)
         {
@@ -292,6 +427,12 @@ public class Enemy : MonoBehaviour
         _alive = false;
         _waveManager?.UnregisterEnemy(this);
         Destroy(gameObject);
+    }
+
+    /// <summary>开发者跳波等：按正常击杀结算金币/爆沙。</summary>
+    public void KillForReward()
+    {
+        Die();
     }
 
     void ReachMage()
@@ -317,6 +458,11 @@ public class Enemy : MonoBehaviour
 
         _alive = false;
         Vector3 pos = transform.position;
+        if (goldType == EnemyGoldType.ShieldCaster)
+        {
+            ClearAllDamageShields(shatter: true);
+        }
+
         CombatVfxService.SpawnDeath(pos);
         int gold = WaveGoldBudget.Instance != null
             ? WaveGoldBudget.Instance.RollKillGold(goldType)
@@ -377,6 +523,87 @@ public class Enemy : MonoBehaviour
         }
     }
 
+    void EnsureShieldFx()
+    {
+        if (_shieldAura != null)
+        {
+            return;
+        }
+
+        var root = new GameObject("GoldShieldFx");
+        root.transform.SetParent(transform, false);
+        root.transform.localPosition = Vector3.zero;
+
+        var auraGo = new GameObject("Aura");
+        auraGo.transform.SetParent(root.transform, false);
+        _shieldAura = auraGo.AddComponent<SpriteRenderer>();
+        _shieldAura.sprite = PrototypeSprites.Circle;
+        _shieldAura.color = new Color(1f, 0.9f, 0.4f, 0.12f);
+        _shieldAura.sortingOrder = 13;
+
+        var ringGo = new GameObject("Ring");
+        ringGo.transform.SetParent(root.transform, false);
+        _shieldRing = ringGo.AddComponent<SpriteRenderer>();
+        _shieldRing.sprite = PrototypeSprites.Circle;
+        _shieldRing.color = new Color(1f, 0.95f, 0.6f, 0.28f);
+        _shieldRing.sortingOrder = 14;
+    }
+
+    void SetShieldFxVisible(bool visible)
+    {
+        if (!visible)
+        {
+            if (_shieldAura != null)
+            {
+                _shieldAura.gameObject.SetActive(false);
+            }
+
+            if (_shieldRing != null)
+            {
+                _shieldRing.gameObject.SetActive(false);
+            }
+
+            return;
+        }
+
+        EnsureShieldFx();
+        if (_shieldAura != null)
+        {
+            _shieldAura.gameObject.SetActive(true);
+        }
+
+        if (_shieldRing != null)
+        {
+            _shieldRing.gameObject.SetActive(true);
+        }
+
+        PulseShieldFx();
+    }
+
+    void PulseShieldFx()
+    {
+        if (!HasDamageShield || _shieldAura == null)
+        {
+            return;
+        }
+
+        float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 9f);
+        float aura = 1.7f + 0.12f * pulse;
+        float ring = 2.05f + 0.16f * pulse;
+        _shieldAura.transform.localScale = new Vector3(aura, aura, 1f);
+        Color ac = _shieldAura.color;
+        ac.a = 0.08f + 0.07f * pulse;
+        _shieldAura.color = ac;
+
+        if (_shieldRing != null)
+        {
+            _shieldRing.transform.localScale = new Vector3(ring, ring, 1f);
+            Color rc = _shieldRing.color;
+            rc.a = 0.18f + 0.12f * pulse;
+            _shieldRing.color = rc;
+        }
+    }
+
     Color GetTypeColor()
     {
         switch (goldType)
@@ -385,6 +612,10 @@ public class Enemy : MonoBehaviour
                 return new Color(0.95f, 0.85f, 0.2f, 1f);
             case EnemyGoldType.Tank:
                 return new Color(0.35f, 0.55f, 0.95f, 1f);
+            case EnemyGoldType.Disassembler:
+                return new Color(0.7f, 0.25f, 0.95f, 1f);
+            case EnemyGoldType.ShieldCaster:
+                return new Color(1f, 0.82f, 0.2f, 1f);
             case EnemyGoldType.Boss:
                 return new Color(1f, 0.45f, 0.08f, 1f);
             default:
@@ -395,6 +626,10 @@ public class Enemy : MonoBehaviour
     Color GetDisplayColor()
     {
         Color baseColor = GetTypeColor();
+        if (HasDamageShield)
+        {
+            baseColor = Color.Lerp(baseColor, new Color(1f, 0.95f, 0.55f, 1f), 0.22f);
+        }
         if (_sandBuff)
         {
             Color sand = new Color(0.55f, 1f, 0.92f, 1f);
@@ -411,6 +646,12 @@ public class Enemy : MonoBehaviour
         {
             Color iceTint = new Color(0.35f, 0.95f, 1f, 1f);
             baseColor = Color.Lerp(baseColor, iceTint, _sandBuff || IsBurning ? 0.4f : 0.72f);
+        }
+
+        if (IsFrozen)
+        {
+            Color freezeTint = new Color(0.82f, 0.98f, 1f, 1f);
+            baseColor = Color.Lerp(baseColor, freezeTint, 0.85f);
         }
 
         return baseColor;
@@ -455,7 +696,7 @@ public class Enemy : MonoBehaviour
             }
         }
 
-        _visual.sprite = goldType == EnemyGoldType.Tank
+        _visual.sprite = goldType == EnemyGoldType.Tank || goldType == EnemyGoldType.Disassembler
             ? PrototypeSprites.Square
             : PrototypeSprites.Circle;
         RefreshDisplayColor();
@@ -470,7 +711,9 @@ public class Enemy : MonoBehaviour
         {
             s = 0.4f;
         }
-        else if (goldType == EnemyGoldType.Tank)
+        else if (goldType == EnemyGoldType.Tank
+                 || goldType == EnemyGoldType.Disassembler
+                 || goldType == EnemyGoldType.ShieldCaster)
         {
             s = 1.25f;
         }

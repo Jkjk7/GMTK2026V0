@@ -5,11 +5,11 @@ using UnityEngine;
 /// </summary>
 public class SparkModule : ModuleBase
 {
-    [SerializeField] int energyCapacity = 20;
+    [SerializeField] int energyCapacity = 5;
     [SerializeField] int currentEnergy;
     [SerializeField] float fireInterval = 0.2f;
     [SerializeField] int energyPerShot = 1;
-    [SerializeField] int damagePerShot = 1;
+    [SerializeField] int damagePerShot = 5;
     [SerializeField] float burnDuration = 2f;
     [SerializeField] float spreadDegrees = 60f;
 
@@ -30,6 +30,7 @@ public class SparkModule : ModuleBase
     public void ClearEnergy()
     {
         currentEnergy = 0;
+        ClearEnergyResidue();
         RefreshVisual();
     }
 
@@ -101,6 +102,12 @@ public class SparkModule : ModuleBase
             return;
         }
 
+        // 与黑洞/炸弹一致：无目标时不空耗能量，蓄力条才能稳定显示
+        if (FindLeftmostEnemy() == null)
+        {
+            return;
+        }
+
         _fireTimer += Time.deltaTime;
         while (_fireTimer >= interval && currentEnergy >= energyPerShot)
         {
@@ -116,7 +123,7 @@ public class SparkModule : ModuleBase
             return;
         }
 
-        currentEnergy = Mathf.Min(energyCapacity, currentEnergy + ball.Energy);
+        currentEnergy = AbsorbBallEnergy(ball, currentEnergy, energyCapacity);
         RefreshVisual();
     }
 
@@ -125,8 +132,6 @@ public class SparkModule : ModuleBase
         Enemy target = FindLeftmostEnemy();
         if (target == null)
         {
-            currentEnergy = Mathf.Max(0, currentEnergy - energyPerShot);
-            RefreshVisual();
             return;
         }
 

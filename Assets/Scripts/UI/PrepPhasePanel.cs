@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 准备阶段顶部面板：倒计时、进度条、准备完毕、3-2-1。
+/// 准备阶段顶部面板：等待玩家就绪、下波敌人色圆、准备完毕、3-2-1。
 /// </summary>
 public class PrepPhasePanel : MonoBehaviour
 {
@@ -10,37 +10,36 @@ public class PrepPhasePanel : MonoBehaviour
     [SerializeField] Text timerText;
     [SerializeField] Text hintText;
     [SerializeField] Text countdownText;
-    [SerializeField] Image progressFill;
     [SerializeField] Button readyButton;
     [SerializeField] Text readyButtonLabel;
     [SerializeField] CanvasGroup rootGroup;
+    [SerializeField] WavePreviewStrip wavePreview;
 
     WaveManager _waves;
     GameSession _session;
-    bool _visible;
 
     public void Bind(
         Text title,
         Text timer,
         Text hint,
         Text countdown,
-        Image fill,
         Button ready,
         Text readyLabel,
         CanvasGroup group,
         WaveManager waves,
-        GameSession session)
+        GameSession session,
+        WavePreviewStrip preview = null)
     {
         titleText = title;
         timerText = timer;
         hintText = hint;
         countdownText = countdown;
-        progressFill = fill;
         readyButton = ready;
         readyButtonLabel = readyLabel;
         rootGroup = group;
         _waves = waves;
         _session = session;
+        wavePreview = preview;
 
         if (readyButton != null)
         {
@@ -50,7 +49,6 @@ public class PrepPhasePanel : MonoBehaviour
         if (_waves != null)
         {
             _waves.OnPrepStarted += OnPrepStarted;
-            _waves.OnPrepTick += OnPrepTick;
             _waves.OnCountdownDigit += OnCountdownDigit;
             _waves.OnCombatStarted += OnCombatStarted;
         }
@@ -78,7 +76,6 @@ public class PrepPhasePanel : MonoBehaviour
         }
 
         OnPrepStarted(_waves.CurrentWaveDisplay, _waves.PrepDuration);
-        OnPrepTick(_waves.PrepRemaining, _waves.PrepDuration);
     }
 
     void OnDestroy()
@@ -91,7 +88,6 @@ public class PrepPhasePanel : MonoBehaviour
         if (_waves != null)
         {
             _waves.OnPrepStarted -= OnPrepStarted;
-            _waves.OnPrepTick -= OnPrepTick;
             _waves.OnCountdownDigit -= OnCountdownDigit;
             _waves.OnCombatStarted -= OnCombatStarted;
         }
@@ -120,11 +116,17 @@ public class PrepPhasePanel : MonoBehaviour
                 $"第 {wave} 波准备阶段");
         }
 
+        if (timerText != null)
+        {
+            timerText.text = GameLocalization.Text("Waiting…", "等待中…");
+            timerText.color = new Color(0.2f, 0.45f, 0.25f, 1f);
+        }
+
         if (hintText != null)
         {
             hintText.text = GameLocalization.Text(
-                "Buy, merge, and arrange modules",
-                "购买、合成并调整模块");
+                "Buy, merge, and arrange — press Ready when done",
+                "购买、合成并调整模块 — 完成后按准备完毕");
         }
 
         if (countdownText != null)
@@ -132,32 +134,7 @@ public class PrepPhasePanel : MonoBehaviour
             countdownText.text = string.Empty;
         }
 
-        OnPrepTick(duration, duration);
-    }
-
-    void OnPrepTick(float remaining, float duration)
-    {
-        if (!_visible)
-        {
-            return;
-        }
-
-        if (timerText != null)
-        {
-            int sec = Mathf.CeilToInt(remaining);
-            timerText.text = string.Format("{0:00}:{1:00}", sec / 60, sec % 60);
-            timerText.color = remaining <= 5f
-                ? new Color(1f, 0.55f, 0.2f, 1f)
-                : new Color(0.2f, 0.45f, 0.25f, 1f);
-        }
-
-        if (progressFill != null && duration > 0.01f)
-        {
-            progressFill.fillAmount = Mathf.Clamp01(remaining / duration);
-            progressFill.color = remaining <= 5f
-                ? new Color(1f, 0.5f, 0.15f, 0.95f)
-                : new Color(0.35f, 0.85f, 0.55f, 0.95f);
-        }
+        wavePreview?.ShowForWave(wave);
     }
 
     void OnCountdownDigit(int digit)
@@ -194,11 +171,11 @@ public class PrepPhasePanel : MonoBehaviour
     void OnCombatStarted()
     {
         SetPrepVisible(false);
+        wavePreview?.Hide();
     }
 
     void SetPrepVisible(bool visible)
     {
-        _visible = visible;
         if (rootGroup != null)
         {
             rootGroup.alpha = visible ? 1f : 0f;

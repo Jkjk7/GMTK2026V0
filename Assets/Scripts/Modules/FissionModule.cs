@@ -11,7 +11,7 @@ public class FissionModule : PathEffectModule
     public const float BurstDuration = 0.5f;
     public const float SpawnSpeed = 8f;
     public const float SpawnLife = 12f;
-    public const int SpawnEnergy = 1;
+    public const float SpawnEnergy = 1f;
 
     [SerializeField] int storedEnergy;
     bool _bursting;
@@ -29,6 +29,7 @@ public class FissionModule : PathEffectModule
         StopAllCoroutines();
         _bursting = false;
         storedEnergy = 0;
+        ClearEnergyResidue();
         RefreshVisual();
     }
 
@@ -44,13 +45,20 @@ public class FissionModule : PathEffectModule
             return true;
         }
 
-        storedEnergy += ball.Energy;
+        // 裂变产物只穿行，不可再被核裂变吃掉（防无限）
+        if (ball.IgnoreFissionAbsorb)
+        {
+            return true;
+        }
+
+        storedEnergy = AbsorbBallEnergy(ball, storedEnergy, 9999);
         ball.Despawn();
         RefreshVisual();
 
         if (storedEnergy >= EnergyThreshold)
         {
             storedEnergy = 0;
+            ClearEnergyResidue();
             RefreshVisual();
             StartCoroutine(BurstRoutine(defaultExit));
         }
@@ -71,6 +79,7 @@ public class FissionModule : PathEffectModule
                 EnergyBall spawned = mgr.TrySpawnBall(center, exitDir, SpawnSpeed, SpawnLife, SpawnEnergy);
                 if (spawned != null)
                 {
+                    spawned.MarkIgnoreFissionAbsorb();
                     spawned.MarkCellTriggered(Cell);
                     spawned.NudgeAlongDirection(0.51f);
                 }

@@ -2,8 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 固定波次表：红/黄/蓝配额；「沙 buff」随机附着在普通怪上（非独立类型）。
-/// HP / 漏怪罚沙每 5 波跳档。后期不压数量。
+/// 固定波次表：红/黄/蓝/紫/金配额；沙 buff；HP 每 5 波跳档。
 /// </summary>
 public static class WaveSpawnBudget
 {
@@ -13,14 +12,16 @@ public static class WaveSpawnBudget
         public bool SandBuff;
     }
 
-    const int WaveCount = 25;
+    /// <summary>常规怪潮波数（不含终局 Boss 波）。</summary>
+    const int RegularWaveCount = 25;
+    /// <summary>总波数：25 常规 + 第 26 波终局 Boss。</summary>
+    public const int WaveCount = 26;
     public const float SandBuffPowerMult = 1.5f;
 
-    // 波1–5：无环教学区，压数量；波5 仅轻量黄潮试水
     static readonly int[] NormalCounts =
     {
         4, 5, 6, 8, 8,
-        14, 16, 18, 20, 24,
+        8, 11, 14, 18, 23,
         26, 28, 30, 32, 36,
         40, 44, 48, 52, 58,
         62, 66, 72, 78, 88
@@ -29,7 +30,7 @@ public static class WaveSpawnBudget
     static readonly int[] SwarmCounts =
     {
         0, 0, 0, 0, 4,
-        12, 16, 20, 26, 36,
+        7, 11, 16, 23, 34,
         40, 44, 48, 52, 60,
         68, 76, 84, 92, 104,
         112, 120, 130, 140, 160
@@ -38,35 +39,55 @@ public static class WaveSpawnBudget
     static readonly int[] TankCounts =
     {
         0, 0, 0, 0, 0,
-        0, 0, 2, 3, 5,
+        0, 0, 1, 2, 4,
         5, 6, 7, 8, 10,
         11, 12, 14, 16, 18,
         20, 22, 24, 26, 30
     };
 
-    /// <summary>沙 buff 基础数量（实际会 ±1 小幅浮动）。波1–5 不挂沙 buff。</summary>
+    /// <summary>紫拆：波15起；后期频率刻意压低。</summary>
+    static readonly int[] DisassemblerCounts =
+    {
+        0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0,
+        0, 0, 0, 0, 1,
+        1, 1, 1, 2, 2,
+        2, 2, 2, 2, 3
+    };
+
+    /// <summary>金盾：波21起。</summary>
+    static readonly int[] ShieldCasterCounts =
+    {
+        0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0,
+        1, 1, 1, 2, 2
+    };
+
     static readonly int[] SandBuffBaseCounts =
     {
         0, 0, 0, 0, 0,
-        2, 2, 2, 2, 2,
+        1, 2, 2, 2, 2,
         3, 3, 3, 3, 3,
         3, 3, 3, 3, 3,
         4, 4, 4, 4, 4
     };
 
+    // 后期加血：11–15→60，16–20→120，21–25→200
     static readonly int[] NormalHitPoints =
     {
         10, 10, 10, 10, 10,
         25, 25, 25, 25, 25,
-        50, 50, 50, 50, 50,
-        80, 80, 80, 80, 80,
-        130, 130, 130, 130, 130
+        60, 60, 60, 60, 60,
+        120, 120, 120, 120, 120,
+        200, 200, 200, 200, 200
     };
 
     static readonly float[] SpawnIntervals =
     {
         0.95f, 0.88f, 0.80f, 0.72f, 0.58f,
-        0.50f, 0.42f, 0.34f, 0.26f, 0.16f,
+        0.72f, 0.55f, 0.42f, 0.30f, 0.18f,
         0.38f, 0.30f, 0.24f, 0.18f, 0.12f,
         0.32f, 0.26f, 0.20f, 0.15f, 0.10f,
         0.28f, 0.22f, 0.16f, 0.12f, 0.08f
@@ -75,7 +96,7 @@ public static class WaveSpawnBudget
     public const int PointRed = 5;
     public const int PointYellow = 1;
     public const int PointBlue = 20;
-    public const int BossHitPoints = 100_000;
+    public const int BossHitPoints = 10_000;
 
     public static int GetStage(int waveDisplay)
     {
@@ -87,7 +108,10 @@ public static class WaveSpawnBudget
         switch (type)
         {
             case EnemyGoldType.Swarm: return PointYellow;
-            case EnemyGoldType.Tank: return PointBlue;
+            case EnemyGoldType.Tank:
+            case EnemyGoldType.Disassembler:
+            case EnemyGoldType.ShieldCaster:
+                return PointBlue;
             case EnemyGoldType.Boss: return PointBlue * 5;
             default: return PointRed;
         }
@@ -95,22 +119,29 @@ public static class WaveSpawnBudget
 
     public static List<SpawnEntry> BuildQueue(int waveDisplay)
     {
+        if (IsBossWave(waveDisplay))
+        {
+            return new List<SpawnEntry>(1)
+            {
+                new SpawnEntry { Type = EnemyGoldType.Boss, SandBuff = false }
+            };
+        }
+
         int index = GetWaveIndex(waveDisplay);
-        int total = NormalCounts[index] + SwarmCounts[index] + TankCounts[index];
-        var queue = new List<SpawnEntry>(total + 1);
+        int total = NormalCounts[index] + SwarmCounts[index] + TankCounts[index]
+                    + DisassemblerCounts[index] + ShieldCasterCounts[index];
+        var queue = new List<SpawnEntry>(total);
         AddType(queue, EnemyGoldType.Normal, NormalCounts[index]);
         AddType(queue, EnemyGoldType.Swarm, SwarmCounts[index]);
         AddType(queue, EnemyGoldType.Tank, TankCounts[index]);
+        AddType(queue, EnemyGoldType.Disassembler, DisassemblerCounts[index]);
+        AddType(queue, EnemyGoldType.ShieldCaster, ShieldCasterCounts[index]);
         Shuffle(queue);
         ApplySandBuffs(queue, SandBuffBaseCounts[index]);
-
-        if (waveDisplay >= WaveCount)
-        {
-            queue.Add(new SpawnEntry { Type = EnemyGoldType.Boss, SandBuff = false });
-        }
-
         return queue;
     }
+
+    public static bool IsBossWave(int waveDisplay) => waveDisplay >= WaveCount;
 
     public static List<SpawnEntry> BuildQueue(int waveDisplay, int pointBudget, int guaranteedTanks)
     {
@@ -124,7 +155,6 @@ public static class WaveSpawnBudget
             return;
         }
 
-        // 小幅浮动：base±1
         int count = baseCount + Random.Range(-1, 2);
         count = Mathf.Clamp(count, 0, queue.Count);
         if (count <= 0)
@@ -181,7 +211,9 @@ public static class WaveSpawnBudget
         int index = GetWaveIndex(waveDisplay);
         return NormalCounts[index] * PointRed
             + SwarmCounts[index] * PointYellow
-            + TankCounts[index] * PointBlue;
+            + TankCounts[index] * PointBlue
+            + DisassemblerCounts[index] * PointBlue
+            + ShieldCasterCounts[index] * PointBlue;
     }
 
     public static int GetGuaranteedTanks(int waveDisplay) => TankCounts[GetWaveIndex(waveDisplay)];
@@ -189,18 +221,20 @@ public static class WaveSpawnBudget
     public static int GetNormalCount(int waveDisplay) => NormalCounts[GetWaveIndex(waveDisplay)];
     public static int GetSwarmCount(int waveDisplay) => SwarmCounts[GetWaveIndex(waveDisplay)];
     public static int GetTankCount(int waveDisplay) => TankCounts[GetWaveIndex(waveDisplay)];
+    public static int GetDisassemblerCount(int waveDisplay) => DisassemblerCounts[GetWaveIndex(waveDisplay)];
+    public static int GetShieldCasterCount(int waveDisplay) => ShieldCasterCounts[GetWaveIndex(waveDisplay)];
     public static int GetSandBuffBaseCount(int waveDisplay) => SandBuffBaseCounts[GetWaveIndex(waveDisplay)];
 
     public static int GetEnemyCount(int waveDisplay)
     {
-        int index = GetWaveIndex(waveDisplay);
-        int n = NormalCounts[index] + SwarmCounts[index] + TankCounts[index];
-        if (waveDisplay >= WaveCount)
+        if (IsBossWave(waveDisplay))
         {
-            n += 1;
+            return 1;
         }
 
-        return n;
+        int index = GetWaveIndex(waveDisplay);
+        return NormalCounts[index] + SwarmCounts[index] + TankCounts[index]
+               + DisassemblerCounts[index] + ShieldCasterCounts[index];
     }
 
     public static int GetHitPoints(int waveDisplay, EnemyGoldType type, bool sandBuff = false)
@@ -218,6 +252,8 @@ public static class WaveSpawnBudget
                 hp = Mathf.CeilToInt(normalHp * 0.5f);
                 break;
             case EnemyGoldType.Tank:
+            case EnemyGoldType.Disassembler:
+            case EnemyGoldType.ShieldCaster:
                 hp = normalHp * 4;
                 break;
             default:
@@ -235,23 +271,24 @@ public static class WaveSpawnBudget
 
     public static int GetTotalHitPoints(int waveDisplay)
     {
+        if (IsBossWave(waveDisplay))
+        {
+            return BossHitPoints;
+        }
+
         int index = GetWaveIndex(waveDisplay);
         int normalHp = NormalHitPoints[index];
         int swarmHp = Mathf.CeilToInt(normalHp * 0.5f);
         int tankHp = normalHp * 4;
-        // 估算：按基础沙 buff 数 × 平均 1.5 加成摊到红怪上（近似）
         int total = NormalCounts[index] * normalHp
             + SwarmCounts[index] * swarmHp
-            + TankCounts[index] * tankHp;
+            + TankCounts[index] * tankHp
+            + DisassemblerCounts[index] * tankHp
+            + ShieldCasterCounts[index] * tankHp;
         int sandN = SandBuffBaseCounts[index];
         if (sandN > 0)
         {
             total += Mathf.RoundToInt(normalHp * (SandBuffPowerMult - 1f) * sandN);
-        }
-
-        if (waveDisplay >= WaveCount)
-        {
-            total += BossHitPoints;
         }
 
         return total;
@@ -259,6 +296,7 @@ public static class WaveSpawnBudget
 
     static int GetWaveIndex(int waveDisplay)
     {
-        return Mathf.Clamp(waveDisplay, 1, WaveCount) - 1;
+        // Boss 波复用第 25 波表行（仅作间隔等非配额查询兜底）。
+        return Mathf.Clamp(waveDisplay, 1, RegularWaveCount) - 1;
     }
 }

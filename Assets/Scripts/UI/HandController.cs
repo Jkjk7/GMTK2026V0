@@ -189,4 +189,23 @@ public class HandController : MonoBehaviour
         slot.Clear();
         return true;
     }
+
+    /// <summary>替换已有手牌内容（保留槽位）。</summary>
+    public bool TryReplaceCard(int index, ModuleCardData card)
+    {
+        HandSlot slot = GetSlot(index);
+        if (slot == null || !slot.IsOccupied)
+        {
+            return false;
+        }
+
+        bool keepSelected = _selectedIndex == index;
+        slot.SetCard(card);
+        if (keepSelected)
+        {
+            slot.SetSelected(true);
+        }
+
+        return true;
+    }
 }

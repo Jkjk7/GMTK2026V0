@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 雪花发射塔：弧线淡蓝白雪花弹；固定 30% 寒冷，升级加时长。
+/// 雪花发射塔：弧线淡蓝白雪花弹；施加 [寒冷]（基础减速 30%，可被寒冰增幅），升级加时长。
 /// </summary>
 public class IceLaserModule : ModuleBase
 {
@@ -32,6 +32,7 @@ public class IceLaserModule : ModuleBase
     public void ClearEnergy()
     {
         currentEnergy = 0;
+        ClearEnergyResidue();
         RefreshVisual();
     }
 
@@ -45,8 +46,8 @@ public class IceLaserModule : ModuleBase
     {
         int lvl = Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel);
         damagePerShot = ModuleCatalog.GetIceDamage(lvl);
-        energyCapacity = ModuleCatalog.GetEnergyCapacity(lvl);
-        fireInterval = ModuleCatalog.GetFireInterval(lvl);
+        energyCapacity = ModuleCatalog.GetIceEnergyCapacity(lvl);
+        fireInterval = ModuleCatalog.GetIceFireInterval(lvl);
         energyPerShot = ModuleCatalog.GetIceEnergyPerShot(lvl);
         slowPercent = ModuleCatalog.IceSlowPercent;
         slowDuration = ModuleCatalog.GetIceSlowDuration(lvl);
@@ -119,7 +120,7 @@ public class IceLaserModule : ModuleBase
             return;
         }
 
-        currentEnergy = Mathf.Min(energyCapacity, currentEnergy + ball.Energy);
+        currentEnergy = AbsorbBallEnergy(ball, currentEnergy, energyCapacity);
         RefreshVisual();
     }
 

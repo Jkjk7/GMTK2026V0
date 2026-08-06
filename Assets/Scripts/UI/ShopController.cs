@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 商店：扣费购买、恒定刷新价、阶段货架、买不起灰显；波末免费自动刷新。
+/// 商店：按商店等级刷货与刷新价；可锁定阻止下一波自动刷新（进入该波准备后自动解锁）。
 /// </summary>
 public class ShopController : MonoBehaviour
 {
@@ -15,14 +15,36 @@ public class ShopController : MonoBehaviour
     GameSession _session;
     WaveManager _waves;
     Text _refreshLabel;
+    Text _titleLabel;
+    Text _lockLabel;
+    Image _lockImage;
+    bool _locked;
     int _lastWaveSeen = -1;
+
+    public bool IsLocked => _locked;
 
     public int CurrentRefreshCost
     {
         get
         {
+            if (RunModifiers.Instance != null && RunModifiers.Instance.FreeRefreshes > 0)
+            {
+                return 0;
+            }
+
             int wave = _waves != null ? _waves.CurrentWaveDisplay : 1;
-            return ModulePricing.GetRefreshCost(wave);
+            int baseCost = ModulePricing.GetRefreshCost(wave);
+            int mult = RunModifiers.Instance != null ? RunModifiers.Instance.RefreshCostMultiplier : 1;
+            return Mathf.Max(0, baseCost * Mathf.Max(1, mult));
+        }
+    }
+
+    public int CurrentShopLevel
+    {
+        get
+        {
+            int wave = _waves != null ? _waves.CurrentWaveDisplay : 1;
+            return ModulePricing.GetShopLevel(wave);
         }
     }
 
@@ -31,13 +53,20 @@ public class ShopController : MonoBehaviour
         ShopSlot[] slots,
         GameSession session,
         WaveManager waves = null,
-        Text refreshLabel = null)
+        Text refreshLabel = null,
+        Text titleLabel = null,
+        Text lockLabel = null,
+        Image lockImage = null)
     {
         _hand = hand;
         _slots = slots;
         _session = session;
         _waves = waves;
         _refreshLabel = refreshLabel;
+        _titleLabel = titleLabel;
+        _lockLabel = lockLabel;
+        _lockImage = lockImage;
+        _locked = false;
         if (Economy.Instance != null)
         {
             Economy.Instance.OnGoldChanged += OnGoldChanged;
@@ -48,9 +77,15 @@ public class ShopController : MonoBehaviour
             _waves.OnPrepStarted += OnPrepStarted;
         }
 
+        if (RunModifiers.Instance != null)
+        {
+            RunModifiers.Instance.Changed += UpdateRefreshLabel;
+        }
+
         RerollShop();
         _lastWaveSeen = _waves != null ? _waves.CurrentWaveDisplay : 1;
         UpdateRefreshLabel();
+        UpdateLockVisual();
     }
 
     void OnDestroy()
@@ -64,19 +99,31 @@ public class ShopController : MonoBehaviour
         {
             _waves.OnPrepStarted -= OnPrepStarted;
         }
+
+        if (RunModifiers.Instance != null)
+        {
+            RunModifiers.Instance.Changed -= UpdateRefreshLabel;
+        }
     }
 
     void OnGoldChanged(int _) => RefreshAffordability();
 
     void OnPrepStarted(int wave, float duration)
     {
-        // 每一波结束后进入下一波准备时免费刷新；开局第 1 波已在 Initialize 刷过
-        if (wave <= 1)
+        // 锁定只保护「进入本波准备」这一次不刷新；开局后自动解锁，避免玩家忘了解锁
+        bool skipReroll = _locked;
+        if (_locked)
         {
-            return;
+            _locked = false;
+            UpdateLockVisual();
         }
 
-        RerollShop();
+        // 每一波结束后进入下一波准备时免费刷新（刚被锁定保护的那次除外）
+        if (wave > 1 && !skipReroll)
+        {
+            RerollShop();
+        }
+
         UpdateRefreshLabel();
     }
 
@@ -117,6 +164,13 @@ public class ShopController : MonoBehaviour
             return;
         }
 
+        if (RunModifiers.Instance != null && RunModifiers.Instance.TryConsumeFreeRefresh())
+        {
+            RerollShop();
+            UpdateRefreshLabel();
+            return;
+        }
+
         int cost = CurrentRefreshCost;
         if (Economy.Instance != null && !Economy.Instance.TrySpend(cost))
         {
@@ -144,14 +198,11 @@ public class ShopController : MonoBehaviour
 
             ModuleType type = ModuleCatalog.RollShopSlotType(i, wave);
             int level = 1;
-            if (ModuleCatalog.IsAttackModule(type) || type == ModuleType.FlameAmp)
+            if (ModulePricing.IsLevelableInShop(type))
             {
-                level = ModulePricing.RollAttackLevel(wave);
-            }
-            else if (type == ModuleType.Miner)
-            {
-                int rolled = ModulePricing.RollAttackLevel(wave);
-                level = Mathf.Clamp(rolled, 1, 3);
+                level = ModulePricing.ClampOfferLevelForType(
+                    type,
+                    ModulePricing.RollOfferLevel(wave));
             }
 
             int price = ModulePricing.GetShopPrice(type, level, wave);
@@ -178,8 +229,43 @@ public class ShopController : MonoBehaviour
         UpdateRefreshLabel();
     }
 
+    public void ToggleLock()
+    {
+        _locked = !_locked;
+        UpdateLockVisual();
+        UpdateRefreshLabel();
+    }
+
+    void UpdateLockVisual()
+    {
+        if (_lockLabel != null)
+        {
+            _lockLabel.text = _locked
+                ? GameLocalization.Text("Locked", "已锁定")
+                : GameLocalization.Text("Lock", "锁定");
+        }
+
+        if (_lockImage != null)
+        {
+            _lockImage.color = _locked
+                ? new Color(0.45f, 0.28f, 0.18f, 0.98f)
+                : new Color(0.18f, 0.2f, 0.26f, 0.95f);
+        }
+    }
+
     void UpdateRefreshLabel()
     {
+        int shopLv = CurrentShopLevel;
+        if (_titleLabel != null)
+        {
+            string lockTag = _locked
+                ? GameLocalization.Text(" [LOCK]", " [锁]")
+                : string.Empty;
+            _titleLabel.text = GameLocalization.Text(
+                $"SHOP Lv{shopLv}{lockTag}",
+                $"商店 Lv{shopLv}{lockTag}");
+        }
+
         if (_refreshLabel == null)
         {
             return;
@@ -187,7 +273,18 @@ public class ShopController : MonoBehaviour
 
         int cost = CurrentRefreshCost;
         bool can = Economy.Instance == null || Economy.Instance.CanAfford(cost);
-        _refreshLabel.text = GameLocalization.Text($"Refresh {cost}", $"刷新 {cost}");
+        int free = RunModifiers.Instance != null ? RunModifiers.Instance.FreeRefreshes : 0;
+        if (free > 0)
+        {
+            _refreshLabel.text = GameLocalization.Text(
+                $"Refresh FREE x{free}",
+                $"刷新 免费 x{free}");
+        }
+        else
+        {
+            _refreshLabel.text = GameLocalization.Text($"Refresh {cost}", $"刷新 {cost}");
+        }
+
         _refreshLabel.color = can
             ? new Color(0.95f, 0.85f, 0.4f, 1f)
             : new Color(0.5f, 0.35f, 0.3f, 1f);

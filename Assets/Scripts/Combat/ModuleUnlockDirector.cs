@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 每 3 波结束提供模块解锁三选一；满池时选项带「替换已有」。
+/// 前 15 波每 3 波、之后每 2 波提供一次模块解锁三选一；满池时选项带「替换已有」。
 /// </summary>
 public class ModuleUnlockDirector : MonoBehaviour
 {
@@ -20,7 +20,14 @@ public class ModuleUnlockDirector : MonoBehaviour
 
     public bool ShouldOfferAfterWave(int waveDisplay)
     {
-        return waveDisplay > 0 && waveDisplay % 3 == 0 && waveDisplay < 25;
+        if (waveDisplay <= 0 || waveDisplay >= WaveSpawnBudget.WaveCount)
+        {
+            return false;
+        }
+
+        return waveDisplay < 15
+            ? waveDisplay % 3 == 0
+            : waveDisplay % 2 == 0;
     }
 
     public void BeginDraft(int waveDisplay, Action onFinished)
@@ -96,10 +103,14 @@ public class ModuleUnlockDirector : MonoBehaviour
         list.Add(ModuleType.FireEnchant);
         list.Add(ModuleType.Surprise);
         list.Add(ModuleType.Heatwave);
+        list.Add(ModuleType.FrostFreeze);
+        list.Add(ModuleType.ArcaneMissile);
+        list.Add(ModuleType.FlameWall);
         // 寒冰/火花已在开局池，不再进解锁候选
         if (waveDisplay >= 6)
         {
             list.Add(ModuleType.FlameAmp);
+            list.Add(ModuleType.IceAmp);
         }
 
         // 史诗：偏后期
@@ -108,11 +119,19 @@ public class ModuleUnlockDirector : MonoBehaviour
             list.Add(ModuleType.BlackHole);
             list.Add(ModuleType.Fusion);
             list.Add(ModuleType.Fission);
+            list.Add(ModuleType.LaserCannon);
         }
 
         if (waveDisplay >= 12)
         {
             list.Add(ModuleType.Splitter);
+        }
+
+        if (waveDisplay >= 15)
+        {
+            list.Add(ModuleType.FlameBlessing);
+            list.Add(ModuleType.Purify);
+            list.Add(ModuleType.FrostMushroom);
         }
 
         return list;

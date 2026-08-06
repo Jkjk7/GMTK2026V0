@@ -162,10 +162,9 @@ public class CombatHUD : MonoBehaviour
         if (_session != null && _session.IsPreparing)
         {
             statusText.color = new Color(0.45f, 0.9f, 0.65f, 1f);
-            int sec = _waves != null ? Mathf.CeilToInt(_waves.PrepRemaining) : 0;
             statusText.text = GameLocalization.Text(
-                $"Wave {wave} prep {sec}s | Damage {damage}",
-                $"第 {wave} 波准备 {sec}s | 伤害 {damage}");
+                $"Wave {wave} prep | Damage {damage}",
+                $"第 {wave} 波准备中 | 伤害 {damage}");
             return;
         }
 

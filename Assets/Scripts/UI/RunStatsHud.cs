@@ -151,16 +151,22 @@ public class RunStatsHud : MonoBehaviour
         RunModifiers mod = RunModifiers.Instance;
         int burn = mod != null ? mod.GetBurnDamagePerTick() : RunModifiers.BaseBurnDamagePerTick;
         int burnExtra = mod != null ? mod.BurnDamageBonus + mod.FlameAmpBonus : 0;
+        float chillSlow = mod != null
+            ? mod.GetEffectiveChillSlowPercent()
+            : ModuleCatalog.IceSlowPercent;
+        float chillAmp = mod != null ? mod.IceAmpSlowBonus : 0f;
         float aoe = mod != null ? mod.AoeRadiusMult : 1f;
         float speed = mod != null ? mod.EnemySpeedMult : 1f;
         int enchants = _board != null ? _board.CountEnchants() : 0;
 
         _detail.text = GameLocalization.Text(
             $"Burn: {RunModifiers.BaseBurnDamagePerTick}+{burnExtra} = {burn} / {RunModifiers.BurnTickInterval:0.#}s\n" +
+            $"[Chill] slow: {chillSlow * 100f:0}% (base 30% + amp {chillAmp * 100f:0}%, cap 70%)\n" +
             $"Explosion / pull radius: ×{aoe:0.##}\n" +
             $"Enemy speed: ×{speed:0.##}\n" +
             $"Enchanted cells: {enchants}",
             $"灼烧：{RunModifiers.BaseBurnDamagePerTick}+{burnExtra} = {burn} / {RunModifiers.BurnTickInterval:0.#}秒\n" +
+            $"[寒冷]减速：{chillSlow * 100f:0}%（基础30% +增幅{chillAmp * 100f:0}%，上限70%）\n" +
             $"爆炸/吸引范围：×{aoe:0.##}\n" +
             $"敌人移速：×{speed:0.##}\n" +
             $"附魔格：{enchants}");

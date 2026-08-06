@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 中续器：吸收能量至 cap 20；储能&gt;0 时下一球刷新寿命并清空储能（不吸收）。
+/// 中续器：球穿过时汲取能量至 cap；已满则刷新球寿命并清空储能（不吞球）。
 /// </summary>
 public class RelayModule : PathEffectModule
 {
@@ -20,6 +20,7 @@ public class RelayModule : PathEffectModule
     public void ClearEnergy()
     {
         storedEnergy = 0;
+        ClearEnergyResidue();
         RefreshVisual();
     }
 
@@ -30,18 +31,18 @@ public class RelayModule : PathEffectModule
             return false;
         }
 
-        if (storedEnergy > 0)
+        if (storedEnergy >= EnergyCap)
         {
             ball.RefreshLifetime();
             storedEnergy = 0;
+            ClearEnergyResidue();
             RefreshVisual();
             return true;
         }
 
-        storedEnergy = Mathf.Min(EnergyCap, storedEnergy + ball.Energy);
-        ball.Despawn();
+        storedEnergy = AbsorbBallEnergy(ball, storedEnergy, EnergyCap);
         RefreshVisual();
-        return false;
+        return true;
     }
 
     public override void RefreshVisual()
@@ -73,15 +74,11 @@ public class RelayModule : PathEffectModule
 
         var fill = new GameObject("Fill");
         fill.transform.SetParent(bg.transform, false);
-        fill.transform.localPosition = new Vector3(-0.5f, 0f, 0f);
+        fill.transform.localPosition = Vector3.zero;
         fill.transform.localScale = new Vector3(0f, 1f, 1f);
         _hudFill = fill.AddComponent<SpriteRenderer>();
         _hudFill.sprite = PrototypeSprites.Square;
         _hudFill.color = new Color(0.3f, 1f, 0.7f, 1f);
         _hudFill.sortingOrder = 12;
-        var anchor = new GameObject("Anchor");
-        anchor.transform.SetParent(fill.transform, false);
-        // pivot left: scale.x grows to the right from -0.5 local
-        fill.transform.localPosition = Vector3.zero;
     }
 }

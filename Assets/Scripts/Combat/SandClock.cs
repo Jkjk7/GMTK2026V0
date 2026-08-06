@@ -3,7 +3,7 @@ using UnityEngine;
 
 /// <summary>
 /// 沙漏时间条：1 粒沙 = 1 毫秒。
-/// 击杀补沙仅来自「沙 buff」附着怪；漏怪罚沙每 5 波加档；后期沙怪爆沙更高但有上限。
+/// 补沙仅来自「沙 buff」怪击杀；波结束不再回沙。漏怪罚沙每 5 波加档。
 /// </summary>
 public class SandClock : MonoBehaviour
 {
@@ -12,8 +12,6 @@ public class SandClock : MonoBehaviour
     public const int BreachPenaltySwarmMs = 3_000;
     public const int BreachPenaltyNormalMs = 10_000;
     public const int BreachPenaltyTankMs = 30_000;
-
-    static readonly int[] ClearRewardByStage = { 6_000, 9_000, 12_000, 16_000, 20_000 };
 
     // 砍半后约 6→17.5s（配合漏怪加档，控制回沙）
     static readonly int[] SandBuffBurstByStage = { 6_000, 8_000, 11_000, 14_000, 17_500 };
@@ -25,7 +23,6 @@ public class SandClock : MonoBehaviour
     GameSession _session;
     int _remainingMs = InitialSandMs;
     int _waveDisplay = 1;
-    int _clearRewardMs;
 
     public int RemainingMs => _remainingMs;
     public int CurrentWaveDisplay => _waveDisplay;
@@ -117,6 +114,8 @@ public class SandClock : MonoBehaviour
                 baseMs = BreachPenaltySwarmMs;
                 break;
             case EnemyGoldType.Tank:
+            case EnemyGoldType.Disassembler:
+            case EnemyGoldType.ShieldCaster:
                 baseMs = BreachPenaltyTankMs;
                 break;
             case EnemyGoldType.Boss:
@@ -140,8 +139,6 @@ public class SandClock : MonoBehaviour
     public void BeginWave(int waveDisplay)
     {
         _waveDisplay = Mathf.Max(1, waveDisplay);
-        int stage = WaveSpawnBudget.GetStage(_waveDisplay);
-        _clearRewardMs = ClearRewardByStage[Mathf.Clamp(stage, 0, ClearRewardByStage.Length - 1)];
     }
 
     /// <summary>仅沙 buff 怪击杀爆沙；普通怪不反哺。</summary>
@@ -167,9 +164,18 @@ public class SandClock : MonoBehaviour
         // 无 buff 信息时不补沙
     }
 
-    public void GrantWaveClearReward()
+    /// <summary>Boss 漏入本家：沙漏清零并立刻败北。</summary>
+    public void ForceDefeat()
     {
-        AddSand(_clearRewardMs);
+        if (_remainingMs > 0)
+        {
+            int lost = _remainingMs;
+            _remainingMs = 0;
+            OnPenalty?.Invoke(lost);
+            OnSandChanged?.Invoke(_remainingMs);
+        }
+
+        _session?.SetDefeat();
     }
 
     void CheckDefeat()

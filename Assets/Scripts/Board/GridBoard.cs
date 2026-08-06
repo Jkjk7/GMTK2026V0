@@ -38,8 +38,7 @@ public class GridBoard : MonoBehaviour
         CellEnchant.Flame,
         CellEnchant.DamageUp,
         CellEnchant.Frost,
-        CellEnchant.Shrink,
-        CellEnchant.Cooldown
+        CellEnchant.Shrink
     };
 
     public float CellSize => cellSize;
@@ -187,7 +186,7 @@ public class GridBoard : MonoBehaviour
             return CellEnchant.None;
         }
 
-        return _enchants[coord.Col, coord.Row];
+        return CellEnchantRules.Normalize(_enchants[coord.Col, coord.Row]);
     }
 
     public void SetEnchant(GridCoord coord, CellEnchant enchant)
@@ -196,6 +195,8 @@ public class GridBoard : MonoBehaviour
         {
             return;
         }
+
+        enchant = CellEnchantRules.Normalize(enchant);
 
         if (enchant != CellEnchant.None && IsCursed(coord))
         {
@@ -247,6 +248,43 @@ public class GridBoard : MonoBehaviour
         return take;
     }
 
+    public int WeakenRandomBuildableCells(int count)
+    {
+        if (count <= 0 || _enchants == null)
+        {
+            return 0;
+        }
+
+        var candidates = new System.Collections.Generic.List<GridCoord>();
+        for (int col = 0; col < Width; col++)
+        {
+            for (int row = 0; row < Height; row++)
+            {
+                var c = new GridCoord(col, row);
+                if (!IsBuildableCell(c) || IsCursed(c))
+                {
+                    continue;
+                }
+
+                candidates.Add(c);
+            }
+        }
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            int j = Random.Range(i, candidates.Count);
+            (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
+        }
+
+        int take = Mathf.Min(count, candidates.Count);
+        for (int i = 0; i < take; i++)
+        {
+            SetEnchant(candidates[i], CellEnchant.Weak);
+        }
+
+        return take;
+    }
+
     public int CountEnchants()
     {
         if (_enchants == null)
@@ -277,7 +315,7 @@ public class GridBoard : MonoBehaviour
             case CellEnchant.DamageUp: return new Color(0.95f, 0.25f, 0.55f, 0.42f);
             case CellEnchant.Frost: return new Color(0.35f, 0.85f, 1f, 0.42f);
             case CellEnchant.Shrink: return new Color(0.65f, 0.35f, 0.95f, 0.42f);
-            case CellEnchant.Cooldown: return new Color(0.35f, 0.9f, 0.45f, 0.42f);
+            case CellEnchant.Weak: return new Color(0.72f, 0.52f, 0.2f, 0.42f);
             default: return new Color(0f, 0f, 0f, 0f);
         }
     }
@@ -531,6 +569,7 @@ public class GridBoard : MonoBehaviour
 
     void BuildCellVisuals()
     {
+        bool formal = CountdownArtResources.UseFormalEnvironmentArt;
         Sprite cellSprite = CountdownArtResources.LoadSprite(
             CountdownArtResources.BoardCellPath,
             PrototypeSprites.Square);
@@ -541,16 +580,31 @@ public class GridBoard : MonoBehaviour
                 var go = new GameObject($"Cell_{col}_{row}");
                 go.transform.SetParent(_cellsRoot, false);
                 go.transform.localPosition = LocalCellCenter(new GridCoord(col, row));
-                go.transform.localScale = CountdownArtResources.FitScale(
-                    cellSprite,
-                    cellSize * 0.92f,
-                    cellSize * 0.92f);
+                if (formal)
+                {
+                    go.transform.localScale = CountdownArtResources.FitScale(
+                        cellSprite,
+                        cellSize * 0.92f,
+                        cellSize * 0.92f);
+                }
+                else
+                {
+                    go.transform.localScale = Vector3.one * (cellSize * 0.92f);
+                }
 
                 var sr = go.AddComponent<SpriteRenderer>();
                 sr.sprite = cellSprite;
-                sr.color = ((col + row) % 2 == 0)
-                    ? Color.white
-                    : new Color(0.92f, 0.88f, 0.8f, 1f);
+                if (formal)
+                {
+                    sr.color = ((col + row) % 2 == 0)
+                        ? Color.white
+                        : new Color(0.92f, 0.88f, 0.8f, 1f);
+                }
+                else
+                {
+                    sr.color = ((col + row) % 2 == 0) ? evenCellColor : oddCellColor;
+                }
+
                 sr.sortingOrder = 0;
 
                 var cellView = go.AddComponent<GridCellView>();

@@ -167,8 +167,7 @@ public static class EnchantSeedUtil
         CellEnchant.Flame,
         CellEnchant.DamageUp,
         CellEnchant.Frost,
-        CellEnchant.Shrink,
-        CellEnchant.Cooldown
+        CellEnchant.Shrink
     };
 
     public static List<GridCoord> BuildTargets(

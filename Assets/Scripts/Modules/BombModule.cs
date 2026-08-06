@@ -5,14 +5,14 @@ using UnityEngine;
 /// </summary>
 public class BombModule : ModuleBase
 {
-    [SerializeField] int energyCapacity = 20;
+    [SerializeField] int energyCapacity = 5;
     [SerializeField] int currentEnergy;
     [SerializeField] float fireInterval = 1f / 1.5f;
     [SerializeField] int energyPerShot = 5;
     [SerializeField] int damage = 15;
     [SerializeField] float aoeRadius = 1.5f;
 
-    float _fireTimer;
+    float _cooldown;
     SpriteRenderer _body;
     Transform _energyHud;
     SpriteRenderer _energyHudFill;
@@ -28,6 +28,8 @@ public class BombModule : ModuleBase
     public void ClearEnergy()
     {
         currentEnergy = 0;
+        _cooldown = 0f;
+        ClearEnergyResidue();
         RefreshVisual();
     }
 
@@ -42,9 +44,9 @@ public class BombModule : ModuleBase
         int lvl = Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel);
         damage = ModuleCatalog.GetBombDamage(lvl);
         aoeRadius = ModuleCatalog.GetBombRadius(lvl);
-        energyCapacity = 20 + (lvl - 1) * 2;
+        energyCapacity = ModuleCatalog.GetBombEnergyCapacity(lvl);
         currentEnergy = Mathf.Min(currentEnergy, energyCapacity);
-        fireInterval = 1f / 1.5f;
+        fireInterval = ModuleCatalog.GetBombFireInterval(lvl);
         EnsureLevelLabel(lvl);
         RefreshVisual();
     }
@@ -90,15 +92,13 @@ public class BombModule : ModuleBase
 
     void Update()
     {
-        if (currentEnergy < energyPerShot)
+        float interval = fireInterval * EnchantFireIntervalMultiplier;
+        if (_cooldown > 0f)
         {
-            _fireTimer = 0f;
-            return;
+            _cooldown -= Time.deltaTime;
         }
 
-        float interval = fireInterval * EnchantFireIntervalMultiplier;
-        _fireTimer += Time.deltaTime;
-        if (_fireTimer < interval)
+        if (currentEnergy < energyPerShot || _cooldown > 0f)
         {
             return;
         }
@@ -106,13 +106,11 @@ public class BombModule : ModuleBase
         Enemy target = FindLeftmostEnemy();
         if (target == null)
         {
-            // 有能无怪：保持就绪，不空耗能量也不推进射速节拍
-            _fireTimer = interval;
             return;
         }
 
-        _fireTimer -= interval;
         currentEnergy -= energyPerShot;
+        _cooldown = interval;
         Vector3 aim = target.transform.position;
         aim.z = 0f;
         var go = new GameObject("BombProjectile");
@@ -128,7 +126,7 @@ public class BombModule : ModuleBase
             return;
         }
 
-        currentEnergy = Mathf.Min(energyCapacity, currentEnergy + ball.Energy);
+        currentEnergy = AbsorbBallEnergy(ball, currentEnergy, energyCapacity);
         RefreshVisual();
     }
 

@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
-/// 三选一草稿：模块发现，或通用文本选项（发射器强化等）。
+/// 三选一草稿：模块发现（图标+描述），或通用文本选项。
 /// </summary>
 public class DraftChoiceView : MonoBehaviour
 {
@@ -18,23 +19,40 @@ public class DraftChoiceView : MonoBehaviour
     [SerializeField] Text titleText;
     [SerializeField] Button[] buttons;
     [SerializeField] Text[] buttonLabels;
+    [SerializeField] Image[] buttonIcons;
+    [SerializeField] Text[] buttonDescs;
 
     Action<Option> _onPick;
     Action<int> _onPickIndex;
     Action _onSkip;
     readonly List<Option> _options = new List<Option>();
+    DraftChoiceHoverTarget[] _hovers;
     int _customCount;
 
-    public void Bind(CanvasGroup canvasGroup, Text title, Button[] btns, Text[] labels)
+    public void Bind(
+        CanvasGroup canvasGroup,
+        Text title,
+        Button[] btns,
+        Text[] labels,
+        Image[] icons = null,
+        Text[] descs = null)
     {
         group = canvasGroup;
         titleText = title;
         buttons = btns;
         buttonLabels = labels;
+        buttonIcons = icons;
+        buttonDescs = descs;
+        _hovers = new DraftChoiceHoverTarget[buttons.Length];
         for (int i = 0; i < buttons.Length; i++)
         {
             int idx = i;
             buttons[i].onClick.AddListener(() => OnClick(idx));
+            _hovers[i] = buttons[i].GetComponent<DraftChoiceHoverTarget>();
+            if (_hovers[i] == null)
+            {
+                _hovers[i] = buttons[i].gameObject.AddComponent<DraftChoiceHoverTarget>();
+            }
         }
 
         Hide();
@@ -52,6 +70,7 @@ public class DraftChoiceView : MonoBehaviour
         _onPickIndex = null;
         _onSkip = onSkip;
         _customCount = 0;
+        ClearHovers();
 
         if (titleText != null)
         {
@@ -70,9 +89,10 @@ public class DraftChoiceView : MonoBehaviour
             }
 
             Option opt = _options[i];
+            ModuleRarity rarity = ModuleCatalog.GetRarity(opt.AddType);
             string name = ModuleCatalog.GetDisplayName(opt.AddType);
-            string tag = ModuleCatalog.GetTag(opt.AddType);
-            string line = string.IsNullOrEmpty(tag) ? name : $"{name}\n[{tag}]";
+            string rarityName = ModuleCatalog.GetRarityName(rarity);
+            string line = $"{name}\n[{rarityName}]";
             if (opt.ReplaceType.HasValue)
             {
                 line += GameLocalization.Text(
@@ -83,6 +103,24 @@ public class DraftChoiceView : MonoBehaviour
             if (buttonLabels != null && i < buttonLabels.Length && buttonLabels[i] != null)
             {
                 buttonLabels[i].text = line;
+                buttonLabels[i].color = ModuleCatalog.GetRarityColor(rarity);
+            }
+
+            if (buttonIcons != null && i < buttonIcons.Length && buttonIcons[i] != null)
+            {
+                buttonIcons[i].gameObject.SetActive(true);
+                ModuleIconVisuals.Apply(buttonIcons[i], opt.AddType);
+            }
+
+            if (buttonDescs != null && i < buttonDescs.Length && buttonDescs[i] != null)
+            {
+                buttonDescs[i].gameObject.SetActive(true);
+                buttonDescs[i].text = ModuleCatalog.GetDescription(opt.AddType);
+            }
+
+            if (_hovers != null && i < _hovers.Length && _hovers[i] != null)
+            {
+                _hovers[i].SetModule(opt.AddType);
             }
         }
 
@@ -96,6 +134,7 @@ public class DraftChoiceView : MonoBehaviour
         _onPickIndex = onPick;
         _onSkip = onSkip;
         _customCount = labels != null ? labels.Count : 0;
+        ClearHovers();
 
         if (titleText != null)
         {
@@ -116,6 +155,17 @@ public class DraftChoiceView : MonoBehaviour
             if (buttonLabels != null && i < buttonLabels.Length && buttonLabels[i] != null)
             {
                 buttonLabels[i].text = labels[i];
+                buttonLabels[i].color = Color.white;
+            }
+
+            if (buttonIcons != null && i < buttonIcons.Length && buttonIcons[i] != null)
+            {
+                buttonIcons[i].gameObject.SetActive(false);
+            }
+
+            if (buttonDescs != null && i < buttonDescs.Length && buttonDescs[i] != null)
+            {
+                buttonDescs[i].gameObject.SetActive(false);
             }
         }
 
@@ -124,11 +174,26 @@ public class DraftChoiceView : MonoBehaviour
 
     public void Hide()
     {
+        ClearHovers();
+        ModuleTooltipView.HideAll();
         _onPick = null;
         _onPickIndex = null;
         _onSkip = null;
         _customCount = 0;
         SetVisible(false);
+    }
+
+    void ClearHovers()
+    {
+        if (_hovers == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < _hovers.Length; i++)
+        {
+            _hovers[i]?.Clear();
+        }
     }
 
     void SetVisible(bool visible)
@@ -143,6 +208,8 @@ public class DraftChoiceView : MonoBehaviour
         if (visible)
         {
             gameObject.SetActive(true);
+            // 盖过「查看已有增幅」等后创建的 HUD，避免挡住选项点击
+            transform.SetAsLastSibling();
         }
     }
 
@@ -180,5 +247,37 @@ public class DraftChoiceView : MonoBehaviour
             Hide();
             skip?.Invoke();
         }
+    }
+}
+
+/// <summary>模块三选一选项悬停：显示与商店/手牌相同的描述弹窗。</summary>
+public class DraftChoiceHoverTarget : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+{
+    ModuleCardData _card;
+    bool _enabled;
+
+    public void SetModule(ModuleType type)
+    {
+        _card = ModuleCardData.Create(type, 1, 0);
+        _enabled = true;
+    }
+
+    public void Clear()
+    {
+        _enabled = false;
+        ModuleTooltipView.EndHover(this);
+    }
+
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        if (_enabled)
+        {
+            ModuleTooltipView.BeginHover(this, _card);
+        }
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        ModuleTooltipView.EndHover(this);
     }
 }

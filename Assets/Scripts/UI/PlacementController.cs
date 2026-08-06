@@ -35,12 +35,13 @@ public class PlacementController : MonoBehaviour
     float _pendingTimeout;
     SpriteRenderer _pendingOutline;
 
-    // 棋盘拖移（确认后移动）
+    // 棋盘拖移（确认后移动 / 互换）
     bool _boardDragging;
     ModuleBase _boardDragModule;
     GridCoord _boardDragFrom;
     GridCoord? _pendingMoveTo;
     ModuleBase _pendingMoveModule;
+    ModuleBase _pendingSwapPartner;
 
     // 商店拖到棋盘：购买并放置
     bool _shopDragging;
@@ -359,10 +360,15 @@ public class PlacementController : MonoBehaviour
             if (_board.TryWorldToCell(mouseWorld, out GridCoord cell))
             {
                 ModuleBase occupant = _board.GetModule(cell);
+                bool canFuse = occupant != null &&
+                               occupant.CardData.CanFuseWith(_boardDragModule.CardData);
+                bool canSwap = occupant != null &&
+                               !occupant.IsPermanentlyLocked &&
+                               CanPlaceTypeAt(_boardDragModule.ModuleType, cell) &&
+                               CanPlaceTypeAt(occupant.ModuleType, _boardDragFrom);
                 bool canDrop = (_board.CanPlace(cell) && CanPlaceTypeAt(_boardDragModule.ModuleType, cell)) ||
-                               (occupant != null &&
-                                !occupant.IsPermanentlyLocked &&
-                                occupant.CardData.CanFuseWith(_boardDragModule.CardData));
+                               canFuse ||
+                               canSwap;
                 UpdateCellHover(cell, canDrop);
             }
             else
@@ -404,19 +410,49 @@ public class PlacementController : MonoBehaviour
         }
 
         ModuleBase occupant = _board.GetModule(to);
-        if (occupant != null &&
-            !occupant.IsPermanentlyLocked &&
-            occupant.CardData.CanFuseWith(mod.CardData))
+        if (occupant != null)
         {
-            if (TryApplyBoardFuse(occupant, to, mod.CardData))
+            if (occupant.CardData.CanFuseWith(mod.CardData))
             {
-                Destroy(mod.gameObject);
-            }
-            else
-            {
-                _board.TryPlaceModule(_boardDragFrom, mod);
+                if (TryApplyBoardFuse(occupant, to, mod.CardData))
+                {
+                    Destroy(mod.gameObject);
+                }
+                else
+                {
+                    _board.TryPlaceModule(_boardDragFrom, mod);
+                }
+
+                return;
             }
 
+            // 诅咒锁定：不可互换
+            if (occupant.IsPermanentlyLocked)
+            {
+                _board.TryPlaceModule(_boardDragFrom, mod);
+                return;
+            }
+
+            // 不可合成 → 互换位置
+            if (!CanPlaceTypeAt(mod.ModuleType, to) ||
+                !CanPlaceTypeAt(occupant.ModuleType, _boardDragFrom))
+            {
+                _board.TryPlaceModule(_boardDragFrom, mod);
+                return;
+            }
+
+            if (_session == null || _session.IsPreparing)
+            {
+                if (!TryExecuteBoardSwap(_boardDragFrom, to, mod, occupant))
+                {
+                    _board.TryPlaceModule(_boardDragFrom, mod);
+                }
+
+                return;
+            }
+
+            mod.transform.position = _board.CellToWorld(to);
+            BeginSwapConfirm(_boardDragFrom, to, mod, occupant);
             return;
         }
 
@@ -446,6 +482,7 @@ public class PlacementController : MonoBehaviour
     {
         _pendingMoveTo = to;
         _pendingMoveModule = mod;
+        _pendingSwapPartner = null;
         _boardDragFrom = from;
         _pendingTimeout = PendingTimeoutSeconds;
         ShowPendingOutline(mod);
@@ -485,6 +522,81 @@ public class PlacementController : MonoBehaviour
             () => CancelPendingMove(restore: true));
     }
 
+    void BeginSwapConfirm(GridCoord from, GridCoord to, ModuleBase mod, ModuleBase partner)
+    {
+        _pendingMoveTo = to;
+        _pendingMoveModule = mod;
+        _pendingSwapPartner = partner;
+        _boardDragFrom = from;
+        _pendingTimeout = PendingTimeoutSeconds;
+        ShowPendingOutline(mod);
+
+        bool inCombat = _session != null && _session.IsCombatActive;
+        int wave = _waves != null ? _waves.CurrentWaveDisplay : 1;
+        int costA = ModulePricing.GetDismantleCost(mod.CardData, wave, inCombat);
+        int costB = ModulePricing.GetDismantleCost(partner.CardData, wave, inCombat);
+        int cost = costA + costB;
+        bool canAfford = cost <= 0 || Economy.Instance == null || Economy.Instance.CanAfford(cost);
+
+        string nameA = ModuleCatalog.GetDisplayName(mod.CardData);
+        string nameB = ModuleCatalog.GetDisplayName(partner.CardData);
+        string feeLine = GameLocalization.Text(
+            $"Combat swap cost: {cost} gold ({costA}+{costB}, both dismantle fees)",
+            $"战斗中互换费用：{cost} 金币（{costA}+{costB}，双方拆除费）");
+        string warn = canAfford
+            ? string.Empty
+            : GameLocalization.Text("Insufficient Gold", "金币不足");
+        if (!canAfford)
+        {
+            Economy.Instance?.NotifyInsufficient();
+        }
+
+        string confirmText = cost > 0
+            ? GameLocalization.Text($"Confirm Swap -{cost}", $"确认互换 -{cost}")
+            : GameLocalization.Text("Confirm Swap", "确认互换");
+        _confirm?.Show(
+            GameLocalization.Text(
+                $"Swap \"{nameA}\" ↔ \"{nameB}\"?",
+                $"互换「{nameA}」↔「{nameB}」？"),
+            GameLocalization.Text(
+                $"{feeLine}\n({from.Col},{from.Row}) ↔ ({to.Col},{to.Row})",
+                $"{feeLine}\n({from.Col},{from.Row}) ↔ ({to.Col},{to.Row})"),
+            confirmText,
+            canAfford,
+            warn,
+            ExecutePendingMove,
+            () => CancelPendingMove(restore: true));
+    }
+
+    bool TryExecuteBoardSwap(GridCoord from, GridCoord to, ModuleBase mod, ModuleBase partner)
+    {
+        if (mod == null || partner == null || _board == null)
+        {
+            return false;
+        }
+
+        if (!_board.TryExtractModule(to, out ModuleBase extracted) || extracted != partner)
+        {
+            return false;
+        }
+
+        if (!_board.TryPlaceModule(to, mod))
+        {
+            _board.TryPlaceModule(to, partner);
+            return false;
+        }
+
+        if (!_board.TryPlaceModule(from, partner))
+        {
+            _board.TryExtractModule(to, out _);
+            _board.TryPlaceModule(to, partner);
+            _board.TryPlaceModule(from, mod);
+            return false;
+        }
+
+        return true;
+    }
+
     void ExecutePendingMove()
     {
         if (_pendingMoveModule == null || !_pendingMoveTo.HasValue)
@@ -495,10 +607,20 @@ public class PlacementController : MonoBehaviour
 
         ModuleBase mod = _pendingMoveModule;
         GridCoord to = _pendingMoveTo.Value;
-        ModuleCardData card = mod.CardData;
+        ModuleBase partner = _pendingSwapPartner;
         bool inCombat = _session != null && _session.IsCombatActive;
         int wave = _waves != null ? _waves.CurrentWaveDisplay : 1;
-        int cost = ModulePricing.GetDismantleCost(card, wave, inCombat);
+
+        int cost;
+        if (partner != null)
+        {
+            cost = ModulePricing.GetDismantleCost(mod.CardData, wave, inCombat) +
+                   ModulePricing.GetDismantleCost(partner.CardData, wave, inCombat);
+        }
+        else
+        {
+            cost = ModulePricing.GetDismantleCost(mod.CardData, wave, inCombat);
+        }
 
         if (cost > 0)
         {
@@ -509,7 +631,17 @@ public class PlacementController : MonoBehaviour
             }
         }
 
-        if (!_board.CanPlace(to) || !_board.TryPlaceModule(to, mod))
+        bool ok;
+        if (partner != null)
+        {
+            ok = TryExecuteBoardSwap(_boardDragFrom, to, mod, partner);
+        }
+        else
+        {
+            ok = _board.CanPlace(to) && _board.TryPlaceModule(to, mod);
+        }
+
+        if (!ok)
         {
             if (cost > 0)
             {
@@ -530,10 +662,6 @@ public class PlacementController : MonoBehaviour
         {
             _board.TryPlaceModule(_boardDragFrom, _pendingMoveModule);
         }
-        else if (_pendingMoveModule != null && restore == false)
-        {
-            // no-op
-        }
 
         ClearPendingMoveState();
         _confirm?.Close();
@@ -549,6 +677,7 @@ public class PlacementController : MonoBehaviour
 
         _pendingMoveTo = null;
         _pendingMoveModule = null;
+        _pendingSwapPartner = null;
     }
 
     void TickPendingTimeout()
@@ -1085,9 +1214,22 @@ public class PlacementController : MonoBehaviour
 
         if (_board != null && _board.TryWorldToCell(world, out GridCoord cell))
         {
+            if (ModuleCatalog.IsItemModule(card.Type))
+            {
+                if (hand.TryConsumeSlot(handIndex, out card))
+                {
+                    if (!TryUseConsumableCard(card, cell))
+                    {
+                        hand.TryAddCard(card);
+                    }
+                }
+
+                _scrapZone?.SetIdle();
+                return;
+            }
+
             ModuleBase occupant = _board.GetModule(cell);
             if (occupant != null &&
-                !occupant.IsPermanentlyLocked &&
                 occupant.CardData.CanFuseWith(card))
             {
                 if (hand.TryConsumeSlot(handIndex, out card))
@@ -1173,9 +1315,12 @@ public class PlacementController : MonoBehaviour
         {
             ModuleBase occupant = _board.GetModule(cell);
             bool canFuse = occupant != null &&
-                           !occupant.IsPermanentlyLocked &&
                            occupant.CardData.CanFuseWith(_shopDragCard);
-            bool canPlace = (_board.CanPlace(cell) && CanPlaceTypeAt(_shopDragCard.Type, cell)) || canFuse;
+            bool canUseItem = ModuleCatalog.IsItemModule(_shopDragCard.Type)
+                && CanUseConsumableAt(_shopDragCard.Type, cell);
+            bool canPlace = canUseItem
+                || (_board.CanPlace(cell) && CanPlaceTypeAt(_shopDragCard.Type, cell))
+                || canFuse;
             bool canAfford = Economy.Instance == null || Economy.Instance.CanAfford(_shopDragPrice);
             ShowGhostAt(_board.CellToWorld(cell), canPlace && canAfford);
             UpdateCellHover(cell, canPlace && canAfford);
@@ -1213,15 +1358,26 @@ public class PlacementController : MonoBehaviour
 
         ModuleBase occupant = _board.GetModule(cell);
         bool canFuse = occupant != null &&
-                       !occupant.IsPermanentlyLocked &&
                        occupant.CardData.CanFuseWith(card);
-        if (!canFuse && (!_board.CanPlace(cell) || !CanPlaceTypeAt(card.Type, cell)))
+        bool canUseItem = ModuleCatalog.IsItemModule(card.Type) && CanUseConsumableAt(card.Type, cell);
+        if (!canFuse && !canUseItem && (!_board.CanPlace(cell) || !CanPlaceTypeAt(card.Type, cell)))
         {
             return;
         }
 
         if (!shop.TryPurchaseForBoard(index, out ModuleCardData purchased, out int pricePaid))
         {
+            return;
+        }
+
+        if (canUseItem)
+        {
+            if (!TryUseConsumableCard(purchased, cell))
+            {
+                Economy.Instance?.AddGold(pricePaid, silent: true);
+                shop.RestoreOffer(index, purchased, pricePaid);
+            }
+
             return;
         }
 
@@ -1286,9 +1442,11 @@ public class PlacementController : MonoBehaviour
         {
             ModuleBase occupant = _board.GetModule(cell);
             bool canFuse = occupant != null &&
-                           !occupant.IsPermanentlyLocked &&
                            occupant.CardData.CanFuseWith(_hand.SelectedCard);
-            bool canPlace = (_board.CanPlace(cell) && CanPlaceTypeAt(type, cell)) || canFuse;
+            bool canUseItem = ModuleCatalog.IsItemModule(type) && CanUseConsumableAt(type, cell);
+            bool canPlace = canUseItem
+                || (_board.CanPlace(cell) && CanPlaceTypeAt(type, cell))
+                || canFuse;
             ShowGhostAt(_board.CellToWorld(cell), canPlace);
             UpdateCellHover(cell, canPlace);
         }
@@ -1429,9 +1587,19 @@ public class PlacementController : MonoBehaviour
         }
 
         ModuleCardData card = _hand.SelectedCard;
+        if (ModuleCatalog.IsItemModule(card.Type))
+        {
+            if (TryUseConsumableCard(card, cell))
+            {
+                _hand.ConsumeSelected();
+                ClearGhost();
+            }
+
+            return;
+        }
+
         ModuleBase occupant = _board.GetModule(cell);
         if (occupant != null &&
-            !occupant.IsPermanentlyLocked &&
             occupant.CardData.CanFuseWith(card))
         {
             if (TryApplyBoardFuse(occupant, cell, card))
@@ -1518,6 +1686,8 @@ public class PlacementController : MonoBehaviour
                 return new GameObject("BlackHoleTurret").AddComponent<BlackHoleModule>();
             case ModuleType.FlameAmp:
                 return new GameObject("FlameAmp").AddComponent<FlameAmpModule>();
+            case ModuleType.IceAmp:
+                return new GameObject("IceAmp").AddComponent<IceAmpModule>();
             case ModuleType.Spark:
                 return new GameObject("SparkTurret").AddComponent<SparkModule>();
             case ModuleType.Splitter:
@@ -1538,6 +1708,20 @@ public class PlacementController : MonoBehaviour
                 return new GameObject("Surprise").AddComponent<SurpriseModule>();
             case ModuleType.Heatwave:
                 return new GameObject("Heatwave").AddComponent<HeatwaveModule>();
+            case ModuleType.FlameWall:
+                return new GameObject("FlameWall").AddComponent<FlameWallModule>();
+            case ModuleType.FlameBlessing:
+                return new GameObject("FlameBlessing").AddComponent<FlameBlessingItemModule>();
+            case ModuleType.Purify:
+                return new GameObject("Purify").AddComponent<PurifyItemModule>();
+            case ModuleType.FrostMushroom:
+                return new GameObject("FrostMushroom").AddComponent<FrostMushroomItemModule>();
+            case ModuleType.LaserCannon:
+                return new GameObject("LaserCannon").AddComponent<LaserCannonModule>();
+            case ModuleType.FrostFreeze:
+                return new GameObject("FrostFreeze").AddComponent<FrostFreezeModule>();
+            case ModuleType.ArcaneMissile:
+                return new GameObject("ArcaneMissile").AddComponent<ArcaneMissileModule>();
             default:
                 return null;
         }
@@ -1570,6 +1754,43 @@ public class PlacementController : MonoBehaviour
         return true;
     }
 
+    bool CanUseConsumableAt(ModuleType type, GridCoord cell)
+    {
+        if (_board == null)
+        {
+            return false;
+        }
+
+        ConsumableModule item = CreateModule(type) as ConsumableModule;
+        if (item == null)
+        {
+            return false;
+        }
+
+        bool canUse = item.CanConsumeAt(_board, cell, _session);
+        Destroy(item.gameObject);
+        return canUse;
+    }
+
+    bool TryUseConsumableCard(ModuleCardData card, GridCoord cell)
+    {
+        if (_board == null)
+        {
+            return false;
+        }
+
+        ConsumableModule item = CreateModule(card.Type) as ConsumableModule;
+        if (item == null)
+        {
+            return false;
+        }
+
+        item.ApplyCardData(card);
+        bool used = item.ConsumeAt(_board, cell, _session);
+        Destroy(item.gameObject);
+        return used;
+    }
+
     /// <summary>
     /// 棋盘合成：同型升级，或收束器×功能模块变拐弯（类型变化时替换实例）。
     /// </summary>
@@ -1587,6 +1808,7 @@ public class PlacementController : MonoBehaviour
             return true;
         }
 
+        bool wasLocked = occupant.IsPermanentlyLocked;
         int orient = occupant.OrientationIndex;
         if (!_board.TryExtractModule(cell, out ModuleBase extracted) || extracted != occupant)
         {
@@ -1603,6 +1825,67 @@ public class PlacementController : MonoBehaviour
         if (neu.CanRotate)
         {
             neu.SetOrientationIndex(orient);
+        }
+
+        if (wasLocked)
+        {
+            neu.SetPermanentlyLocked(true);
+        }
+
+        neu.transform.SetParent(_moduleRoot, true);
+        if (!_board.TryPlaceModule(cell, neu))
+        {
+            Destroy(neu.gameObject);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>祝福等：将棋盘上的模块替换为另一类型，保留等级/金币/锁定/朝向。</summary>
+    public bool TryMorphPlacedModule(ModuleBase occupant, ModuleType newType)
+    {
+        if (occupant == null || _board == null || ModuleCatalog.IsItemModule(newType))
+        {
+            return false;
+        }
+
+        if (occupant.ModuleType == newType)
+        {
+            return false;
+        }
+
+        GridCoord cell = occupant.Cell;
+        ModuleCardData source = occupant.CardData;
+        ModuleCardData morph = ModuleCardData.Create(
+            newType,
+            source.Level,
+            source.InvestedGold,
+            source.Bent,
+            source.InstanceSeed);
+
+        bool wasLocked = occupant.IsPermanentlyLocked;
+        int orient = occupant.OrientationIndex;
+        if (!_board.TryExtractModule(cell, out ModuleBase extracted) || extracted != occupant)
+        {
+            return false;
+        }
+
+        Destroy(extracted.gameObject);
+        ModuleBase neu = CreateModule(morph);
+        if (neu == null)
+        {
+            return false;
+        }
+
+        if (neu.CanRotate)
+        {
+            neu.SetOrientationIndex(orient);
+        }
+
+        if (wasLocked)
+        {
+            neu.SetPermanentlyLocked(true);
         }
 
         neu.transform.SetParent(_moduleRoot, true);
@@ -1660,6 +1943,9 @@ public class PlacementController : MonoBehaviour
                 case ModuleType.FlameAmp:
                     _ghostOther = go.AddComponent<FlameAmpModule>();
                     break;
+                case ModuleType.IceAmp:
+                    _ghostOther = go.AddComponent<IceAmpModule>();
+                    break;
                 case ModuleType.Spark:
                     _ghostOther = go.AddComponent<SparkModule>();
                     break;
@@ -1689,6 +1975,27 @@ public class PlacementController : MonoBehaviour
                     break;
                 case ModuleType.Heatwave:
                     _ghostOther = go.AddComponent<HeatwaveModule>();
+                    break;
+                case ModuleType.FlameWall:
+                    _ghostOther = go.AddComponent<FlameWallModule>();
+                    break;
+                case ModuleType.FlameBlessing:
+                    _ghostOther = go.AddComponent<FlameBlessingItemModule>();
+                    break;
+                case ModuleType.Purify:
+                    _ghostOther = go.AddComponent<PurifyItemModule>();
+                    break;
+                case ModuleType.FrostMushroom:
+                    _ghostOther = go.AddComponent<FrostMushroomItemModule>();
+                    break;
+                case ModuleType.LaserCannon:
+                    _ghostOther = go.AddComponent<LaserCannonModule>();
+                    break;
+                case ModuleType.FrostFreeze:
+                    _ghostOther = go.AddComponent<FrostFreezeModule>();
+                    break;
+                case ModuleType.ArcaneMissile:
+                    _ghostOther = go.AddComponent<ArcaneMissileModule>();
                     break;
             }
 

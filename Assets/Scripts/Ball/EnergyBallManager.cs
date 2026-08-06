@@ -49,7 +49,7 @@ public class EnergyBallManager : MonoBehaviour
     {
         float speed = defaultSpeedCellsPerSecond;
         float life = defaultLifetimeSeconds;
-        int energy = EnergyBall.DefaultEnergy;
+        float energy = EnergyBall.DefaultEnergy;
         if (EmitterRunUpgrades.Instance != null)
         {
             speed = EmitterRunUpgrades.Instance.BallSpeed;
@@ -69,7 +69,7 @@ public class EnergyBallManager : MonoBehaviour
         GridDirection direction,
         float speedCellsPerSecond = -1f,
         float lifetimeSeconds = -1f,
-        int energy = -1)
+        float energy = -1f)
     {
         if (_board == null)
         {
@@ -113,7 +113,7 @@ public class EnergyBallManager : MonoBehaviour
         GridDirection direction,
         float speedCellsPerSecond,
         float lifetimeSeconds,
-        int energy)
+        float energy)
     {
         return TrySpawnBall(worldPosition, direction, speedCellsPerSecond, lifetimeSeconds, energy) != null;
     }

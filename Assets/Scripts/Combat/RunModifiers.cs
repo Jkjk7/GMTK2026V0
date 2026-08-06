@@ -10,10 +10,13 @@ public class RunModifiers : MonoBehaviour
 
     public float AoeRadiusMult { get; private set; } = 1f;
     public float EnemySpeedMult { get; private set; } = 1f;
-    public bool NextExpandHalfPrice { get; private set; }
+    public int FreeRefreshes { get; private set; }
+    public int RefreshCostMultiplier { get; private set; } = 1;
     public int BlessingTier { get; private set; }
     public int BurnDamageBonus { get; private set; }
     public int FlameAmpBonus { get; private set; }
+    /// <summary>场上寒冰增幅提供的额外寒冷减速（比例，非百分比整数）。</summary>
+    public float IceAmpSlowBonus { get; private set; }
 
     public event Action Changed;
 
@@ -41,10 +44,12 @@ public class RunModifiers : MonoBehaviour
     {
         AoeRadiusMult = 1f;
         EnemySpeedMult = 1f;
-        NextExpandHalfPrice = false;
+        FreeRefreshes = 0;
+        RefreshCostMultiplier = 1;
         BlessingTier = 0;
         BurnDamageBonus = 0;
         FlameAmpBonus = 0;
+        IceAmpSlowBonus = 0f;
         NotifyChanged();
     }
 
@@ -67,22 +72,28 @@ public class RunModifiers : MonoBehaviour
         NotifyChanged();
     }
 
-    public void GrantExpandHalfPrice()
+    public void AddFreeRefreshes(int count)
     {
-        NextExpandHalfPrice = true;
+        FreeRefreshes = Mathf.Max(0, FreeRefreshes + count);
         NotifyChanged();
     }
 
-    public bool TryConsumeExpandHalfPrice()
+    public bool TryConsumeFreeRefresh()
     {
-        if (!NextExpandHalfPrice)
+        if (FreeRefreshes <= 0)
         {
             return false;
         }
 
-        NextExpandHalfPrice = false;
+        FreeRefreshes--;
         NotifyChanged();
         return true;
+    }
+
+    public void ApplyRefreshCostDouble()
+    {
+        RefreshCostMultiplier = Mathf.Max(1, RefreshCostMultiplier * 2);
+        NotifyChanged();
     }
 
     public void AddBurnDamageBonus(int amount)
@@ -116,6 +127,41 @@ public class RunModifiers : MonoBehaviour
 
         FlameAmpBonus = sum;
         NotifyChanged();
+    }
+
+    public void RecalcIceAmp()
+    {
+        float sum = 0f;
+        IceAmpModule[] amps = UnityEngine.Object.FindObjectsOfType<IceAmpModule>();
+        for (int i = 0; i < amps.Length; i++)
+        {
+            IceAmpModule amp = amps[i];
+            if (amp == null || !amp.isActiveAndEnabled || amp.BoundBoard == null)
+            {
+                continue;
+            }
+
+            sum += amp.SlowBonus;
+        }
+
+        if (Mathf.Abs(sum - IceAmpSlowBonus) < 0.0001f)
+        {
+            return;
+        }
+
+        IceAmpSlowBonus = sum;
+        NotifyChanged();
+    }
+
+    /// <summary>
+    /// [寒冷] 实际减速比例 = 基础 30% + 寒冰增幅，硬顶 70%。
+    /// 寒冷是状态名；减速是该状态的效果，二者不是同义词。
+    /// </summary>
+    public float GetEffectiveChillSlowPercent()
+    {
+        return Mathf.Min(
+            ModuleCatalog.MaxChillSlowPercent,
+            ModuleCatalog.IceSlowPercent + IceAmpSlowBonus);
     }
 
     public void NotifyUiChanged()

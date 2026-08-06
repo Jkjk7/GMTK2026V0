@@ -1,7 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// 模块定价、刷新价、拆除价、商店阶段。
+/// 模块定价、商店等级、刷新价、拆除价。
+/// 同等级标价固定（不随波次涨价）；商店等级每 5 波升一档，决定货架可出等级。
 /// </summary>
 public static class ModulePricing
 {
@@ -13,6 +14,7 @@ public static class ModulePricing
     public const int MinerBasePrice = 18;
     public const int BlackHoleBasePrice = 45;
     public const int FlameAmpBasePrice = 20;
+    public const int IceAmpBasePrice = 20;
     public const int SparkBasePrice = 15;
     public const int SplitterBasePrice = 55;
     public const int PortalBasePrice = 22;
@@ -23,15 +25,28 @@ public static class ModulePricing
     public const int FireEnchantBasePrice = 20;
     public const int SurpriseBasePrice = 20;
     public const int HeatwaveBasePrice = 25;
+    public const int LaserCannonBasePrice = 30;
+    public const int FrostFreezeBasePrice = 25;
+    public const int ArcaneMissileBasePrice = 22;
+    public const int FlameWallBasePrice = 28;
+    public const int FlameBlessingBasePrice = 24;
+    public const int PurifyBasePrice = 28;
+    public const int FrostMushroomBasePrice = 28;
     public const float ScrapRefundRate = 0.30f;
 
     public const int BoardExpandTo5Cost = 100;
     public const int BoardExpandTo7Cost = 300;
 
-    public static int GetStage(int waveNumber)
+    /// <summary>兼容旧「阶段」概念：stage = 商店等级 − 1。</summary>
+    public static int GetStage(int waveNumber) => GetShopLevel(waveNumber) - 1;
+
+    /// <summary>
+    /// 商店等级：波 1–5→1，6–10→2，11–15→3，16–20→4…
+    /// </summary>
+    public static int GetShopLevel(int waveNumber)
     {
         int w = Mathf.Max(1, waveNumber);
-        return (w - 1) / 5;
+        return (w - 1) / 5 + 1;
     }
 
     public static int RoundToFive(int value)
@@ -44,10 +59,12 @@ public static class ModulePricing
         return Mathf.Max(5, Mathf.RoundToInt(value / 5f) * 5);
     }
 
-    public static int GetShopPrice(ModuleType type, int level, int waveNumber)
+    /// <summary>
+    /// 商店标价：只跟类型与等级有关，不随波次变化。
+    /// waveNumber 参数保留兼容，忽略。
+    /// </summary>
+    public static int GetShopPrice(ModuleType type, int level, int waveNumber = 1)
     {
-        int stage = GetStage(waveNumber);
-        float stageMult = Mathf.Pow(1.80f, stage);
         int basePrice = GetBasePrice(type);
         ModuleRarity rarity = ModuleCatalog.GetRarity(type);
         float rarityMult = GetRarityPriceMult(rarity);
@@ -56,31 +73,28 @@ public static class ModulePricing
         if (ModuleCatalog.IsAttackModule(type))
         {
             int lvl = Mathf.Clamp(level, 1, MaxAttackLevel);
-            float price = basePrice
-                          * Mathf.Pow(lvExp, lvl - 1)
-                          * stageMult
-                          * rarityMult;
+            float price = basePrice * Mathf.Pow(lvExp, lvl - 1) * rarityMult;
             return RoundToFive(Mathf.RoundToInt(price));
         }
 
         if (type == ModuleType.Miner)
         {
             int lvl = Mathf.Clamp(level, 1, 3);
-            float price = basePrice * (1f + 0.35f * (lvl - 1)) * stageMult * rarityMult;
+            float price = basePrice * (1f + 0.35f * (lvl - 1)) * rarityMult;
             return RoundToFive(Mathf.RoundToInt(price));
         }
 
         if (type == ModuleType.FlameAmp
+            || type == ModuleType.IceAmp
             || type == ModuleType.FireEnchant
             || type == ModuleType.Surprise)
         {
             int lvl = Mathf.Clamp(level, 1, MaxAttackLevel);
-            float price = basePrice * (1f + 0.4f * (lvl - 1)) * stageMult * rarityMult;
+            float price = basePrice * (1f + 0.4f * (lvl - 1)) * rarityMult;
             return RoundToFive(Mathf.RoundToInt(price));
         }
 
-        float util = basePrice * stageMult * rarityMult;
-        return RoundToFive(Mathf.RoundToInt(util));
+        return RoundToFive(Mathf.RoundToInt(basePrice * rarityMult));
     }
 
     public static float GetRarityPriceMult(ModuleRarity rarity)
@@ -115,6 +129,7 @@ public static class ModulePricing
             case ModuleType.Redirector: return RedirectorBasePrice;
             case ModuleType.BlackHole: return BlackHoleBasePrice;
             case ModuleType.FlameAmp: return FlameAmpBasePrice;
+            case ModuleType.IceAmp: return IceAmpBasePrice;
             case ModuleType.Spark: return SparkBasePrice;
             case ModuleType.Splitter: return SplitterBasePrice;
             case ModuleType.Portal: return PortalBasePrice;
@@ -125,19 +140,26 @@ public static class ModulePricing
             case ModuleType.FireEnchant: return FireEnchantBasePrice;
             case ModuleType.Surprise: return SurpriseBasePrice;
             case ModuleType.Heatwave: return HeatwaveBasePrice;
+            case ModuleType.LaserCannon: return LaserCannonBasePrice;
+            case ModuleType.FrostFreeze: return FrostFreezeBasePrice;
+            case ModuleType.ArcaneMissile: return ArcaneMissileBasePrice;
+            case ModuleType.FlameWall: return FlameWallBasePrice;
+            case ModuleType.FlameBlessing: return FlameBlessingBasePrice;
+            case ModuleType.Purify: return PurifyBasePrice;
+            case ModuleType.FrostMushroom: return FrostMushroomBasePrice;
             default: return ProjectileBasePrice;
         }
     }
 
-    /// <summary>刷新费随商店阶段跳变，同阶段恒定。</summary>
+    /// <summary>
+    /// 刷新费：商店 Lv1–2→5，Lv3–4→10，Lv5–6→15…
+    /// </summary>
     public static int GetRefreshCost(int waveNumber)
     {
-        int stage = GetStage(waveNumber);
-        // 波1–5:5；6–10:12；11–15:22
-        return 5 + stage * (7 + stage);
+        int shopLv = GetShopLevel(waveNumber);
+        return 5 * ((shopLv + 1) / 2);
     }
 
-    // 兼容旧调用：忽略 refreshIndex
     public static int GetRefreshCost(int waveNumber, int refreshIndexInWave) => GetRefreshCost(waveNumber);
 
     public static int GetDismantleCost(ModuleCardData card, int waveNumber, bool inCombat)
@@ -152,7 +174,7 @@ public static class ModulePricing
         return Mathf.Max(1, Mathf.RoundToInt(refPrice * rate));
     }
 
-    /// <summary>按波号返回准备秒数（含大波额外 15s）。</summary>
+    /// <summary>历史：按波次准备秒数。现已改为无时限准备，仅保留供查阅/工具。</summary>
     public static float GetPrepSeconds(int waveNumber)
     {
         int w = Mathf.Max(1, waveNumber);
@@ -191,79 +213,67 @@ public static class ModulePricing
     }
 
     /// <summary>
-    /// 商店可出现的最高等级。暂时锁 1：高等级标价买不起。
-    /// 恢复高等级货架时改回 MaxAttackLevel（或 3）。
+    /// 本商店等级可刷出的模块等级区间。
+    /// Lv1:仅1；Lv2:1–2；Lv3:仅2；Lv4:2–3；… 高档偏高等级概率由 RollOfferLevel 处理。
     /// </summary>
-    public const int ShopMaxOfferLevel = 1;
-
-    /// <summary>
-    /// 按商店阶段滚动攻击模块等级。
-    /// </summary>
-    public static int RollAttackLevel(int waveNumber)
+    public static void GetOfferLevelRange(int shopLevel, out int minLevel, out int maxLevel)
     {
-        int stage = GetStage(waveNumber);
-        float r = Random.value;
-        int rolled;
-        // 简化概率表
-        switch (stage)
+        int s = Mathf.Max(1, shopLevel);
+        if ((s & 1) == 1)
         {
-            case 0:
-                rolled = 1;
-                break;
-            case 1:
-                rolled = r < 0.85f ? 1 : 2;
-                break;
-            case 2:
-                if (r < 0.65f) rolled = 1;
-                else if (r < 0.95f) rolled = 2;
-                else rolled = 3;
-                break;
-            case 3:
-                if (r < 0.50f) rolled = 1;
-                else if (r < 0.88f) rolled = 2;
-                else rolled = 3;
-                break;
-            case 4:
-                if (r < 0.35f) rolled = 1;
-                else if (r < 0.75f) rolled = 2;
-                else if (r < 0.97f) rolled = 3;
-                else rolled = 4;
-                break;
-            case 5:
-                if (r < 0.25f) rolled = 1;
-                else if (r < 0.63f) rolled = 2;
-                else if (r < 0.93f) rolled = 3;
-                else rolled = 4;
-                break;
-            case 6:
-                if (r < 0.18f) rolled = 1;
-                else if (r < 0.48f) rolled = 2;
-                else if (r < 0.86f) rolled = 3;
-                else rolled = 4;
-                break;
-            case 7:
-                if (r < 0.12f) rolled = 1;
-                else if (r < 0.35f) rolled = 2;
-                else if (r < 0.73f) rolled = 3;
-                else if (r < 0.97f) rolled = 4;
-                else rolled = 5;
-                break;
-            case 8:
-                if (r < 0.08f) rolled = 1;
-                else if (r < 0.25f) rolled = 2;
-                else if (r < 0.57f) rolled = 3;
-                else if (r < 0.93f) rolled = 4;
-                else rolled = 5;
-                break;
-            default:
-                if (r < 0.05f) rolled = 1;
-                else if (r < 0.17f) rolled = 2;
-                else if (r < 0.43f) rolled = 3;
-                else if (r < 0.87f) rolled = 4;
-                else rolled = 5;
-                break;
+            minLevel = maxLevel = (s + 1) / 2;
+        }
+        else
+        {
+            minLevel = s / 2;
+            maxLevel = minLevel + 1;
         }
 
-        return Mathf.Clamp(rolled, 1, ShopMaxOfferLevel);
+        maxLevel = Mathf.Min(maxLevel, MaxAttackLevel);
+        minLevel = Mathf.Clamp(minLevel, 1, maxLevel);
+    }
+
+    /// <summary>按当前波次商店等级滚动可升级模块的货架等级。</summary>
+    public static int RollOfferLevel(int waveNumber)
+    {
+        GetOfferLevelRange(GetShopLevel(waveNumber), out int minLv, out int maxLv);
+        if (minLv >= maxLv)
+        {
+            return minLv;
+        }
+
+        // 双档时偏高等级（约 40% 低 / 60% 高）
+        return Random.value < 0.40f ? minLv : maxLv;
+    }
+
+    /// <summary>兼容旧名。</summary>
+    public static int RollAttackLevel(int waveNumber) => RollOfferLevel(waveNumber);
+
+    public static bool IsLevelableInShop(ModuleType type) =>
+        ModuleCatalog.IsAttackModule(type)
+        || type == ModuleType.FlameAmp
+        || type == ModuleType.IceAmp
+        || type == ModuleType.FireEnchant
+        || type == ModuleType.Surprise
+        || type == ModuleType.Miner;
+
+    public static int ClampOfferLevelForType(ModuleType type, int rolled)
+    {
+        if (type == ModuleType.Miner)
+        {
+            return Mathf.Clamp(rolled, 1, 3);
+        }
+
+        if (type == ModuleType.FireEnchant || type == ModuleType.Surprise)
+        {
+            return Mathf.Clamp(rolled, 1, 4);
+        }
+
+        if (IsLevelableInShop(type))
+        {
+            return Mathf.Clamp(rolled, 1, MaxAttackLevel);
+        }
+
+        return 1;
     }
 }

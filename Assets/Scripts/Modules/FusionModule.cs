@@ -10,7 +10,7 @@ public class FusionModule : PathEffectModule
 
     readonly List<float> _speeds = new List<float>(5);
     readonly List<float> _lives = new List<float>(5);
-    readonly List<int> _energies = new List<int>(5);
+    readonly List<float> _energies = new List<float>(5);
     SpriteRenderer _hudFill;
 
     public override ModuleType ModuleType => global::ModuleType.Fusion;
@@ -46,7 +46,7 @@ public class FusionModule : PathEffectModule
             return false;
         }
 
-        int sumE = 0;
+        float sumE = 0f;
         float sumLife = 0f;
         float sumSpeed = 0f;
         for (int i = 0; i < _energies.Count; i++)

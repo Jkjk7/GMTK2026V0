@@ -1,9 +1,18 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>Loads generated countdown art from Resources with centered runtime pivots.</summary>
+/// <summary>
+/// Loads generated countdown art from Resources with centered runtime pivots.
+/// UseFormalArt=false 时模块/图标回退原型；环境背景可由 UseFormalEnvironmentArt 单独打开。
+/// </summary>
 public static class CountdownArtResources
 {
+    /// <summary>是否使用正式模块/图标贴图。false = 原型方块。</summary>
+    public static bool UseFormalArt = false;
+
+    /// <summary>是否使用战斗区/棋盘等环境背景正式贴图（不含模块）。</summary>
+    public static bool UseFormalEnvironmentArt = true;
+
     public const string BoardCellPath = "Countdown/board_cell";
     public const string BattleBackdropPath = "Countdown/battle_lane_backdrop";
     public const string ModuleRootPath = "Countdown/Modules/";
@@ -16,8 +25,26 @@ public static class CountdownArtResources
 
     static readonly Dictionary<string, Sprite> Cache = new Dictionary<string, Sprite>();
 
+    public static bool IsEnvironmentArtPath(string path) =>
+        path == BoardCellPath
+        || path == BattleBackdropPath
+        || path == BoardFramePath
+        || path == BoardStateOverlayPath
+        || path == PanelBackgroundPath
+        || path == RingOrnamentPath
+        || path == TimerPlaquePath;
+
+    public static bool IsAlwaysAllowedFormalPath(string path) =>
+        path == HourglassFramePath
+        || (UseFormalEnvironmentArt && IsEnvironmentArtPath(path));
+
     public static Sprite LoadSprite(string path, Sprite fallback)
     {
+        if (!UseFormalArt && !IsAlwaysAllowedFormalPath(path))
+        {
+            return fallback;
+        }
+
         if (Cache.TryGetValue(path, out Sprite cached) && cached != null)
         {
             return cached;
@@ -53,6 +80,11 @@ public static class CountdownArtResources
 
     public static Sprite LoadModuleSprite(ModuleType type)
     {
+        if (!UseFormalArt)
+        {
+            return PrototypeSprites.Square;
+        }
+
         string fileName;
         switch (type)
         {
@@ -63,6 +95,7 @@ public static class CountdownArtResources
             case ModuleType.Miner: fileName = "module_miner"; break;
             case ModuleType.BlackHole: fileName = "module_black_hole"; break;
             case ModuleType.FlameAmp: fileName = "module_flame_amp"; break;
+            case ModuleType.IceAmp: fileName = "module_ice_laser"; break; // 暂复用雪花图标
             case ModuleType.Spark: fileName = "module_spark"; break;
             case ModuleType.Splitter: fileName = "module_splitter"; break;
             case ModuleType.Portal: fileName = "module_portal"; break;
@@ -73,6 +106,13 @@ public static class CountdownArtResources
             case ModuleType.FireEnchant: fileName = "module_fire_enchant"; break;
             case ModuleType.Surprise: fileName = "module_surprise"; break;
             case ModuleType.Heatwave: fileName = "module_heatwave"; break;
+            case ModuleType.FlameWall: return PrototypeSprites.Triangle;
+            case ModuleType.FlameBlessing: return PrototypeSprites.Square;
+            case ModuleType.Purify: return PrototypeSprites.Circle;
+            case ModuleType.FrostMushroom: return PrototypeSprites.Circle;
+            case ModuleType.LaserCannon: fileName = "module_laser_cannon"; break;
+            case ModuleType.FrostFreeze: fileName = "module_frost_freeze"; break;
+            case ModuleType.ArcaneMissile: fileName = "module_arcane_missile"; break;
             default: return PrototypeSprites.Square;
         }
 

@@ -1,28 +1,31 @@
 using UnityEngine;
 
 /// <summary>
-/// 热浪：容20/耗20/CD5s；全屏灼烧，时长随等级 2/3/4/5 秒 + 战场红闪。
+/// 热浪：容20/耗20；射速间隔与灼烧时长随等级；全屏 [灼烧] + 战场红闪。
 /// </summary>
 public class HeatwaveModule : ModuleBase
 {
     public const int EnergyCap = 20;
     public const int EnergyCost = 20;
-    public const float CooldownSeconds = 5f;
 
     [SerializeField] int currentEnergy;
     float _cooldown;
     SpriteRenderer _body;
     SpriteRenderer _hudFill;
     TextMesh _levelLabel;
+    ModuleCooldownHud _cooldownHud;
 
     public override ModuleType ModuleType => global::ModuleType.Heatwave;
     public int CurrentEnergy => currentEnergy;
     public int EnergyCapacity => EnergyCap;
 
+    float FireInterval => ModuleCatalog.GetHeatwaveFireInterval(ModuleLevel);
+
     public void ClearEnergy()
     {
         currentEnergy = 0;
         _cooldown = 0f;
+        ClearEnergyResidue();
         RefreshVisual();
     }
 
@@ -36,10 +39,18 @@ public class HeatwaveModule : ModuleBase
 
     void Update()
     {
+        float cdTotal = FireInterval * EnchantFireIntervalMultiplier;
         if (_cooldown > 0f)
         {
             _cooldown -= Time.deltaTime;
         }
+
+        if (_cooldownHud == null)
+        {
+            _cooldownHud = ModuleCooldownHud.Ensure(transform, new Vector3(0f, 1.15f, 0f));
+        }
+
+        _cooldownHud.SetCooldown(_cooldown > 0f ? _cooldown : 0f, cdTotal);
 
         if (currentEnergy < EnergyCost || _cooldown > 0f)
         {
@@ -52,7 +63,7 @@ public class HeatwaveModule : ModuleBase
     void Fire()
     {
         currentEnergy -= EnergyCost;
-        _cooldown = CooldownSeconds * EnchantCooldownMultiplier;
+        _cooldown = FireInterval * EnchantFireIntervalMultiplier;
         float duration = ModuleCatalog.GetHeatwaveBurnDuration(ModuleLevel);
         Enemy[] enemies = FindObjectsOfType<Enemy>();
         for (int i = 0; i < enemies.Length; i++)
@@ -75,7 +86,7 @@ public class HeatwaveModule : ModuleBase
             return;
         }
 
-        currentEnergy = Mathf.Min(EnergyCap, currentEnergy + ball.Energy);
+        currentEnergy = AbsorbBallEnergy(ball, currentEnergy, EnergyCap);
         RefreshVisual();
     }
 

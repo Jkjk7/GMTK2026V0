@@ -128,8 +128,8 @@ public class ScrapZone : MonoBehaviour
             _label = labelGo.AddComponent<TextMesh>();
             _label.anchor = TextAnchor.MiddleCenter;
             _label.alignment = TextAlignment.Center;
-            _label.fontSize = 32;
-            _label.characterSize = 0.08f;
+            _label.fontSize = 64;
+            _label.characterSize = 0.12f;
             var mr = labelGo.GetComponent<MeshRenderer>();
             if (mr != null)
             {
@@ -141,9 +141,9 @@ public class ScrapZone : MonoBehaviour
 
         if (forceRescale && _labelRoot != null)
         {
-            // 文字均匀缩放：按较短边适配，避免随底板被压扁
-            float uniform = Mathf.Min(halfWidth, halfHeight) * 0.22f;
-            uniform = Mathf.Clamp(uniform, 0.06f, 0.2f);
+            // 文字均匀缩放：按较短边适配，避免随底板被压扁；下限保证可读
+            float uniform = Mathf.Min(halfWidth, halfHeight) * 0.55f;
+            uniform = Mathf.Clamp(uniform, 0.28f, 0.85f);
             _labelRoot.localPosition = Vector3.zero;
             _labelRoot.localScale = new Vector3(uniform, uniform, 1f);
         }

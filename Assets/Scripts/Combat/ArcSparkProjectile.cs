@@ -8,7 +8,8 @@ public class ArcSparkProjectile : MonoBehaviour
     public enum Style
     {
         Ember,
-        Snowflake
+        Snowflake,
+        Arcane
     }
 
     Enemy _target;
@@ -37,7 +38,10 @@ public class ArcSparkProjectile : MonoBehaviour
         Style style,
         float spreadDegrees = 55f)
     {
-        var go = new GameObject(style == Style.Ember ? "EmberSpark" : "SnowflakeBolt");
+        var go = new GameObject(
+            style == Style.Ember ? "EmberSpark"
+            : style == Style.Arcane ? "ArcaneBolt"
+            : "SnowflakeBolt");
         var bolt = go.AddComponent<ArcSparkProjectile>();
         bolt.Launch(from, target, source, damage, fx, style, spreadDegrees);
         return bolt;
@@ -89,6 +93,12 @@ public class ArcSparkProjectile : MonoBehaviour
             _speed *= 2f;
             _homing *= 2.4f;
             _hitRadius = 0.45f;
+        }
+        else if (style == Style.Arcane)
+        {
+            _speed *= 1.35f;
+            _homing *= 1.8f;
+            _hitRadius = 0.36f;
         }
         else
         {
@@ -279,7 +289,7 @@ public class ArcSparkProjectile : MonoBehaviour
         Color c = CoreColor(_style);
         c.a = 0.75f;
         sr.color = c;
-        float s = _style == Style.Ember ? 0.22f : 0.2f;
+        float s = _style == Style.Ember ? 0.22f : (_style == Style.Arcane ? 0.24f : 0.2f);
         go.transform.localScale = Vector3.one * s;
         Destroy(go, 0.08f);
     }
@@ -303,7 +313,7 @@ public class ArcSparkProjectile : MonoBehaviour
 
         // 替换原先 GetEntityId() 部分
         float pulse = 0.85f + 0.15f * Mathf.Sin(Time.time * 28f + _randomPhase);
-        float core = _style == Style.Ember ? 0.14f : 0.13f;
+        float core = _style == Style.Ember ? 0.14f : (_style == Style.Arcane ? 0.15f : 0.13f);
         _core.transform.localScale = Vector3.one * (core * pulse);
         if (_glow != null)
         {
@@ -360,14 +370,16 @@ public class ArcSparkProjectile : MonoBehaviour
         if (_core != null)
         {
             _core.color = core;
-            _core.transform.localScale = Vector3.one * (_style == Style.Ember ? 0.14f : 0.13f);
+            _core.transform.localScale = Vector3.one * (
+                _style == Style.Ember ? 0.14f : (_style == Style.Arcane ? 0.15f : 0.13f));
         }
 
         if (_glow != null)
         {
             glow.a = 0.45f;
             _glow.color = glow;
-            _glow.transform.localScale = Vector3.one * (_style == Style.Ember ? 0.32f : 0.3f);
+            _glow.transform.localScale = Vector3.one * (
+                _style == Style.Ember ? 0.32f : (_style == Style.Arcane ? 0.34f : 0.3f));
         }
 
         if (_trail != null)
@@ -387,21 +399,33 @@ public class ArcSparkProjectile : MonoBehaviour
                     new GradientAlphaKey(0f, 1f)
                 });
             _trail.colorGradient = g;
-            _trail.time = _style == Style.Ember ? 0.24f : 0.28f;
+            _trail.time = _style == Style.Ember ? 0.24f : (_style == Style.Arcane ? 0.26f : 0.28f);
         }
     }
 
     static Color CoreColor(Style style)
     {
-        return style == Style.Ember
-            ? new Color(1f, 0.55f, 0.12f, 1f)
-            : new Color(0.82f, 0.95f, 1f, 1f);
+        switch (style)
+        {
+            case Style.Ember:
+                return new Color(1f, 0.55f, 0.12f, 1f);
+            case Style.Arcane:
+                return new Color(0.85f, 0.45f, 1f, 1f);
+            default:
+                return new Color(0.82f, 0.95f, 1f, 1f);
+        }
     }
 
     static Color GlowColor(Style style)
     {
-        return style == Style.Ember
-            ? new Color(1f, 0.25f, 0.05f, 1f)
-            : new Color(0.45f, 0.78f, 1f, 1f);
+        switch (style)
+        {
+            case Style.Ember:
+                return new Color(1f, 0.25f, 0.05f, 1f);
+            case Style.Arcane:
+                return new Color(0.55f, 0.2f, 0.95f, 1f);
+            default:
+                return new Color(0.45f, 0.78f, 1f, 1f);
+        }
     }
 }

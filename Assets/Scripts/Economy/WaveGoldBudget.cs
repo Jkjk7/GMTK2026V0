@@ -10,7 +10,11 @@ public enum EnemyGoldType
     Normal = 1,
     Tank = 2,
     Elite = 3,
-    Boss = 4
+    Boss = 4,
+    /// <summary>紫拆：吟唱后卸模块回手。</summary>
+    Disassembler = 5,
+    /// <summary>金盾：群体护盾施法。</summary>
+    ShieldCaster = 6
 }
 
 /// <summary>
@@ -51,11 +55,11 @@ public class WaveGoldBudget : MonoBehaviour
 
     /// <summary>
     /// V0.1 波金币总预算。约：波1=20、波5=40、波10=100、波15=250、波25≈1635（5 的倍数）。
-    /// 与怪潮、商店每 5 波跳价对齐（25 波）。
+    /// 与怪潮、商店每 5 波跳价对齐（26 波含终局 Boss）。
     /// </summary>
     public static int ComputeBudget(int waveNumber)
     {
-        int w = Mathf.Clamp(waveNumber, 1, 25);
+        int w = Mathf.Clamp(waveNumber, 1, WaveSpawnBudget.WaveCount);
         float raw = 18f * Mathf.Pow(1.205f, w - 1f);
         return Mathf.Max(20, ModulePricing.RoundToFive(Mathf.RoundToInt(raw)));
     }
@@ -67,7 +71,9 @@ public class WaveGoldBudget : MonoBehaviour
             case EnemyGoldType.Swarm: return 0.35f;
             case EnemyGoldType.Normal: return 1f;
             case EnemyGoldType.Tank: return 2.2f;
-            case EnemyGoldType.Elite: return 3f;
+            case EnemyGoldType.Elite:
+            case EnemyGoldType.Disassembler: return 3f;
+            case EnemyGoldType.ShieldCaster: return 3.5f;
             case EnemyGoldType.Boss: return 10f;
             default: return 1f;
         }
@@ -87,8 +93,13 @@ public class WaveGoldBudget : MonoBehaviour
                 max = 7;
                 break;
             case EnemyGoldType.Elite:
+            case EnemyGoldType.Disassembler:
                 min = 5;
                 max = 12;
+                break;
+            case EnemyGoldType.ShieldCaster:
+                min = 6;
+                max = 14;
                 break;
             case EnemyGoldType.Boss:
                 min = 15;

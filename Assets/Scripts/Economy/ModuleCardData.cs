@@ -48,11 +48,15 @@ public struct ModuleCardData
         int lvl;
         if (ModuleCatalog.IsAttackModule(type)
             || type == ModuleType.FlameAmp
-            || type == ModuleType.FireEnchant
-            || type == ModuleType.Surprise
-            || type == ModuleType.Heatwave)
+            || type == ModuleType.IceAmp
+            || type == ModuleType.Heatwave
+            || type == ModuleType.FrostFreeze)
         {
             lvl = Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel);
+        }
+        else if (type == ModuleType.FireEnchant || type == ModuleType.Surprise)
+        {
+            lvl = Mathf.Clamp(level, 1, 4);
         }
         else if (type == ModuleType.Miner)
         {
@@ -79,9 +83,11 @@ public struct ModuleCardData
         }
 
         if (Type == ModuleType.FlameAmp
+            || Type == ModuleType.IceAmp
             || Type == ModuleType.FireEnchant
             || Type == ModuleType.Surprise
-            || Type == ModuleType.Heatwave)
+            || Type == ModuleType.Heatwave
+            || Type == ModuleType.FrostFreeze)
         {
             return Type == other.Type
                    && Level == other.Level

@@ -7,17 +7,18 @@ public class BlackHoleModule : ModuleBase
 {
     [SerializeField] int energyCapacity = 5;
     [SerializeField] int currentEnergy;
-    [SerializeField] float fireInterval = 3f;
+    [SerializeField] float fireInterval = 6f;
     [SerializeField] int energyPerShot = 5;
     [SerializeField] float pullRadius = 2.2f;
     [SerializeField] float pullDuration = 2.2f;
     [SerializeField] float pullStrength = 3.5f;
 
-    float _fireTimer;
+    float _cooldown;
     SpriteRenderer _body;
     Transform _energyHud;
     SpriteRenderer _energyHudFill;
     TextMesh _levelLabel;
+    ModuleCooldownHud _cooldownHud;
 
     public override ModuleType ModuleType => global::ModuleType.BlackHole;
     public int CurrentEnergy => currentEnergy;
@@ -29,6 +30,8 @@ public class BlackHoleModule : ModuleBase
     public void ClearEnergy()
     {
         currentEnergy = 0;
+        _cooldown = 0f;
+        ClearEnergyResidue();
         RefreshVisual();
     }
 
@@ -44,9 +47,9 @@ public class BlackHoleModule : ModuleBase
         pullRadius = ModuleCatalog.GetBlackHoleRadius(lvl);
         pullDuration = ModuleCatalog.GetBlackHoleDuration(lvl);
         pullStrength = ModuleCatalog.GetBlackHolePullStrength(lvl);
-        energyCapacity = 5;
-        energyPerShot = 5;
-        fireInterval = 3f;
+        energyCapacity = ModuleCatalog.GetBlackHoleEnergyCapacity(lvl);
+        energyPerShot = ModuleCatalog.GetBlackHoleEnergyPerShot(lvl);
+        fireInterval = ModuleCatalog.GetBlackHoleFireInterval(lvl);
         currentEnergy = Mathf.Min(currentEnergy, energyCapacity);
         EnsureLevelLabel(lvl);
         RefreshVisual();
@@ -93,15 +96,20 @@ public class BlackHoleModule : ModuleBase
 
     void Update()
     {
-        if (currentEnergy < energyPerShot)
+        float cdTotal = fireInterval * EnchantFireIntervalMultiplier;
+        if (_cooldown > 0f)
         {
-            _fireTimer = 0f;
-            return;
+            _cooldown -= Time.deltaTime;
         }
 
-        float interval = fireInterval * EnchantFireIntervalMultiplier;
-        _fireTimer += Time.deltaTime;
-        if (_fireTimer < interval)
+        if (_cooldownHud == null)
+        {
+            _cooldownHud = ModuleCooldownHud.Ensure(transform, new Vector3(0f, 1.15f, 0f));
+        }
+
+        _cooldownHud.SetCooldown(_cooldown > 0f ? _cooldown : 0f, cdTotal);
+
+        if (currentEnergy < energyPerShot || _cooldown > 0f)
         {
             return;
         }
@@ -109,12 +117,11 @@ public class BlackHoleModule : ModuleBase
         Enemy target = FindNearestEnemy();
         if (target == null)
         {
-            _fireTimer = interval;
             return;
         }
 
-        _fireTimer -= interval;
         currentEnergy -= energyPerShot;
+        _cooldown = cdTotal;
         Vector3 aim = target.transform.position;
         aim.z = 0f;
         var go = new GameObject("BlackHoleProjectile");
@@ -130,7 +137,7 @@ public class BlackHoleModule : ModuleBase
             return;
         }
 
-        currentEnergy = Mathf.Min(energyCapacity, currentEnergy + ball.Energy);
+        currentEnergy = AbsorbBallEnergy(ball, currentEnergy, energyCapacity);
         RefreshVisual();
     }
 
