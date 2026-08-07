@@ -1,10 +1,10 @@
-# Sand Circuit: The Last Grain
+# TimeSands
 
 [简体中文](README.zh-CN.md)
 
 > Route time into weapons before the final grain falls.
 
-**Sand Circuit: The Last Grain** is a circuit-building tower-defense game created for GMTK Game
+**TimeSands** is a circuit-building tower-defense game created for GMTK Game
 Jam 2026 and its theme, **Count Down**. Time is both your health and the resource that powers your
 clockwork defense workshop.
 
@@ -36,12 +36,7 @@ The current jam build includes:
 
 ## Run the Project
 
-The submission branch is tested with **Unity 6000.5.4f1**.
-
-1. Clone [Jkjk7/GMTK2026V0](https://github.com/Jkjk7/GMTK2026V0).
-2. Open the repository root through Unity Hub.
-3. Open the game scene in `Assets/Scenes`, then press Play. The runtime bootstrap can also assemble
-   the prototype when no bootstrap object is present.
+Download Play file or unzip the compressed package
 
 Data and Graphs see in Docs
 
