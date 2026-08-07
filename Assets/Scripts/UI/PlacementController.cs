@@ -1713,6 +1713,10 @@ public class PlacementController : MonoBehaviour
                 return new GameObject("Purify").AddComponent<PurifyItemModule>();
             case ModuleType.FrostMushroom:
                 return new GameObject("FrostMushroom").AddComponent<FrostMushroomItemModule>();
+            case ModuleType.FrostBomb:
+                return new GameObject("FrostBomb").AddComponent<FrostBombModule>();
+            case ModuleType.FrostCannon:
+                return new GameObject("FrostCannon").AddComponent<FrostCannonModule>();
             case ModuleType.LaserCannon:
                 return new GameObject("LaserCannon").AddComponent<LaserCannonModule>();
             case ModuleType.FrostFreeze:
@@ -1984,6 +1988,12 @@ public class PlacementController : MonoBehaviour
                     break;
                 case ModuleType.FrostMushroom:
                     _ghostOther = go.AddComponent<FrostMushroomItemModule>();
+                    break;
+                case ModuleType.FrostBomb:
+                    _ghostOther = go.AddComponent<FrostBombModule>();
+                    break;
+                case ModuleType.FrostCannon:
+                    _ghostOther = go.AddComponent<FrostCannonModule>();
                     break;
                 case ModuleType.LaserCannon:
                     _ghostOther = go.AddComponent<LaserCannonModule>();

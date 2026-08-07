@@ -37,7 +37,9 @@ public static class ModuleCatalog
         ModuleType.FlameWall,
         ModuleType.FlameBlessing,
         ModuleType.Purify,
-        ModuleType.FrostMushroom
+        ModuleType.FrostMushroom,
+        ModuleType.FrostBomb,
+        ModuleType.FrostCannon
     };
 
     public static bool IsAttackModule(ModuleType type) =>
@@ -50,7 +52,9 @@ public static class ModuleCatalog
         || type == ModuleType.LaserCannon
         || type == ModuleType.FrostFreeze
         || type == ModuleType.ArcaneMissile
-        || type == ModuleType.FlameWall;
+        || type == ModuleType.FlameWall
+        || type == ModuleType.FrostBomb
+        || type == ModuleType.FrostCannon;
 
     public static bool IsUtilityModule(ModuleType type) =>
         type == ModuleType.Redirector
@@ -108,6 +112,7 @@ public static class ModuleCatalog
             case ModuleType.FlameWall:
             case ModuleType.FlameBlessing:
             case ModuleType.Purify:
+            case ModuleType.FrostCannon:
                 return ModuleRarity.Rare;
             case ModuleType.FrostMushroom:
             case ModuleType.BlackHole:
@@ -232,6 +237,8 @@ public static class ModuleCatalog
             case ModuleType.FlameBlessing: return L("Flame Blessing", "火焰祝福");
             case ModuleType.Purify: return L("Purify", "净化");
             case ModuleType.FrostMushroom: return L("Frost Mushroom", "寒冰菇");
+            case ModuleType.FrostBomb: return L("Frost Bomb", "冰霜炸弹");
+            case ModuleType.FrostCannon: return L("Frost Cannon", "冰霜炮");
             default: return type.ToString();
         }
     }
@@ -290,6 +297,8 @@ public static class ModuleCatalog
             case ModuleType.FlameBlessing: return L("Item", "道具");
             case ModuleType.Purify: return L("Item", "道具");
             case ModuleType.FrostMushroom: return L("Battle Item", "战斗道具");
+            case ModuleType.FrostBomb: return L("Frost Ring", "霜环AOE");
+            case ModuleType.FrostCannon: return L("Frost Bolt", "冰霜弹");
             default: return string.Empty;
         }
     }
@@ -373,6 +382,14 @@ public static class ModuleCatalog
                 return L(
                     "Combat-only item. Use on any cell to freeze all enemies for 1 second and apply 2 seconds of chill, then the item disappears.",
                     "仅限战斗中使用。放到任意格子上后，全体敌人冻结 1 秒并获得 2 秒寒冷，随后道具消失");
+            case ModuleType.FrostBomb:
+                return L(
+                    "Throws a frost bomb at the leftmost enemy. On impact it leaves a frost ring that continuously applies 2s [Chill].",
+                    "向最左敌人投掷冰霜炸弹；落地留下霜环，踩上的敌人持续获得 2 秒[寒冷]");
+            case ModuleType.FrostCannon:
+                return L(
+                    "Fires a fast frost bolt at the nearest enemy, dealing damage and applying 3s [Chill].",
+                    "向最近敌人发射快速冰霜弹，造成伤害并使其获得 3 秒[寒冷]");
             default:
                 return string.Empty;
         }
@@ -432,6 +449,10 @@ public static class ModuleCatalog
                 return L("Soap, but for cursed machinery.", "像肥皂一样，把诅咒和锁一起洗掉");
             case ModuleType.FrostMushroom:
                 return L("Emergency lane refrigeration in mushroom form.", "蘑菇形态的紧急制冷装置");
+            case ModuleType.FrostBomb:
+                return L("A blue puddle for the yellow rush.", "专治黄潮冲脸的蓝色水坑");
+            case ModuleType.FrostCannon:
+                return L("When chill needs to travel in a straight line.", "寒冷也需要直线高速送达");
             default:
                 return string.Empty;
         }
@@ -680,6 +701,14 @@ public static class ModuleCatalog
                 float cycle = shots * interval;
                 return cycle > 0.0001f ? (shots * dmg) / cycle : 0f;
             }
+            case ModuleType.FrostCannon:
+            {
+                int dmg = GetFrostCannonDamage(lv);
+                float interval = GetFrostCannonFireInterval(lv);
+                int shots = GetFrostCannonEnergyCapacity(lv) / GetFrostCannonEnergyPerShot(lv);
+                float cycle = shots * interval;
+                return cycle > 0.0001f ? (shots * dmg) / cycle : 0f;
+            }
             default:
                 return 0f;
         }
@@ -726,6 +755,8 @@ public static class ModuleCatalog
             case ModuleType.FlameBlessing: return new Color(1f, 0.55f, 0.15f, 1f);
             case ModuleType.Purify: return new Color(0.8f, 0.95f, 0.9f, 1f);
             case ModuleType.FrostMushroom: return new Color(0.55f, 0.9f, 1f, 1f);
+            case ModuleType.FrostBomb: return new Color(0.4f, 0.8f, 1f, 1f);
+            case ModuleType.FrostCannon: return new Color(0.6f, 0.92f, 1f, 1f);
             default: return Color.gray;
         }
     }
@@ -741,4 +772,45 @@ public static class ModuleCatalog
             default: return 200;
         }
     }
+
+    public static int GetFrostBombEnergyCapacity(int level = 1) => 1;
+
+    public static int GetFrostBombEnergyPerShot(int level = 1) => 1;
+
+    public static float GetFrostBombFireInterval(int level = 1) => 5f;
+
+    public static float GetFrostBombRadius(int level)
+    {
+        return GetBombRadius(level) * 0.5f;
+    }
+
+    /// <summary>霜环持续时间：2/3/4/5/5 秒。</summary>
+    public static float GetFrostBombRingDuration(int level)
+    {
+        switch (Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel))
+        {
+            case 1: return 2f;
+            case 2: return 3f;
+            case 3: return 4f;
+            default: return 5f;
+        }
+    }
+
+    public static int GetFrostCannonDamage(int level)
+    {
+        switch (Mathf.Clamp(level, 1, ModulePricing.MaxAttackLevel))
+        {
+            case 1: return 20;
+            case 2: return 40;
+            case 3: return 80;
+            case 4: return 100;
+            default: return 150;
+        }
+    }
+
+    public static int GetFrostCannonEnergyCapacity(int level = 1) => 5;
+
+    public static int GetFrostCannonEnergyPerShot(int level = 1) => 5;
+
+    public static float GetFrostCannonFireInterval(int level = 1) => 1f;
 }

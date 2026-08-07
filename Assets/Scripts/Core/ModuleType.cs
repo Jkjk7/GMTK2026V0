@@ -76,5 +76,11 @@ public enum ModuleType
     Purify = 23,
 
     /// <summary>寒冰菇：战斗中一次性冻结全体敌人并施加寒冷。</summary>
-    FrostMushroom = 24
+    FrostMushroom = 24,
+
+    /// <summary>冰霜炸弹：投掷蓝弹落地留霜环，持续挂[寒冷]。</summary>
+    FrostBomb = 25,
+
+    /// <summary>冰霜炮：快速直线冰弹，伤害并挂[寒冷]。</summary>
+    FrostCannon = 26
 }

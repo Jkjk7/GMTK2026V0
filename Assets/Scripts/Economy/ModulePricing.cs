@@ -32,6 +32,8 @@ public static class ModulePricing
     public const int FlameBlessingBasePrice = 24;
     public const int PurifyBasePrice = 28;
     public const int FrostMushroomBasePrice = 28;
+    public const int FrostBombBasePrice = 22;
+    public const int FrostCannonBasePrice = 32;
     public const float ScrapRefundRate = 0.30f;
 
     public const int BoardExpandTo5Cost = 100;
@@ -147,6 +149,8 @@ public static class ModulePricing
             case ModuleType.FlameBlessing: return FlameBlessingBasePrice;
             case ModuleType.Purify: return PurifyBasePrice;
             case ModuleType.FrostMushroom: return FrostMushroomBasePrice;
+            case ModuleType.FrostBomb: return FrostBombBasePrice;
+            case ModuleType.FrostCannon: return FrostCannonBasePrice;
             default: return ProjectileBasePrice;
         }
     }

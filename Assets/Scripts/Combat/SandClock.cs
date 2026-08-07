@@ -3,7 +3,7 @@ using UnityEngine;
 
 /// <summary>
 /// 沙漏时间条：1 粒沙 = 1 毫秒。
-/// 补沙仅来自「沙 buff」怪击杀；波结束不再回沙。漏怪罚沙每 5 波加档。
+/// 补沙来自「沙 buff」怪击杀 + 过关奖励。漏怪罚沙每 5 波加档。
 /// </summary>
 public class SandClock : MonoBehaviour
 {
@@ -15,6 +15,13 @@ public class SandClock : MonoBehaviour
 
     // 砍半后约 6→17.5s（配合漏怪加档，控制回沙）
     static readonly int[] SandBuffBurstByStage = { 6_000, 8_000, 11_000, 14_000, 17_500 };
+
+    /// <summary>过关回沙：1–5 波 5s，6–10 波 10s，每 5 波一档 +5s。</summary>
+    public static int GetWaveClearSandMs(int waveDisplay)
+    {
+        int band = (Mathf.Max(1, waveDisplay) - 1) / 5 + 1;
+        return band * 5_000;
+    }
 
     static readonly float[] BreachMultByStage = { 1f, 1.3f, 1.65f, 2.1f, 2.5f };
 

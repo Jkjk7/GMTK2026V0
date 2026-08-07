@@ -6,6 +6,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// 三选一草稿：模块发现（图标+描述），或通用文本选项。
+/// 模块发现可带一次刷新（类似金铲铲海克斯）。
 /// </summary>
 public class DraftChoiceView : MonoBehaviour
 {
@@ -21,10 +22,13 @@ public class DraftChoiceView : MonoBehaviour
     [SerializeField] Text[] buttonLabels;
     [SerializeField] Image[] buttonIcons;
     [SerializeField] Text[] buttonDescs;
+    [SerializeField] Button refreshButton;
+    [SerializeField] Text refreshLabel;
 
     Action<Option> _onPick;
     Action<int> _onPickIndex;
     Action _onSkip;
+    Action _onRefresh;
     readonly List<Option> _options = new List<Option>();
     DraftChoiceHoverTarget[] _hovers;
     int _customCount;
@@ -35,7 +39,9 @@ public class DraftChoiceView : MonoBehaviour
         Button[] btns,
         Text[] labels,
         Image[] icons = null,
-        Text[] descs = null)
+        Text[] descs = null,
+        Button refreshBtn = null,
+        Text refreshText = null)
     {
         group = canvasGroup;
         titleText = title;
@@ -43,6 +49,8 @@ public class DraftChoiceView : MonoBehaviour
         buttonLabels = labels;
         buttonIcons = icons;
         buttonDescs = descs;
+        refreshButton = refreshBtn;
+        refreshLabel = refreshText;
         _hovers = new DraftChoiceHoverTarget[buttons.Length];
         for (int i = 0; i < buttons.Length; i++)
         {
@@ -55,10 +63,15 @@ public class DraftChoiceView : MonoBehaviour
             }
         }
 
+        if (refreshButton != null)
+        {
+            refreshButton.onClick.AddListener(OnRefreshClicked);
+        }
+
         Hide();
     }
 
-    public void Show(List<Option> options, Action<Option> onPick, Action onSkip = null)
+    public void Show(List<Option> options, Action<Option> onPick, Action onSkip = null, Action onRefresh = null)
     {
         _options.Clear();
         if (options != null)
@@ -69,6 +82,7 @@ public class DraftChoiceView : MonoBehaviour
         _onPick = onPick;
         _onPickIndex = null;
         _onSkip = onSkip;
+        _onRefresh = onRefresh;
         _customCount = 0;
         ClearHovers();
 
@@ -124,6 +138,7 @@ public class DraftChoiceView : MonoBehaviour
             }
         }
 
+        SetRefreshVisible(_onRefresh != null);
         SetVisible(true);
     }
 
@@ -133,8 +148,10 @@ public class DraftChoiceView : MonoBehaviour
         _onPick = null;
         _onPickIndex = onPick;
         _onSkip = onSkip;
+        _onRefresh = null;
         _customCount = labels != null ? labels.Count : 0;
         ClearHovers();
+        SetRefreshVisible(false);
 
         if (titleText != null)
         {
@@ -179,8 +196,24 @@ public class DraftChoiceView : MonoBehaviour
         _onPick = null;
         _onPickIndex = null;
         _onSkip = null;
+        _onRefresh = null;
         _customCount = 0;
+        SetRefreshVisible(false);
         SetVisible(false);
+    }
+
+    void SetRefreshVisible(bool visible)
+    {
+        if (refreshButton != null)
+        {
+            refreshButton.gameObject.SetActive(visible);
+            refreshButton.interactable = visible;
+        }
+
+        if (visible && refreshLabel != null)
+        {
+            refreshLabel.text = GameLocalization.Text("Refresh (1)", "刷新（1次）");
+        }
     }
 
     void ClearHovers()
@@ -211,6 +244,19 @@ public class DraftChoiceView : MonoBehaviour
             // 盖过「查看已有增幅」等后创建的 HUD，避免挡住选项点击
             transform.SetAsLastSibling();
         }
+    }
+
+    void OnRefreshClicked()
+    {
+        if (_onRefresh == null)
+        {
+            return;
+        }
+
+        Action refresh = _onRefresh;
+        _onRefresh = null;
+        SetRefreshVisible(false);
+        refresh.Invoke();
     }
 
     void OnClick(int index)

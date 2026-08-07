@@ -1119,7 +1119,7 @@ public class GameBootstrap : MonoBehaviour
             var btnGo = new GameObject($"Choice{i}");
             btnGo.transform.SetParent(root.transform, false);
             var brt = btnGo.AddComponent<RectTransform>();
-            brt.anchorMin = new Vector2(x0[i], 0.08f);
+            brt.anchorMin = new Vector2(x0[i], 0.18f);
             brt.anchorMax = new Vector2(x1[i], 0.78f);
             brt.offsetMin = Vector2.zero;
             brt.offsetMax = Vector2.zero;
@@ -1172,8 +1172,35 @@ public class GameBootstrap : MonoBehaviour
             descs[i].verticalOverflow = VerticalWrapMode.Overflow;
         }
 
+        var refreshGo = new GameObject("Refresh");
+        refreshGo.transform.SetParent(root.transform, false);
+        var refreshRt = refreshGo.AddComponent<RectTransform>();
+        refreshRt.anchorMin = new Vector2(0.32f, 0.03f);
+        refreshRt.anchorMax = new Vector2(0.68f, 0.15f);
+        refreshRt.offsetMin = Vector2.zero;
+        refreshRt.offsetMax = Vector2.zero;
+        var refreshImg = refreshGo.AddComponent<Image>();
+        refreshImg.color = new Color(0.22f, 0.32f, 0.42f, 1f);
+        var refreshBtn = refreshGo.AddComponent<Button>();
+        var refreshLabelGo = new GameObject("Label");
+        refreshLabelGo.transform.SetParent(refreshGo.transform, false);
+        var refreshLabelRt = refreshLabelGo.AddComponent<RectTransform>();
+        refreshLabelRt.anchorMin = Vector2.zero;
+        refreshLabelRt.anchorMax = Vector2.one;
+        refreshLabelRt.offsetMin = Vector2.zero;
+        refreshLabelRt.offsetMax = Vector2.zero;
+        var refreshLabel = refreshLabelGo.AddComponent<Text>();
+        refreshLabel.font = font;
+        refreshLabel.fontSize = 16;
+        refreshLabel.fontStyle = FontStyle.Bold;
+        refreshLabel.alignment = TextAnchor.MiddleCenter;
+        refreshLabel.color = new Color(0.85f, 0.92f, 1f, 1f);
+        refreshLabel.raycastTarget = false;
+        refreshLabel.text = GameLocalization.Text("Refresh (1)", "刷新（1次）");
+        refreshGo.SetActive(false);
+
         var view = root.AddComponent<DraftChoiceView>();
-        view.Bind(group, title, buttons, labels, icons, descs);
+        view.Bind(group, title, buttons, labels, icons, descs, refreshBtn, refreshLabel);
         return view;
     }
 

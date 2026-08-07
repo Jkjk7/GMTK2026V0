@@ -559,23 +559,36 @@ public class WaveManager : MonoBehaviour
 
         _waveRewardsGranted = true;
 
-        if (WaveGoldBudget.Instance == null)
-        {
-            return;
-        }
         Vector3 from = _mage != null
             ? _mage.transform.position
             : (_lane != null ? _lane.GetSpawnPosition() : Vector3.zero);
-        int clear = WaveGoldBudget.Instance.TakeWaveClearReward();
-        if (clear > 0 && GoldDropService.Instance != null)
+
+        if (WaveGoldBudget.Instance != null)
         {
-            GoldDropService.Instance.GrantGoldWithFly(clear, from);
+            int clear = WaveGoldBudget.Instance.TakeWaveClearReward();
+            if (clear > 0 && GoldDropService.Instance != null)
+            {
+                GoldDropService.Instance.GrantGoldWithFly(clear, from);
+            }
+
+            int perfect = WaveGoldBudget.Instance.TakePerfectRewardIfEligible();
+            if (perfect > 0 && GoldDropService.Instance != null)
+            {
+                GoldDropService.Instance.GrantGoldWithFly(perfect, from + Vector3.up * 0.4f);
+            }
         }
 
-        int perfect = WaveGoldBudget.Instance.TakePerfectRewardIfEligible();
-        if (perfect > 0 && GoldDropService.Instance != null)
+        int sandMs = SandClock.GetWaveClearSandMs(CurrentWaveDisplay);
+        if (sandMs > 0)
         {
-            GoldDropService.Instance.GrantGoldWithFly(perfect, from + Vector3.up * 0.4f);
+            if (SandVfxService.Instance != null)
+            {
+                SandVfxService.Instance.GrantSandWithFly(sandMs, from + Vector3.up * 0.2f);
+            }
+            else
+            {
+                SandClock.Instance?.AddSand(sandMs);
+            }
         }
     }
 

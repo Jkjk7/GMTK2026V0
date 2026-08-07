@@ -110,6 +110,8 @@ public static class CountdownArtResources
             case ModuleType.FlameBlessing: return PrototypeSprites.Square;
             case ModuleType.Purify: return PrototypeSprites.Circle;
             case ModuleType.FrostMushroom: return PrototypeSprites.Circle;
+            case ModuleType.FrostBomb: fileName = "module_bomb"; break;
+            case ModuleType.FrostCannon: fileName = "module_frost_freeze"; break;
             case ModuleType.LaserCannon: fileName = "module_laser_cannon"; break;
             case ModuleType.FrostFreeze: fileName = "module_frost_freeze"; break;
             case ModuleType.ArcaneMissile: fileName = "module_arcane_missile"; break;

@@ -96,7 +96,7 @@ public static class WaveSpawnBudget
     public const int PointRed = 5;
     public const int PointYellow = 1;
     public const int PointBlue = 20;
-    public const int BossHitPoints = 10_000;
+    public const int BossHitPoints = 50_000;
 
     public static int GetStage(int waveDisplay)
     {

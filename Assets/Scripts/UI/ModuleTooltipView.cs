@@ -576,6 +576,24 @@ public class ModuleTooltipView : MonoBehaviour
                     Cost: "5",
                     Cap: "5");
 
+            case ModuleType.FrostBomb:
+                return Snap(
+                    Attack: "0",
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(
+                        ModuleCatalog.GetFrostBombFireInterval(lv), enchant)),
+                    Cost: Int(ModuleCatalog.GetFrostBombEnergyPerShot(lv)),
+                    Cap: Int(ModuleCatalog.GetFrostBombEnergyCapacity(lv)),
+                    Effect: $"霜环{ModuleCatalog.GetFrostBombRingDuration(lv):0.#}秒 半径{ModuleCatalog.GetFrostBombRadius(lv):0.#} 持续挂[寒冷]2秒（减速{chillSlow * 100f:0}%）");
+
+            case ModuleType.FrostCannon:
+                return Snap(
+                    Attack: Attack(ModuleCatalog.GetFrostCannonDamage(lv), enchant),
+                    Rate: FormatFireRate(CellEnchantRules.ScaleFireInterval(
+                        ModuleCatalog.GetFrostCannonFireInterval(lv), enchant)),
+                    Cost: Int(ModuleCatalog.GetFrostCannonEnergyPerShot(lv)),
+                    Cap: Int(ModuleCatalog.GetFrostCannonEnergyCapacity(lv)),
+                    Effect: $"[寒冷]3秒（减速{chillSlow * 100f:0}%）");
+
             case ModuleType.ArcaneMissile:
                 return Snap(
                     Attack: Attack(ModuleCatalog.GetArcaneMissileDamage(lv), enchant),

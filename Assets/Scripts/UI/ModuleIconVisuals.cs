@@ -30,7 +30,8 @@ public static class ModuleIconVisuals
                 (type == ModuleType.LaserCannon
                  || type == ModuleType.ArcaneMissile
                  || type == ModuleType.Purify
-                 || type == ModuleType.FrostMushroom)
+                 || type == ModuleType.FrostMushroom
+                 || type == ModuleType.FrostCannon)
                 ? PrototypeSprites.Circle
                 : PrototypeSprites.Square;
             Color c = ModuleCatalog.GetDisplayColor(type);
