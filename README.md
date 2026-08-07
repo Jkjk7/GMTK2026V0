@@ -39,9 +39,11 @@ The current jam build includes:
 Windows：Download Play file or unzip the compressed package.
 
 Mac: After unzip or download .app file, do
-      chmod -R +x TimeSands.app
-      xattr -cr TimeSands.app
-    in order to change permissions for playing
+```text
+chmod -R +x TimeSands.app
+xattr -cr TimeSands.app
+```
+In order to change permissions for playing
     
 Data and Graphs see in Docs
 
