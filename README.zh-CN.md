@@ -37,8 +37,10 @@
 Windows: 游戏运行文件在Play文件夹; 或者可以解压缩游戏压缩包。
 
 Mac: 解压或者下载到app文件夹后输入
-    chmod -R +x TimeSands.app
-    xattr -cr TimeSands.app
+```text
+chmod -R +x TimeSands.app
+xattr -cr TimeSands.app
+```
 更改权限后即可打开
 
 数值表请见Docs
