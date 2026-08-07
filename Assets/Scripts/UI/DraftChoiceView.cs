@@ -238,16 +238,6 @@ public class DraftChoiceView : MonoBehaviour
         Hide();
         modulePick?.Invoke(opt);
     }
-
-    void Update()
-    {
-        if (group != null && group.blocksRaycasts && Input.GetKeyDown(KeyCode.Escape))
-        {
-            Action skip = _onSkip;
-            Hide();
-            skip?.Invoke();
-        }
-    }
 }
 
 /// <summary>模块三选一选项悬停：显示与商店/手牌相同的描述弹窗。</summary>

@@ -148,9 +148,17 @@ public class PlacementController : MonoBehaviour
         s_instance?.FinishShopDrag(screenPos);
     }
 
+    /// <summary>
+    /// ESC 由局内设置面板统一开关，不再在此取消进行中操作。
+    /// </summary>
     void Update()
     {
         if (_board == null || _hand == null)
+        {
+            return;
+        }
+
+        if (InGameSettingsHud.IsOpen)
         {
             return;
         }
@@ -186,17 +194,6 @@ public class PlacementController : MonoBehaviour
         TickPendingTimeout();
         UpdateScrapHighlightFromSelection();
         UpdateModuleHoverTip();
-
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            CancelPendingDismantle();
-            CancelPendingScrap();
-            CancelPendingBoardScrap(restore: true);
-            CancelPendingMove(restore: true);
-            CancelShopDrag();
-            HideModuleTooltip();
-            _confirm?.Close();
-        }
 
         if (_boardDragging)
         {

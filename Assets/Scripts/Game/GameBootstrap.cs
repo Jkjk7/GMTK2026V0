@@ -264,6 +264,17 @@ public class GameBootstrap : MonoBehaviour
         CreateHintLabel(canvas.transform, font);
         CreateBoardExpandHint(canvas.transform, font, boardExpand);
 
+        var settingsGo = new GameObject("InGameSettingsHud");
+        settingsGo.transform.SetParent(canvas.transform, false);
+        var settingsRt = settingsGo.AddComponent<RectTransform>();
+        settingsRt.anchorMin = Vector2.zero;
+        settingsRt.anchorMax = Vector2.one;
+        settingsRt.offsetMin = Vector2.zero;
+        settingsRt.offsetMax = Vector2.zero;
+        var settingsHud = settingsGo.AddComponent<InGameSettingsHud>();
+        settingsHud.Initialize(font);
+        settingsGo.transform.SetAsLastSibling();
+
         ValidateRedirectorTable();
         Debug.Log("[GameBootstrap] Roguelike：稀有度 / 黑洞 / 祝福束缚 / 26 波（终局 Boss）。");
     }
@@ -959,8 +970,8 @@ public class GameBootstrap : MonoBehaviour
         var titleGo = new GameObject("Title");
         titleGo.transform.SetParent(go.transform, false);
         var titleRt = titleGo.AddComponent<RectTransform>();
-        titleRt.anchorMin = new Vector2(0.5f, 0.5f);
-        titleRt.anchorMax = new Vector2(0.5f, 0.5f);
+        titleRt.anchorMin = new Vector2(0.5f, 0.55f);
+        titleRt.anchorMax = new Vector2(0.5f, 0.55f);
         titleRt.pivot = new Vector2(0.5f, 0.5f);
         titleRt.sizeDelta = new Vector2(700f, 140f);
         var text = titleGo.AddComponent<Text>();
@@ -971,8 +982,34 @@ public class GameBootstrap : MonoBehaviour
         text.color = Color.white;
         text.raycastTarget = false;
 
+        var btnGo = new GameObject("MainMenuButton");
+        btnGo.transform.SetParent(go.transform, false);
+        var btnRt = btnGo.AddComponent<RectTransform>();
+        btnRt.anchorMin = new Vector2(0.5f, 0.5f);
+        btnRt.anchorMax = new Vector2(0.5f, 0.5f);
+        btnRt.pivot = new Vector2(0.5f, 0.5f);
+        btnRt.anchoredPosition = new Vector2(0f, -80f);
+        btnRt.sizeDelta = new Vector2(280f, 56f);
+        var btnImage = btnGo.AddComponent<Image>();
+        btnImage.color = new Color(0.18f, 0.2f, 0.26f, 1f);
+        var button = btnGo.AddComponent<Button>();
+        button.targetGraphic = btnImage;
+
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(btnGo.transform, false);
+        var labelRt = labelGo.AddComponent<RectTransform>();
+        StretchFull(labelRt);
+        var label = labelGo.AddComponent<Text>();
+        label.font = font;
+        label.fontSize = 24;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = new Color(0.95f, 0.92f, 0.8f, 1f);
+        label.text = GameLocalization.Text("Main Menu", "返回主菜单");
+        label.raycastTarget = false;
+
         var view = go.AddComponent<ResultOverlayView>();
-        view.Bind(group, text);
+        view.Bind(group, text, button, label);
         return view;
     }
 

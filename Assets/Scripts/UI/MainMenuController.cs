@@ -2,22 +2,22 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 /// <summary>
-/// 开始界面：开始游戏 / 设置 / 退出。设置含语言与开发者模式（密码 314）。
+/// 开始界面：开始游戏 / 设置 / 退出。设置含语言、全屏与开发者模式（密码 314）。
 /// </summary>
 public class MainMenuController : MonoBehaviour
 {
     Font _font;
     GameObject _settingsRoot;
+    GameObject _quitConfirmRoot;
     Text _devStatusText;
     Text _devErrorText;
     InputField _devPasswordField;
     Button _langEnButton;
     Button _langZhButton;
+    Button _fullscreenButton;
+    Text _fullscreenLabel;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
     static void HookSceneLoaded()
@@ -51,6 +51,26 @@ public class MainMenuController : MonoBehaviour
         BuildUi();
         RefreshLanguageButtons();
         RefreshDevStatus();
+        RefreshFullscreenButton();
+    }
+
+    void Update()
+    {
+        if (!Input.GetKeyDown(KeyCode.Escape))
+        {
+            return;
+        }
+
+        if (_quitConfirmRoot != null && _quitConfirmRoot.activeSelf)
+        {
+            HideQuitConfirm();
+            return;
+        }
+
+        if (_settingsRoot != null && _settingsRoot.activeSelf)
+        {
+            SetSettingsVisible(false);
+        }
     }
 
     void EnsureCamera()
@@ -148,9 +168,10 @@ public class MainMenuController : MonoBehaviour
             new Vector2(0.35f, 0.22f),
             new Vector2(0.65f, 0.32f),
             GameLocalization.Text("Quit", "退出游戏"),
-            QuitGame);
+            ShowQuitConfirm);
 
         BuildSettingsPanel(canvasGo.transform);
+        BuildQuitConfirm(canvasGo.transform);
     }
 
     void BuildSettingsPanel(Transform canvas)
@@ -166,26 +187,50 @@ public class MainMenuController : MonoBehaviour
         var panel = CreateImage(
             _settingsRoot.transform,
             "Panel",
-            new Vector2(0.28f, 0.18f),
-            new Vector2(0.72f, 0.82f));
+            new Vector2(0.28f, 0.12f),
+            new Vector2(0.72f, 0.88f));
         panel.color = new Color(0.1f, 0.12f, 0.16f, 0.98f);
 
         Text title = CreateText(
             panel.transform,
             "SettingsTitle",
-            new Vector2(0.08f, 0.86f),
-            new Vector2(0.92f, 0.96f),
+            new Vector2(0.08f, 0.9f),
+            new Vector2(0.92f, 0.98f),
             28,
             FontStyle.Bold,
             new Color(0.95f, 0.88f, 0.5f, 1f));
         title.text = GameLocalization.Text("Settings", "设置");
         title.alignment = TextAnchor.MiddleCenter;
 
+        Text displayLabel = CreateText(
+            panel.transform,
+            "DisplayLabel",
+            new Vector2(0.08f, 0.8f),
+            new Vector2(0.92f, 0.88f),
+            20,
+            FontStyle.Normal,
+            new Color(0.85f, 0.9f, 0.95f, 1f));
+        displayLabel.text = GameLocalization.Text("Display", "显示");
+        displayLabel.alignment = TextAnchor.MiddleLeft;
+
+        _fullscreenButton = CreateMenuButton(
+            panel.transform,
+            "FullscreenToggle",
+            new Vector2(0.08f, 0.68f),
+            new Vector2(0.92f, 0.78f),
+            string.Empty,
+            () =>
+            {
+                GameSettings.ToggleFullscreen();
+                RefreshFullscreenButton();
+            });
+        _fullscreenLabel = _fullscreenButton.GetComponentInChildren<Text>();
+
         Text langLabel = CreateText(
             panel.transform,
             "LangLabel",
-            new Vector2(0.08f, 0.72f),
-            new Vector2(0.92f, 0.82f),
+            new Vector2(0.08f, 0.58f),
+            new Vector2(0.92f, 0.66f),
             20,
             FontStyle.Normal,
             new Color(0.85f, 0.9f, 0.95f, 1f));
@@ -195,8 +240,8 @@ public class MainMenuController : MonoBehaviour
         _langEnButton = CreateMenuButton(
             panel.transform,
             "LangEN",
-            new Vector2(0.08f, 0.58f),
-            new Vector2(0.48f, 0.7f),
+            new Vector2(0.08f, 0.46f),
+            new Vector2(0.48f, 0.56f),
             "English",
             () =>
             {
@@ -208,8 +253,8 @@ public class MainMenuController : MonoBehaviour
         _langZhButton = CreateMenuButton(
             panel.transform,
             "LangZH",
-            new Vector2(0.52f, 0.58f),
-            new Vector2(0.92f, 0.7f),
+            new Vector2(0.52f, 0.46f),
+            new Vector2(0.92f, 0.56f),
             "中文",
             () =>
             {
@@ -221,8 +266,8 @@ public class MainMenuController : MonoBehaviour
         Text devLabel = CreateText(
             panel.transform,
             "DevLabel",
-            new Vector2(0.08f, 0.46f),
-            new Vector2(0.92f, 0.56f),
+            new Vector2(0.08f, 0.36f),
+            new Vector2(0.92f, 0.44f),
             20,
             FontStyle.Normal,
             new Color(0.85f, 0.9f, 0.95f, 1f));
@@ -232,23 +277,23 @@ public class MainMenuController : MonoBehaviour
         _devPasswordField = CreateInputField(
             panel.transform,
             "DevPassword",
-            new Vector2(0.08f, 0.34f),
-            new Vector2(0.62f, 0.44f),
+            new Vector2(0.08f, 0.26f),
+            new Vector2(0.62f, 0.34f),
             GameLocalization.Text("Password", "密码"));
 
         CreateMenuButton(
             panel.transform,
             "DevUnlock",
-            new Vector2(0.64f, 0.34f),
-            new Vector2(0.92f, 0.44f),
+            new Vector2(0.64f, 0.26f),
+            new Vector2(0.92f, 0.34f),
             GameLocalization.Text("Unlock", "开启"),
             TryUnlockDeveloper);
 
         CreateMenuButton(
             panel.transform,
             "DevDisable",
-            new Vector2(0.08f, 0.22f),
-            new Vector2(0.48f, 0.32f),
+            new Vector2(0.08f, 0.16f),
+            new Vector2(0.48f, 0.24f),
             GameLocalization.Text("Disable", "关闭"),
             () =>
             {
@@ -259,8 +304,8 @@ public class MainMenuController : MonoBehaviour
         _devStatusText = CreateText(
             panel.transform,
             "DevStatus",
-            new Vector2(0.5f, 0.22f),
-            new Vector2(0.92f, 0.32f),
+            new Vector2(0.5f, 0.16f),
+            new Vector2(0.92f, 0.24f),
             16,
             FontStyle.Bold,
             new Color(0.55f, 0.9f, 0.6f, 1f));
@@ -269,8 +314,8 @@ public class MainMenuController : MonoBehaviour
         _devErrorText = CreateText(
             panel.transform,
             "DevError",
-            new Vector2(0.08f, 0.12f),
-            new Vector2(0.92f, 0.2f),
+            new Vector2(0.08f, 0.08f),
+            new Vector2(0.92f, 0.14f),
             15,
             FontStyle.Normal,
             new Color(1f, 0.45f, 0.4f, 1f));
@@ -280,12 +325,61 @@ public class MainMenuController : MonoBehaviour
         CreateMenuButton(
             panel.transform,
             "CloseSettings",
-            new Vector2(0.3f, 0.03f),
-            new Vector2(0.7f, 0.11f),
+            new Vector2(0.3f, 0.01f),
+            new Vector2(0.7f, 0.07f),
             GameLocalization.Text("Back", "返回"),
             () => SetSettingsVisible(false));
 
         SetSettingsVisible(false);
+    }
+
+    void BuildQuitConfirm(Transform canvas)
+    {
+        _quitConfirmRoot = new GameObject("QuitConfirm");
+        _quitConfirmRoot.transform.SetParent(canvas, false);
+        var rootRt = _quitConfirmRoot.AddComponent<RectTransform>();
+        StretchFull(rootRt);
+
+        var dim = _quitConfirmRoot.AddComponent<Image>();
+        dim.color = new Color(0f, 0f, 0f, 0.72f);
+
+        var panel = CreateImage(
+            _quitConfirmRoot.transform,
+            "Panel",
+            new Vector2(0.3f, 0.38f),
+            new Vector2(0.7f, 0.62f));
+        panel.color = new Color(0.12f, 0.13f, 0.18f, 1f);
+
+        Text body = CreateText(
+            panel.transform,
+            "Body",
+            new Vector2(0.08f, 0.45f),
+            new Vector2(0.92f, 0.9f),
+            20,
+            FontStyle.Normal,
+            new Color(0.92f, 0.9f, 0.85f, 1f));
+        body.text = GameLocalization.Text(
+            "Are you sure you want to quit?",
+            "确定要退出游戏吗？");
+        body.alignment = TextAnchor.MiddleCenter;
+
+        CreateMenuButton(
+            panel.transform,
+            "Yes",
+            new Vector2(0.08f, 0.1f),
+            new Vector2(0.46f, 0.38f),
+            GameLocalization.Text("Confirm", "确定"),
+            QuitGame);
+
+        CreateMenuButton(
+            panel.transform,
+            "No",
+            new Vector2(0.54f, 0.1f),
+            new Vector2(0.92f, 0.38f),
+            GameLocalization.Text("Cancel", "取消"),
+            HideQuitConfirm);
+
+        HideQuitConfirm();
     }
 
     void TryUnlockDeveloper()
@@ -362,6 +456,7 @@ public class MainMenuController : MonoBehaviour
         BuildUi();
         RefreshLanguageButtons();
         RefreshDevStatus();
+        RefreshFullscreenButton();
         SetSettingsVisible(true);
     }
 
@@ -374,12 +469,44 @@ public class MainMenuController : MonoBehaviour
 
         if (visible)
         {
+            HideQuitConfirm();
             RefreshLanguageButtons();
             RefreshDevStatus();
+            RefreshFullscreenButton();
             if (_devErrorText != null)
             {
                 _devErrorText.text = string.Empty;
             }
+        }
+    }
+
+    void RefreshFullscreenButton()
+    {
+        if (_fullscreenLabel == null)
+        {
+            return;
+        }
+
+        _fullscreenLabel.text = GameSettings.IsFullscreen
+            ? GameLocalization.Text("Windowed", "切换为窗口化")
+            : GameLocalization.Text("Fullscreen", "切换为全屏");
+    }
+
+    void ShowQuitConfirm()
+    {
+        SetSettingsVisible(false);
+        if (_quitConfirmRoot != null)
+        {
+            _quitConfirmRoot.SetActive(true);
+            _quitConfirmRoot.transform.SetAsLastSibling();
+        }
+    }
+
+    void HideQuitConfirm()
+    {
+        if (_quitConfirmRoot != null)
+        {
+            _quitConfirmRoot.SetActive(false);
         }
     }
 
@@ -390,11 +517,7 @@ public class MainMenuController : MonoBehaviour
 
     void QuitGame()
     {
-#if UNITY_EDITOR
-        EditorApplication.isPlaying = false;
-#else
-        Application.Quit();
-#endif
+        GameSettings.QuitApplication();
     }
 
     Button CreateMenuButton(

@@ -143,9 +143,13 @@ public class CombatHUD : MonoBehaviour
         }
     }
 
-    void OnVictory() => resultOverlay?.Show("VICTORY", new Color(0.45f, 0.95f, 0.55f, 1f));
+    void OnVictory() => resultOverlay?.Show(
+        GameLocalization.Text("VICTORY", "胜利"),
+        new Color(0.45f, 0.95f, 0.55f, 1f));
 
-    void OnDefeat() => resultOverlay?.Show("DEFEAT", new Color(0.95f, 0.35f, 0.35f, 1f));
+    void OnDefeat() => resultOverlay?.Show(
+        GameLocalization.Text("DEFEAT", "失败"),
+        new Color(0.95f, 0.35f, 0.35f, 1f));
 
     void RefreshStatus()
     {

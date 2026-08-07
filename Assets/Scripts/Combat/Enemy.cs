@@ -149,8 +149,10 @@ public class Enemy : MonoBehaviour
             case EnemyGoldType.Swarm:
                 _baseMoveSpeed = 3.0f;
                 break;
-            case EnemyGoldType.Tank:
             case EnemyGoldType.Boss:
+                _baseMoveSpeed = 0.375f; // 坦克 0.75 的一半
+                break;
+            case EnemyGoldType.Tank:
             case EnemyGoldType.Disassembler:
             case EnemyGoldType.ShieldCaster:
                 _baseMoveSpeed = 0.75f;

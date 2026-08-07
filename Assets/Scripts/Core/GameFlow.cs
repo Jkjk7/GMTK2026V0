@@ -1,3 +1,4 @@
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>主菜单 / 中英文游戏场景名与加载入口。</summary>
@@ -22,6 +23,7 @@ public static class GameFlow
 
     public static void LoadMainMenu()
     {
+        Time.timeScale = 1f;
         SceneManager.LoadScene(MainMenuScene);
     }
 
