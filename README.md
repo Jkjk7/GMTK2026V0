@@ -36,12 +36,7 @@ The current jam build includes:
 
 ## Run the Project
 
-The submission branch is tested with **Unity 6000.5.4f1**.
-
-1. Clone [Jkjk7/GMTK2026V0](https://github.com/Jkjk7/GMTK2026V0).
-2. Open the repository root through Unity Hub.
-3. Open the game scene in `Assets/Scenes`, then press Play. The runtime bootstrap can also assemble
-   the prototype when no bootstrap object is present.
+Download Play file or unzip the compressed package
 
 Data and Graphs see in Docs
 
