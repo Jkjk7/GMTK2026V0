@@ -8,7 +8,7 @@ using UnityEngine;
 public static class CountdownArtResources
 {
     /// <summary>是否使用正式模块/图标贴图。false = 原型方块。</summary>
-    public static bool UseFormalArt = false;
+    public static bool UseFormalArt = true;
 
     /// <summary>是否使用战斗区/棋盘等环境背景正式贴图（不含模块）。</summary>
     public static bool UseFormalEnvironmentArt = true;
@@ -44,6 +44,9 @@ public static class CountdownArtResources
         {
             return fallback;
         }
+
+        Sprite pixel = UseFormalEnvironmentArt ? PixelUiSprites.Resolve(path) : null;
+        if (pixel != null) return pixel;
 
         if (Cache.TryGetValue(path, out Sprite cached) && cached != null)
         {
@@ -85,44 +88,12 @@ public static class CountdownArtResources
             return PrototypeSprites.Square;
         }
 
-        string fileName;
-        switch (type)
-        {
-            case ModuleType.Redirector: fileName = "module_redirector"; break;
-            case ModuleType.Projectile: fileName = "module_projectile"; break;
-            case ModuleType.Bomb: fileName = "module_bomb"; break;
-            case ModuleType.IceLaser: fileName = "module_ice_laser"; break;
-            case ModuleType.Miner: fileName = "module_miner"; break;
-            case ModuleType.BlackHole: fileName = "module_black_hole"; break;
-            case ModuleType.FlameAmp: fileName = "module_flame_amp"; break;
-            case ModuleType.IceAmp: fileName = "module_ice_laser"; break; // 暂复用雪花图标
-            case ModuleType.Spark: fileName = "module_spark"; break;
-            case ModuleType.Splitter: fileName = "module_splitter"; break;
-            case ModuleType.Portal: fileName = "module_portal"; break;
-            case ModuleType.Relay: fileName = "module_relay"; break;
-            case ModuleType.Accelerator: fileName = "module_accelerator"; break;
-            case ModuleType.Fusion: fileName = "module_fusion"; break;
-            case ModuleType.Fission: fileName = "module_fission"; break;
-            case ModuleType.FireEnchant: fileName = "module_fire_enchant"; break;
-            case ModuleType.Surprise: fileName = "module_surprise"; break;
-            case ModuleType.Heatwave: fileName = "module_heatwave"; break;
-            case ModuleType.FlameWall: return PrototypeSprites.Triangle;
-            case ModuleType.FlameBlessing: return PrototypeSprites.Square;
-            case ModuleType.Purify: return PrototypeSprites.Circle;
-            case ModuleType.FrostMushroom: return PrototypeSprites.Circle;
-            case ModuleType.FrostBomb: fileName = "module_bomb"; break;
-            case ModuleType.FrostCannon: fileName = "module_frost_freeze"; break;
-            case ModuleType.LaserCannon: fileName = "module_laser_cannon"; break;
-            case ModuleType.FrostFreeze: fileName = "module_frost_freeze"; break;
-            case ModuleType.ArcaneMissile: fileName = "module_arcane_missile"; break;
-            default: return PrototypeSprites.Square;
-        }
-
-        return LoadSprite(ModuleRootPath + fileName, PrototypeSprites.Square);
+        return PixelArtSprites.Module(type);
     }
 
     public static bool IsFormalModuleSprite(Sprite sprite)
     {
-        return sprite != null && sprite != PrototypeSprites.Square;
+        return sprite != null && sprite != PrototypeSprites.Square
+            && sprite != PrototypeSprites.Circle && sprite != PrototypeSprites.Triangle;
     }
 }

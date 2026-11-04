@@ -7,6 +7,8 @@ public class BallCountHud : MonoBehaviour
 {
     EnergyBallManager _manager;
     TextMesh _label;
+    int _lastCount = -1;
+    int _lastMax = -1;
 
     public void Initialize(EnergyBallManager manager, Vector3 worldPosition)
     {
@@ -31,6 +33,9 @@ public class BallCountHud : MonoBehaviour
 
         int cur = _manager != null ? _manager.ActiveCount : 0;
         int max = _manager != null ? _manager.MaxBalls : 40;
+        if (cur == _lastCount && max == _lastMax) return;
+        _lastCount = cur;
+        _lastMax = max;
         _label.text = $"{cur}/{max}";
         float t = max > 0 ? cur / (float)max : 0f;
         _label.color = t >= 0.9f

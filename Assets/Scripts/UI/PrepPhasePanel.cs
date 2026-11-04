@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 准备阶段顶部面板：等待玩家就绪、下波敌人色圆、准备完毕、3-2-1。
+/// 准备阶段顶部面板：等待玩家就绪、下波敌人预览、准备完毕、3-2-1。
 /// </summary>
 public class PrepPhasePanel : MonoBehaviour
 {
@@ -119,7 +119,7 @@ public class PrepPhasePanel : MonoBehaviour
         if (timerText != null)
         {
             timerText.text = GameLocalization.Text("Waiting…", "等待中…");
-            timerText.color = new Color(0.2f, 0.45f, 0.25f, 1f);
+            timerText.color = new Color(0.55f, 0.9f, 0.72f, 1f);
         }
 
         if (hintText != null)

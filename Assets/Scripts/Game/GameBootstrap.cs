@@ -673,8 +673,8 @@ public class GameBootstrap : MonoBehaviour
         StretchFull(rootRt);
         root.transform.SetAsFirstSibling();
 
-        Color frame = new Color(0.14f, 0.12f, 0.22f, 0.95f);
-        Color sidebar = new Color(0.07f, 0.06f, 0.11f, 0.92f);
+        Color frame = new Color(0.055f, 0.075f, 0.12f, 1f);
+        Color sidebar = new Color(0.09f, 0.12f, 0.19f, 1f);
 
         CreateShellBar(root.transform, "TopBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
             new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(0f, 0f), frame);
@@ -740,7 +740,8 @@ public class GameBootstrap : MonoBehaviour
         image.sprite = CountdownArtResources.LoadSprite(
             CountdownArtResources.PanelBackgroundPath,
             PrototypeSprites.Square);
-        image.type = Image.Type.Simple;
+        image.type = Image.Type.Sliced;
+        image.pixelsPerUnitMultiplier = 2f;
         image.color = new Color(1f, 1f, 1f, alpha);
     }
 
@@ -1245,7 +1246,7 @@ public class GameBootstrap : MonoBehaviour
         timer.fontSize = 22;
         timer.fontStyle = FontStyle.Bold;
         timer.alignment = TextAnchor.MiddleCenter;
-        timer.color = new Color(0.25f, 0.55f, 0.35f, 1f);
+        timer.color = new Color(0.55f, 0.9f, 0.72f, 1f);
         timer.text = GameLocalization.Text("Waiting…", "等待中…");
 
         var hintGo = new GameObject("Hint");
@@ -1300,7 +1301,10 @@ public class GameBootstrap : MonoBehaviour
         readyRt.offsetMin = Vector2.zero;
         readyRt.offsetMax = Vector2.zero;
         var readyBg = readyGo.AddComponent<Image>();
-        readyBg.color = new Color(0.2f, 0.45f, 0.28f, 0.95f);
+        readyBg.sprite = PixelUiSprites.Panel;
+        readyBg.type = Image.Type.Sliced;
+        readyBg.pixelsPerUnitMultiplier = 2f;
+        readyBg.color = Color.white;
         var readyBtn = readyGo.AddComponent<Button>();
         var readyLabelGo = new GameObject("Label");
         readyLabelGo.transform.SetParent(readyGo.transform, false);
@@ -1749,9 +1753,9 @@ public class GameBootstrap : MonoBehaviour
         var iconGo = new GameObject("Icon");
         iconGo.transform.SetParent(slotGo.transform, false);
         var iconRt = iconGo.AddComponent<RectTransform>();
-        iconRt.anchorMin = new Vector2(0.5f, 0.62f);
-        iconRt.anchorMax = new Vector2(0.5f, 0.62f);
-        iconRt.sizeDelta = new Vector2(44f, 44f);
+        iconRt.anchorMin = new Vector2(0.5f, 0.68f);
+        iconRt.anchorMax = new Vector2(0.5f, 0.68f);
+        iconRt.sizeDelta = new Vector2(54f, 54f);
         var icon = iconGo.AddComponent<Image>();
         icon.sprite = skin != null ? skin.ResolveSquare(null) : PrototypeSprites.Square;
         icon.color = Color.gray;
@@ -1761,7 +1765,7 @@ public class GameBootstrap : MonoBehaviour
         labelGo.transform.SetParent(slotGo.transform, false);
         var labelRt = labelGo.AddComponent<RectTransform>();
         labelRt.anchorMin = new Vector2(0f, 0.22f);
-        labelRt.anchorMax = new Vector2(1f, 0.45f);
+        labelRt.anchorMax = new Vector2(1f, 0.43f);
         labelRt.offsetMin = Vector2.zero;
         labelRt.offsetMax = Vector2.zero;
         var label = labelGo.AddComponent<Text>();
@@ -1891,9 +1895,9 @@ public class GameBootstrap : MonoBehaviour
         var iconGo = new GameObject("Icon");
         iconGo.transform.SetParent(slotGo.transform, false);
         var iconRt = iconGo.AddComponent<RectTransform>();
-        iconRt.anchorMin = new Vector2(0.5f, 0.58f);
-        iconRt.anchorMax = new Vector2(0.5f, 0.58f);
-        iconRt.sizeDelta = new Vector2(48f, 48f);
+        iconRt.anchorMin = new Vector2(0.5f, 0.60f);
+        iconRt.anchorMax = new Vector2(0.5f, 0.60f);
+        iconRt.sizeDelta = new Vector2(64f, 64f);
         var icon = iconGo.AddComponent<Image>();
         icon.sprite = skin != null ? skin.ResolveSquare(null) : PrototypeSprites.Square;
         icon.color = Color.gray;
@@ -2016,7 +2020,10 @@ public class GameBootstrap : MonoBehaviour
             var go = new GameObject(name);
             go.transform.SetParent(root.transform, false);
             var nrt = go.AddComponent<RectTransform>();
-            StretchFull(nrt);
+            nrt.anchorMin = new Vector2(0f, 0.34f);
+            nrt.anchorMax = Vector2.one;
+            nrt.offsetMin = Vector2.zero;
+            nrt.offsetMax = Vector2.zero;
             var t = go.AddComponent<Text>();
             t.font = font;
             t.fontSize = 42;
@@ -2036,7 +2043,7 @@ public class GameBootstrap : MonoBehaviour
         captionGo.transform.SetParent(root.transform, false);
         var crt = captionGo.AddComponent<RectTransform>();
         crt.anchorMin = new Vector2(0f, 0f);
-        crt.anchorMax = new Vector2(1f, 0.35f);
+        crt.anchorMax = new Vector2(1f, 0.28f);
         crt.offsetMin = Vector2.zero;
         crt.offsetMax = Vector2.zero;
         var caption = captionGo.AddComponent<Text>();

@@ -122,7 +122,8 @@ public class MainMenuController : MonoBehaviour
             "Accent",
             new Vector2(0f, 0.55f),
             new Vector2(1f, 1f));
-        accent.color = new Color(0.12f, 0.16f, 0.22f, 1f);
+        accent.sprite = PixelUiSprites.Backdrop;
+        accent.color = Color.white;
 
         Text title = CreateText(
             canvasGo.transform,
@@ -143,7 +144,7 @@ public class MainMenuController : MonoBehaviour
             22,
             FontStyle.Normal,
             new Color(0.75f, 0.8f, 0.88f, 1f));
-        subtitle.text = "Athor: JKSeven, Czhan;";
+        subtitle.text = "JKSeven / Czhan";
         subtitle.alignment = TextAnchor.MiddleCenter;
 
         CreateMenuButton(
@@ -537,7 +538,10 @@ public class MainMenuController : MonoBehaviour
         rt.offsetMax = Vector2.zero;
 
         var image = go.AddComponent<Image>();
-        image.color = new Color(0.18f, 0.2f, 0.26f, 1f);
+        image.sprite = PixelUiSprites.Panel;
+        image.type = Image.Type.Sliced;
+        image.pixelsPerUnitMultiplier = 2f;
+        image.color = Color.white;
         var button = go.AddComponent<Button>();
         button.targetGraphic = image;
         if (onClick != null)

@@ -65,6 +65,6 @@ public sealed class GameSkin : ScriptableObject
             return slotEmpty;
         }
 
-        return ResolveSquare(slotNormal);
+        return slotNormal != null ? slotNormal : PixelUiSprites.Panel;
     }
 }

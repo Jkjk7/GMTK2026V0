@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-/// <summary>准备阶段：下波怪物类型以色圆居中展示 + 悬停描述。</summary>
+/// <summary>准备阶段：下波怪物像素剪影居中展示 + 悬停描述。</summary>
 public class WavePreviewStrip : MonoBehaviour
 {
     const float CircleSize = 52f;
@@ -129,8 +129,8 @@ public class WavePreviewStrip : MonoBehaviour
         rt.sizeDelta = new Vector2(CircleSize, CircleSize);
 
         var img = go.AddComponent<Image>();
-        img.sprite = PrototypeSprites.Circle;
-        img.color = EnemyCatalog.GetPreviewColor(type);
+        img.sprite = PixelEnemySprites.Get(type);
+        img.color = Color.white;
         img.raycastTarget = true;
         img.preserveAspect = true;
 

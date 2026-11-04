@@ -26,11 +26,11 @@ public sealed class ModuleSlotView : MonoBehaviour
     SlotVisualState _state = SlotVisualState.Empty;
     ModuleType? _moduleType;
 
-    static readonly Color EmptyBg = new Color(0.07f, 0.06f, 0.1f, 0.52f);
-    static readonly Color NormalBg = new Color(0.1f, 0.08f, 0.14f, 0.68f);
-    static readonly Color HoverBg = new Color(0.18f, 0.15f, 0.22f, 0.78f);
-    static readonly Color SelectedBg = new Color(0.16f, 0.22f, 0.16f, 0.8f);
-    static readonly Color DisabledBg = new Color(0.06f, 0.05f, 0.08f, 0.58f);
+    static readonly Color EmptyBg = new Color(0.65f, 0.7f, 0.8f, 0.65f);
+    static readonly Color NormalBg = Color.white;
+    static readonly Color HoverBg = new Color(1.15f, 1.15f, 1.15f, 1f);
+    static readonly Color SelectedBg = new Color(0.9f, 1.2f, 1.05f, 1f);
+    static readonly Color DisabledBg = new Color(0.65f, 0.65f, 0.75f, 0.8f);
 
     public void Bind(
         Image bg,
@@ -79,8 +79,9 @@ public sealed class ModuleSlotView : MonoBehaviour
 
         if (icon != null)
         {
-            icon.sprite = _skin != null ? _skin.ResolveSquare(null) : PrototypeSprites.Square;
-            icon.color = new Color(0.25f, 0.25f, 0.28f, 1f);
+            icon.sprite = PixelUiSprites.EmptySlot;
+            icon.color = Color.white;
+            icon.preserveAspect = true;
         }
 
         ApplyState();
@@ -189,6 +190,8 @@ public sealed class ModuleSlotView : MonoBehaviour
     {
         if (background != null)
         {
+            background.type = Image.Type.Sliced;
+            background.pixelsPerUnitMultiplier = 2f;
             switch (_state)
             {
                 case SlotVisualState.Empty:
@@ -214,6 +217,9 @@ public sealed class ModuleSlotView : MonoBehaviour
 
         if (selectionFrame != null)
         {
+            selectionFrame.sprite = PixelUiSprites.Frame;
+            selectionFrame.type = Image.Type.Sliced;
+            selectionFrame.pixelsPerUnitMultiplier = 2f;
             selectionFrame.enabled = _state == SlotVisualState.Selected || _state == SlotVisualState.Hover;
             selectionFrame.color = _state == SlotVisualState.Selected
                 ? new Color(0.55f, 0.95f, 0.45f, 0.9f)

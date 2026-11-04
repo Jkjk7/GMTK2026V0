@@ -12,6 +12,9 @@ public sealed class CountdownRingView : MonoBehaviour
     readonly SpriteRenderer[] _ticks = new SpriteRenderer[CountdownVisualRules.TickCount];
     SandClock _clock;
     SpriteRenderer _ornament;
+    int _lastLit = -1;
+    bool _lastWarning;
+    bool _lastAlternate;
 
     public int TickRendererCount => _ticks.Length;
     public SpriteRenderer OrnamentRenderer => _ornament;
@@ -34,6 +37,7 @@ public sealed class CountdownRingView : MonoBehaviour
 
     public void Initialize(SandClock clock, Vector3 center, float radius)
     {
+        _lastLit = -1;
         _clock = clock;
         transform.position = new Vector3(center.x, center.y, 0f);
 
@@ -75,6 +79,10 @@ public sealed class CountdownRingView : MonoBehaviour
         int lit = CountdownVisualRules.GetLitTickCount(ms, SandClock.InitialSandMs);
         bool warning = CountdownVisualRules.IsWarning(ms);
         bool alternate = Mathf.FloorToInt(Time.unscaledTime * 4f) % 2 == 0;
+        if (lit == _lastLit && warning == _lastWarning && (!warning || alternate == _lastAlternate)) return;
+        _lastLit = lit;
+        _lastWarning = warning;
+        _lastAlternate = alternate;
         for (int i = 0; i < _ticks.Length; i++)
         {
             if (_ticks[i] == null) continue;

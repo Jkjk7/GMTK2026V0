@@ -8,34 +8,15 @@ public sealed class ModuleSkinApplicator : MonoBehaviour
     ModuleBase _module;
     SpriteRenderer _body;
     Sprite _formalSprite;
+    int _orientation;
 
     public static bool HasStyle(ModuleType type) =>
-        System.Enum.IsDefined(typeof(ModuleType), type);
+        PixelArtSprites.HasModule(type);
 
     public static bool Apply(ModuleBase module)
     {
         if (module == null)
         {
-            return false;
-        }
-
-        // 烈焰墙用红色三角原型，不套用正式贴图
-        if (module.ModuleType == ModuleType.FlameWall)
-        {
-            ModuleSkinApplicator existing = module.GetComponent<ModuleSkinApplicator>();
-            if (existing != null)
-            {
-                if (Application.isPlaying)
-                {
-                    Object.Destroy(existing);
-                }
-                else
-                {
-                    Object.DestroyImmediate(existing);
-                }
-            }
-
-            module.RefreshVisual();
             return false;
         }
 
@@ -78,7 +59,9 @@ public sealed class ModuleSkinApplicator : MonoBehaviour
             _body = module.gameObject.AddComponent<SpriteRenderer>();
         }
 
-        _formalSprite = CountdownArtResources.LoadModuleSprite(module.ModuleType);
+        _orientation = GetVisualOrientation();
+        _formalSprite = PixelArtSprites.Module(module.ModuleType, _orientation);
+        _body.color = Color.white;
         RemoveLegacyDecoration(module.transform.Find(LegacyDetailName));
         RefreshNow();
     }
@@ -90,35 +73,38 @@ public sealed class ModuleSkinApplicator : MonoBehaviour
             return;
         }
 
-        if (_formalSprite == null)
+        int orientation = GetVisualOrientation();
+        if (_formalSprite == null || _orientation != orientation)
         {
-            _formalSprite = CountdownArtResources.LoadModuleSprite(_module.ModuleType);
+            _orientation = orientation;
+            _formalSprite = PixelArtSprites.Module(_module.ModuleType, orientation);
         }
 
         _body.sprite = _formalSprite;
         _body.sortingOrder = 10;
-        Color accent = ModuleCatalog.GetDisplayColor(_module.ModuleType);
-        Color restrained = Color.Lerp(Color.white, accent, 0.18f);
-        restrained.a = 1f;
-        _body.color = restrained;
+        // PlacementController owns translucent green/red validity tints. Its
+        // redirector ghost remains enabled, unlike the other ghost modules.
+        if (OwnsBodyTint()) _body.color = Color.white;
+    }
+
+    bool OwnsBodyTint() => _module.enabled && _body.color.a >= 0.999f;
+
+    int GetVisualOrientation()
+    {
+        // Keep path arms visible: they also communicate bent card connectivity.
+        return _module.ModuleType == ModuleType.Redirector || _module.ModuleType == ModuleType.Splitter
+            ? _module.OrientationIndex : 0;
     }
 
     void LateUpdate()
     {
-        if (_module == null || _body == null)
-        {
-            return;
-        }
-
-        Color accent = ModuleCatalog.GetDisplayColor(_module.ModuleType);
-        Color expected = Color.Lerp(Color.white, accent, 0.18f);
-        expected.a = 1f;
-        if (_body.sprite != _formalSprite || _body.color != expected)
+        if (_module == null || _body == null) return;
+        if (_body.sprite != _formalSprite || GetVisualOrientation() != _orientation
+            || (OwnsBodyTint() && _body.color != Color.white))
         {
             RefreshNow();
         }
     }
-
     static void RemoveLegacyDecoration(Transform legacy)
     {
         if (legacy == null)

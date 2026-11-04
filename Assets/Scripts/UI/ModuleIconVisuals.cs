@@ -13,17 +13,6 @@ public static class ModuleIconVisuals
             return;
         }
 
-        // 烈焰墙：固定红色三角，便于与热浪等方形图标区分
-        if (type == ModuleType.FlameWall)
-        {
-            image.sprite = PrototypeSprites.Triangle;
-            Color c = new Color(1f, 0.2f, 0.08f, disabled ? DisabledAlpha : 1f);
-            image.color = c;
-            image.preserveAspect = true;
-            image.raycastTarget = false;
-            return;
-        }
-
         if (!CountdownArtResources.UseFormalArt)
         {
             image.sprite =

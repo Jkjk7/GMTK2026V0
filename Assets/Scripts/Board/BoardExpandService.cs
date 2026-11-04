@@ -9,9 +9,9 @@ public class BoardExpandService : MonoBehaviour
     public const int Size5 = 5;
     public const int Size7 = 7;
 
-    static readonly Color LockFill = new Color(0.04f, 0.04f, 0.06f, 0.88f);
-    static readonly Color LockHatch = new Color(0.55f, 0.18f, 0.22f, 0.55f);
-    static readonly Color PlayableWash = new Color(0.28f, 0.72f, 0.42f, 0.16f);
+    static readonly Color LockFill = new Color(0.04f, 0.06f, 0.1f, 0.65f);
+    static readonly Color LockHatch = new Color(1f, 1f, 1f, 0.55f);
+    static readonly Color PlayableWash = new Color(0.28f, 0.72f, 0.62f, 0.06f);
 
     GridBoard _board;
     int _unlockedSize = Size3;
@@ -145,14 +145,14 @@ public class BoardExpandService : MonoBehaviour
                 fill.sortingOrder = 2;
                 _lockOverlays[i] = fill;
 
-                // 斜杠：锁定格一眼可辨
+                // Pixel padlock identifies locked cells without a large diagonal obscuring the board.
                 var hatchGo = new GameObject("Hatch");
                 hatchGo.transform.SetParent(cellGo.transform, false);
                 hatchGo.transform.localPosition = Vector3.zero;
-                hatchGo.transform.localRotation = Quaternion.Euler(0f, 0f, 38f);
-                hatchGo.transform.localScale = new Vector3(1.15f, 0.14f, 1f);
+                hatchGo.transform.localRotation = Quaternion.identity;
+                hatchGo.transform.localScale = Vector3.one * 0.58f;
                 var hatch = hatchGo.AddComponent<SpriteRenderer>();
-                hatch.sprite = PrototypeSprites.Square;
+                hatch.sprite = PixelUiSprites.Lock;
                 hatch.color = LockHatch;
                 hatch.sortingOrder = 3;
                 _lockHatches[i] = hatch;
