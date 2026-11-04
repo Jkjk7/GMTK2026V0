@@ -26,7 +26,7 @@ async function main() {
  const dir=path.join(root,'Assets/Art/Pixel');fs.mkdirSync(dir,{recursive:true});
  fs.writeFileSync(path.join(dir,'enemy-atlas.png'),atlas);
  fs.mkdirSync(path.join(root,'Tools/Art/Source'),{recursive:true});
- 
+
  fs.writeFileSync(path.join(root,'Assets/Scripts/Core/PixelEnemyData.cs'),'// Generated from Assets/Art/Pixel/enemy-atlas.png; shared embedded atlas avoids runtime file I/O.\ninternal static class PixelEnemyData\n{\n    internal const string Png = "'+atlas.toString('base64')+'";\n}\n');
  if (process.argv[2]) await sharp(atlas).resize(1680,240,{kernel:'nearest'}).flatten({background:'#101725'}).png().toFile(process.argv[2]);
 }
