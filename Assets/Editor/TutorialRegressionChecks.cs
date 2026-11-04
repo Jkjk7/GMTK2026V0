@@ -64,20 +64,10 @@ public static class TutorialRegressionChecks
                 Require(button.navigation.selectOnLeft == null && button.navigation.selectOnRight == null,
                     "Horizontal lesson paging must not also change button focus.");
             }
-            for (int lesson = 0; lesson < 6; lesson++)
-            {
-                overlay.SelectLesson(lesson);
-                Require(overlay.transform.Find("Shade/GuidePanel/LessonContent/Body").GetComponent<Text>().text.Length > 100,
-                    "Every lesson needs useful explanatory copy.");
-            }
             UnityEngine.Object.DestroyImmediate(overlay.gameObject);
             Require(!TutorialOverlay.IsOpen, "Scene destruction must not leave a stale lock.");
-            GameLocalization.SetLanguage(GameLanguage.SimplifiedChinese, false);
-            TutorialOverlay.Show(font);
-            overlay = UnityEngine.Object.FindFirstObjectByType<TutorialOverlay>();
-            Require(overlay.transform.Find("Shade/GuidePanel/Title").GetComponent<Text>().text == "新手指南",
-                "Guide must follow the selected language.");
-            TutorialOverlay.Close();
+            VerifyLessons(font, GameLanguage.English);
+            VerifyLessons(font, GameLanguage.SimplifiedChinese);
         }
         finally
         {
@@ -85,6 +75,46 @@ public static class TutorialRegressionChecks
             Time.timeScale = previous;
             GameLocalization.SetLanguage(previousLanguage, false);
         }
+    }
+
+    static void VerifyLessons(Font font, GameLanguage language)
+    {
+        GameLocalization.SetLanguage(language, false);
+        TutorialOverlay.Show(font);
+        TutorialOverlay overlay = UnityEngine.Object.FindFirstObjectByType<TutorialOverlay>();
+        bool chinese = language == GameLanguage.SimplifiedChinese;
+        Require(overlay.transform.Find("Shade/GuidePanel/Title").GetComponent<Text>().text ==
+            (chinese ? "新手指南" : "Field Guide"), "Guide must follow the selected language.");
+        string[] topics = chinese
+            ? new[] { "使用金币购买模块", "按 R 旋转", "发射器消耗沙漏中的沙", "25 个普通波次", "会触发融化", "03  规划金币支出" }
+            : new[] { "Buy a module with coins", "R rotates", "emitter spends hourglass sand", "25 regular waves", "triggers Melt", "03  PLAN YOUR SPENDING" };
+        Transform content = overlay.transform.Find("Shade/GuidePanel/LessonContent");
+        for (int lesson = 0; lesson < topics.Length; lesson++)
+        {
+            overlay.SelectLesson(lesson);
+            // Old lesson objects are inactive until Unity's deferred Destroy runs.
+            // Inspect only the visible page, including when paging twice in one frame.
+            string body = ActiveText(content, "Body");
+            Require(body.Contains(topics[lesson]) && body.Contains("\n\n"),
+                language + " lesson " + (lesson + 1) + " must explain its own topic in multiple paragraphs.");
+            ActiveText(content, "LessonTitle");
+            ActiveText(content, "Heading");
+            ActiveText(content, "Note");
+        }
+        TutorialOverlay.Close();
+    }
+
+    static string ActiveText(Transform content, string name)
+    {
+        Text found = null;
+        foreach (Text label in content.GetComponentsInChildren<Text>())
+        {
+            if (label.name != name) continue;
+            Require(found == null, "The visible lesson must have only one " + name + ".");
+            found = label;
+        }
+        Require(found != null && !string.IsNullOrWhiteSpace(found.text), "The visible lesson needs a " + name + ".");
+        return found.text;
     }
 
     static void Require(bool condition, string message)
