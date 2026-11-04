@@ -15,6 +15,8 @@ public class InGameSettingsHud : MonoBehaviour
     GameObject _quitConfirmRoot;
     Button _fullscreenButton;
     Text _fullscreenLabel;
+    Text _qualityLabel;
+    Text _motionLabel;
     float _savedTimeScale = 1f;
     bool _open;
     bool _quitConfirmOpen;
@@ -36,6 +38,8 @@ public class InGameSettingsHud : MonoBehaviour
 
     void OnDisable()
     {
+        // Unwind the child modal before restoring this menu's own pause.
+        if (_open) TutorialOverlay.Close();
         if (s_instance == this)
         {
             s_instance = null;
@@ -50,6 +54,7 @@ public class InGameSettingsHud : MonoBehaviour
 
     void Update()
     {
+        if (TutorialOverlay.BlocksInput) return;
         if (!Input.GetKeyDown(KeyCode.Escape))
         {
             return;
@@ -94,6 +99,7 @@ public class InGameSettingsHud : MonoBehaviour
             {
                 BringToFront();
                 RefreshFullscreenButton();
+                RefreshPresentationLabels();
             }
 
             return;
@@ -112,6 +118,7 @@ public class InGameSettingsHud : MonoBehaviour
             _savedTimeScale = Time.timeScale > 0f ? Time.timeScale : 1f;
             Time.timeScale = 0f;
             RefreshFullscreenButton();
+            RefreshPresentationLabels();
         }
         else
         {
@@ -141,15 +148,15 @@ public class InGameSettingsHud : MonoBehaviour
         var panel = CreateImage(
             _root.transform,
             "Panel",
-            new Vector2(0.32f, 0.28f),
-            new Vector2(0.68f, 0.72f));
-        panel.color = new Color(0.1f, 0.12f, 0.16f, 0.98f);
+            new Vector2(0.29f, 0.18f),
+            new Vector2(0.71f, 0.82f));
+        panel.color = Color.white;
 
         Text title = CreateText(
             panel.transform,
             "Title",
-            new Vector2(0.08f, 0.78f),
-            new Vector2(0.92f, 0.94f),
+            new Vector2(0.08f, 0.83f),
+            new Vector2(0.92f, 0.96f),
             28,
             FontStyle.Bold,
             new Color(0.95f, 0.88f, 0.5f, 1f));
@@ -159,8 +166,8 @@ public class InGameSettingsHud : MonoBehaviour
         _fullscreenButton = CreateButton(
             panel.transform,
             "FullscreenToggle",
-            new Vector2(0.12f, 0.52f),
-            new Vector2(0.88f, 0.68f),
+            new Vector2(0.12f, 0.68f),
+            new Vector2(0.88f, 0.8f),
             string.Empty,
             () =>
             {
@@ -169,19 +176,29 @@ public class InGameSettingsHud : MonoBehaviour
             });
         _fullscreenLabel = _fullscreenButton.GetComponentInChildren<Text>();
 
+        CreateButton(panel.transform, "FieldGuide", new Vector2(0.12f, 0.53f),
+            new Vector2(0.88f, 0.65f), GameLocalization.Text("Field Guide", "新手指南"), () => TutorialOverlay.Show(_font));
+        _qualityLabel = CreateButton(panel.transform, "EffectsQuality", new Vector2(0.12f, 0.38f),
+            new Vector2(0.88f, 0.5f), "", () => { PresentationSettings.CycleQuality(); RefreshPresentationLabels(); })
+            .GetComponentInChildren<Text>();
+        _motionLabel = CreateButton(panel.transform, "MotionToggle", new Vector2(0.12f, 0.23f),
+            new Vector2(0.88f, 0.35f), "", () => { PresentationSettings.ToggleMotion(); RefreshPresentationLabels(); })
+            .GetComponentInChildren<Text>();
+        RefreshPresentationLabels();
+
         CreateButton(
             panel.transform,
             "Resume",
-            new Vector2(0.12f, 0.32f),
-            new Vector2(0.88f, 0.46f),
+            new Vector2(0.12f, 0.07f),
+            new Vector2(0.53f, 0.19f),
             GameLocalization.Text("Resume", "继续游戏"),
             () => SetOpen(false));
 
         CreateButton(
             panel.transform,
             "Quit",
-            new Vector2(0.12f, 0.12f),
-            new Vector2(0.88f, 0.26f),
+            new Vector2(0.56f, 0.07f),
+            new Vector2(0.88f, 0.19f),
             GameLocalization.Text("Quit", "退出游戏"),
             ShowQuitConfirm);
 
@@ -269,6 +286,12 @@ public class InGameSettingsHud : MonoBehaviour
             : GameLocalization.Text("Fullscreen", "切换为全屏");
     }
 
+    void RefreshPresentationLabels()
+    {
+        if (_qualityLabel != null) _qualityLabel.text = TutorialOverlay.EffectsQualityLabel();
+        if (_motionLabel != null) _motionLabel.text = TutorialOverlay.MotionLabel();
+    }
+
     Button CreateButton(
         Transform parent,
         string name,
@@ -286,7 +309,10 @@ public class InGameSettingsHud : MonoBehaviour
         rt.offsetMax = Vector2.zero;
 
         var image = go.AddComponent<Image>();
-        image.color = new Color(0.18f, 0.2f, 0.26f, 1f);
+        image.sprite = PixelUiSprites.Panel;
+        image.type = Image.Type.Sliced;
+        image.pixelsPerUnitMultiplier = 2f;
+        image.color = Color.white;
         var button = go.AddComponent<Button>();
         button.targetGraphic = image;
         if (onClick != null)
@@ -317,7 +343,14 @@ public class InGameSettingsHud : MonoBehaviour
         rt.anchorMax = anchorMax;
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
-        return go.AddComponent<Image>();
+        Image image = go.AddComponent<Image>();
+        if (name == "Panel")
+        {
+            image.sprite = PixelUiSprites.Panel;
+            image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1.5f;
+        }
+        return image;
     }
 
     Text CreateText(

@@ -6,10 +6,12 @@ public static class PixelVfxSprites
     static Sprite _burst;
     static Sprite _ring;
     static Sprite _chip;
+    static Sprite _pixel;
 
     public static Sprite Burst => _burst != null ? _burst : (_burst = Build("PixelHitBurst", 0));
     public static Sprite Ring => _ring != null ? _ring : (_ring = Build("PixelMeltRing", 1));
     public static Sprite Chip => _chip != null ? _chip : (_chip = Build("PixelShard", 2));
+    public static Sprite Pixel => _pixel != null ? _pixel : (_pixel = Build("SolidPixelFragment", 3));
 
     static Sprite Build(string name, int shape)
     {
@@ -33,8 +35,10 @@ public static class PixelVfxSprites
                     int edge = Mathf.Max(dx, dy);
                     solid = edge >= 15 && edge <= 21 && dx + dy <= 32;
                 }
-                else
+                else if (shape == 2)
                     solid = dx + dy / 2 <= 15 && dx + dy >= 7 && x >= 4 && y >= 4;
+                else
+                    solid = true;
                 pixels[y * size + x] = solid ? new Color32(255, 255, 255, 255) : new Color32(0, 0, 0, 0);
             }
         texture.SetPixels32(pixels);

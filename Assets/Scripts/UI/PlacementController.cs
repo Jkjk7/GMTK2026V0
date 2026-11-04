@@ -119,6 +119,7 @@ public class PlacementController : MonoBehaviour
 
     public static void NotifyHandDrop(HandController hand, int handIndex, Vector2 screenPos)
     {
+        if (TutorialOverlay.BlocksInput) return;
         s_instance?.HandleHandDrop(hand, handIndex, screenPos);
     }
 
@@ -145,6 +146,7 @@ public class PlacementController : MonoBehaviour
 
     public static void NotifyShopDrop(Vector2 screenPos)
     {
+        if (TutorialOverlay.BlocksInput) return;
         s_instance?.FinishShopDrag(screenPos);
     }
 
@@ -158,7 +160,7 @@ public class PlacementController : MonoBehaviour
             return;
         }
 
-        if (InGameSettingsHud.IsOpen)
+        if (InGameSettingsHud.IsOpen || TutorialOverlay.BlocksInput)
         {
             return;
         }

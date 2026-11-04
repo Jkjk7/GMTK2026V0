@@ -17,7 +17,7 @@ This repository contains the Unity project and prebuilt V0.3 demos. The demos ar
 
 The current source includes **27 catalog types, including 3 consumable items**, across attack, routing, economy, enchantment, and support roles. Each run unlocks a subset. Systems include buying, placing, rotating path modules, moving, merging, upgrading, scrapping, and fire/chill/Melt interactions.
 
-The source now uses **27 distinct pixel module icons and 7 enemy silhouettes**, shared sprites with crisp point filtering, and bounded pools for hit, Melt, death, and shield-shatter accents. These visual changes do not change gameplay rules or guarantee a particular frame rate. The included `Play/` V0.3 demo has not been rebuilt with them.
+The source now uses **27 distinct pixel module icons and 7 enemy silhouettes**, shared sprites with crisp point filtering, and bounded pools for hit, Melt, death, and shield-shatter accents. Fire, frost and arcane impacts add moving pixel fragments, trails, layered shockwaves and compact flashes; deaths disintegrate into chips and black holes pull particles inward. Enemy poses and the furnace animate their visual children while gameplay transforms stay unchanged. These visual changes do not change gameplay rules or guarantee a particular frame rate. The included `Play/` V0.3 demo has not been rebuilt with them.
 
 The interface defaults to English on a fresh launch. Choose **Settings → Language → English / 中文** from the main menu; the choice is saved.
 
@@ -31,9 +31,18 @@ The interface defaults to English on a fresh launch. Choose **Settings → Langu
 | **Space** / **Ready** | End preparation and start the wave countdown. |
 | **F** | Refresh the shop; costs gold unless a free refresh is available. |
 | **Right click** / **X** over a board module | Dismantle it back into the hand. Free and immediate during preparation; combat may require payment and confirmation. A free hand slot is required. |
-| **Esc** | Open/close in-game settings to pause, change display mode, resume, or quit with confirmation. |
+| **Esc** | Close the Field Guide first when open; otherwise open/close in-game settings to pause, change display mode, resume, or quit with confirmation. |
+| **← / →** while the Field Guide is open | Browse its six lessons. |
 
 Placement and shop actions are temporarily unavailable during the wave countdown and draft selection. Locks, placement, and merge rules can also restrict an action. Dismantling returns a module to your hand; scrapping sells it.
+
+## Field Guide and presentation settings
+
+Open the optional **Field Guide** from the main menu or **Settings → Field Guide** during a run. It follows the selected English/Chinese language and contains six lessons: **Your first circuit**, **Route & controls**, **Modules & energy**, **Ready for battle**, **Elemental effects**, and **Build & upgrade**. The **Basics**, **Controls**, and **Build Tips** tabs give quick access to the circuit diagrams, key bindings and building advice. Choose a lesson directly, use **Previous** / **Next lesson  >**, or browse with the arrow keys.
+
+The guide pauses the run and blocks shop/board input while open. **Close [Esc]** or **Close guide** returns to the previous pause state; opening it from paused settings keeps the run paused afterward. Reading it is optional and does not start a practice run or grant resources.
+
+Main-menu **Settings → Presentation** and the in-game **Settings** offer saved presentation preferences. Click **Effects: Cinematic**, **Effects: Reduced**, or **Effects: Balanced** to cycle the three quality levels; the default is **Cinematic**. These change the particle budget and intensity. **Motion: Full** / **Motion: Reduced** controls the extra enemy/furnace motion and guide opening transition; status indicators remain readable. Particle intensity and motion are separate settings. They do not change game speed, damage, rewards or targeting.
 
 ## Play a prebuilt demo
 
@@ -101,6 +110,18 @@ $LASTEXITCODE
 
 & $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod PixelVfxRegressionChecks.Run -logFile Logs/pixel-vfx-regression.log
 $LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod PresentationSettingsRegressionChecks.Run -logFile Logs/presentation-settings-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod ParticleBurstRegressionChecks.Run -logFile Logs/particle-burst-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod AnimationRegressionChecks.Run -logFile Logs/animation-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod TutorialRegressionChecks.Run -logFile Logs/tutorial-regression.log
+$LASTEXITCODE
 ```
 
 Each entry point exits Unity itself: **0** means its checks passed; **1** means failure. Inspect the log for its `PASS` marker and any compile/import errors. On macOS, use the executable inside the installed Unity Editor app with the same arguments.
@@ -112,6 +133,10 @@ Each entry point exits Unity itself: **0** means its checks passed; **1** means 
 | `CountdownArtRegressionChecks.Run` | Countdown ticks/warnings, art or fallback resources, module icons/skins, enemy silhouettes/status visuals, bounded effect lifetimes, and selected sand constants. |
 | `PixelIconRegressionChecks.Run` | 27 distinct shared pixel icons, filtering/pivots, placed skins, path orientation, ghost validity tints, and prototype fallback. |
 | `PixelVfxRegressionChecks.Run` | Fresh state on effect reuse, bounded accent/shield pools, preserved global random sequence, and crisp VFX texture edges. |
+| `PresentationSettingsRegressionChecks.Run` | Ordered quality budgets, invalid-value fallback, motion selection, unsaved preference isolation, and unchanged game speed/global RNG. |
+| `ParticleBurstRegressionChecks.Run` | At most 24 bursts, reuse/reset, moving fragments/trails, expiry with inactive renderers, reduced intensity, health-bar layering and preserved global RNG. |
+| `AnimationRegressionChecks.Run` | Child-only enemy/furnace motion, unchanged root/collider/RNG, freeze/rest poses, reduced-motion status visibility, hit flinch, archetype poses and observed caster/furnace accents. |
+| `TutorialRegressionChecks.Run` | Pause restoration including already-paused runs, modal reuse/input blocking, six selectable lessons, keyboard navigation, Chinese copy and cleanup. |
 
 The optional PNG tools require Node.js with `sharp` and are independent of Unity gameplay:
 

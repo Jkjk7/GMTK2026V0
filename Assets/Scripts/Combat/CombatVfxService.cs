@@ -5,6 +5,7 @@ using UnityEngine;
 public static class CombatVfxService
 {
     static CombatAccentPool _pool;
+    static uint _sequence = 0x51a7d3u;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetPoolReference() => _pool = null;
@@ -21,16 +22,49 @@ public static class CombatVfxService
         }
     }
 
-    public static TransientSpriteVfx SpawnHit(Vector3 position) =>
-        Spawn("HitAccent", position, PixelVfxSprites.Burst, Color.white, 0.18f, 0.48f);
+    public static TransientSpriteVfx SpawnHit(Vector3 position)
+    {
+        SpawnParticles(position, new Color(1f, .8f, .43f), .55f, PixelParticleBurst.Pattern.Impact);
+        return Spawn("HitAccent", position, PixelVfxSprites.Burst, new Color(1f, .94f, .75f), .14f, .32f);
+    }
 
-    public static TransientSpriteVfx SpawnMelt(Vector3 position) =>
-        Spawn("MeltWhiteHotBurst", position, PixelVfxSprites.Ring,
-            new Color(1f, 0.95f, 0.72f, 1f), 0.38f, 1.1f);
+    public static TransientSpriteVfx SpawnMelt(Vector3 position)
+    {
+        SpawnExplosion(position, new Color(1f, .36f, .08f), 1.65f);
+        return Spawn("MeltWhiteHotBurst", position, PixelVfxSprites.Ring,
+            new Color(1f, .8f, .35f, .85f), .28f, 1.1f);
+    }
 
-    public static TransientSpriteVfx SpawnDeath(Vector3 position) =>
-        Spawn("DeathAccent", position, PixelVfxSprites.Chip,
-            new Color(0.71f, 0.51f, 0.28f, 1f), 0.32f, 0.82f);
+    public static TransientSpriteVfx SpawnDeath(Vector3 position)
+    {
+        SpawnParticles(position, new Color(.94f, .65f, .3f), .9f, PixelParticleBurst.Pattern.Disintegrate);
+        return Spawn("DeathAccent", position, PixelVfxSprites.Chip,
+            new Color(.71f, .51f, .28f, .8f), .22f, .38f);
+    }
+
+    /// <summary>Size is the visual diameter in world units, clamped to keep combat readable.</summary>
+    public static PixelParticleBurst SpawnExplosion(Vector3 position, Color color, float size = 1f) =>
+        SpawnParticles(position, color, size, PixelParticleBurst.Pattern.Explosion);
+
+    public static PixelParticleBurst SpawnFrost(Vector3 position, float size = 1f) =>
+        SpawnExplosion(position, new Color(.22f, .85f, 1f), size);
+
+    public static PixelParticleBurst SpawnFire(Vector3 position, float size = 1f) =>
+        SpawnExplosion(position, new Color(1f, .34f, .06f), size);
+
+    public static PixelParticleBurst SpawnArcane(Vector3 position, float size = 1f) =>
+        SpawnExplosion(position, new Color(.73f, .3f, 1f), size);
+
+    public static PixelParticleBurst SpawnImplosion(Vector3 position, float size = 1f) =>
+        SpawnParticles(position, new Color(.65f, .22f, 1f), size, PixelParticleBurst.Pattern.Implode);
+
+    static PixelParticleBurst SpawnParticles(Vector3 position, Color color, float size, PixelParticleBurst.Pattern pattern)
+    {
+        PixelParticleBurst effect = Pool.RentParticles();
+        effect.transform.position = position;
+        effect.Initialize(color, size, pattern, PresentationSettings.ParticleIntensity, ++_sequence);
+        return effect;
+    }
 
     /// <summary>金盾破碎：半透明碎块向外飞散。</summary>
     public static void SpawnShieldShatter(Vector3 position, float size = 1f)
@@ -56,11 +90,40 @@ public sealed class CombatAccentPool : MonoBehaviour
 {
     const int AccentLimit = 96;
     const int ShieldLimit = 12;
+    const int ParticleLimit = 24;
     readonly List<TransientSpriteVfx> _accents = new List<TransientSpriteVfx>(AccentLimit);
     readonly Stack<TransientSpriteVfx> _idleAccents = new Stack<TransientSpriteVfx>(AccentLimit);
     readonly List<ShieldShatterVfx> _shields = new List<ShieldShatterVfx>(ShieldLimit);
     readonly Stack<ShieldShatterVfx> _idleShields = new Stack<ShieldShatterVfx>(ShieldLimit);
+    readonly List<PixelParticleBurst> _particles = new List<PixelParticleBurst>(ParticleLimit);
+    readonly Stack<PixelParticleBurst> _idleParticles = new Stack<PixelParticleBurst>(ParticleLimit);
     bool _destroying;
+
+    public PixelParticleBurst RentParticles()
+    {
+        _particles.RemoveAll(effect => effect == null);
+        if (_particles.Count >= ParticleLimit) _particles[0].Finish();
+        PixelParticleBurst effect = null;
+        while (_idleParticles.Count > 0 && effect == null) effect = _idleParticles.Pop();
+        if (effect == null)
+        {
+            var go = new GameObject("PixelParticleBurst");
+            go.transform.SetParent(transform, false);
+            effect = go.AddComponent<PixelParticleBurst>();
+            effect.Owner = this;
+        }
+        _particles.Add(effect);
+        effect.gameObject.SetActive(true);
+        return effect;
+    }
+
+    public void Return(PixelParticleBurst effect)
+    {
+        if (_destroying || !_particles.Remove(effect)) return;
+        effect.gameObject.SetActive(false);
+        if (_idleParticles.Count < ParticleLimit) _idleParticles.Push(effect);
+        else Destroy(effect.gameObject);
+    }
 
     public TransientSpriteVfx RentAccent()
     {
@@ -121,5 +184,7 @@ public sealed class CombatAccentPool : MonoBehaviour
         _idleAccents.Clear();
         _shields.Clear();
         _idleShields.Clear();
+        _particles.Clear();
+        _idleParticles.Clear();
     }
 }

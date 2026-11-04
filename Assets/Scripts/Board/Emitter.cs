@@ -157,6 +157,7 @@ public class Emitter : MonoBehaviour
         asr.sortingOrder = 6;
 
         EnsureEnergyHud();
+        WorldVisualAnimator.AttachEmitter(this);
     }
 
     void EnsureEnergyHud()

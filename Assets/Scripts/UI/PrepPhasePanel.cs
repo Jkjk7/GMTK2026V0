@@ -103,6 +103,7 @@ public class PrepPhasePanel : MonoBehaviour
 
     void OnReadyClicked()
     {
+        if (InGameSettingsHud.IsOpen || TutorialOverlay.BlocksInput) return;
         _waves?.RequestReady();
     }
 

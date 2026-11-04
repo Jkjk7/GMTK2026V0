@@ -154,6 +154,7 @@ public class ShopController : MonoBehaviour
 
     public void TryRefreshPaid()
     {
+        if (InGameSettingsHud.IsOpen || TutorialOverlay.BlocksInput) return;
         if (_session != null && !_session.IsRunActive)
         {
             return;

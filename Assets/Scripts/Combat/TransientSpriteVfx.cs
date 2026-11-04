@@ -25,7 +25,7 @@ public sealed class TransientSpriteVfx : MonoBehaviour
         _startColor = color;
         _renderer.color = color;
         _renderer.enabled = true;
-        _renderer.sortingOrder = 40;
+        _renderer.sortingOrder = 26;
         _startScale = Vector3.one * size;
         transform.localScale = _startScale;
         transform.localRotation = Quaternion.identity;

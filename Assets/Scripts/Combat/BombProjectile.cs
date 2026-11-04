@@ -80,14 +80,7 @@ public class BombProjectile : MonoBehaviour
 
     void ShowBlastFx(Vector3 at)
     {
-        var go = new GameObject("BombBlast");
-        go.transform.position = at;
-        var sr = go.AddComponent<SpriteRenderer>();
-        sr.sprite = PrototypeSprites.Circle;
-        sr.color = new Color(1f, 0.55f, 0.12f, 0.6f);
-        sr.sortingOrder = 22;
-        go.transform.localScale = Vector3.one * (_aoeRadius * 2f);
-        Destroy(go, 0.14f);
+        CombatVfxService.SpawnFire(at, _aoeRadius * 2f);
     }
 
     void EnsureVisual()

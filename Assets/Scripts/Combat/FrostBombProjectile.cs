@@ -65,14 +65,7 @@ public class FrostBombProjectile : MonoBehaviour
 
     void ShowBlastFx(Vector3 at, float radius)
     {
-        var go = new GameObject("FrostBombBlast");
-        go.transform.position = at;
-        var sr = go.AddComponent<SpriteRenderer>();
-        sr.sprite = PrototypeSprites.Circle;
-        sr.color = new Color(0.4f, 0.85f, 1f, 0.55f);
-        sr.sortingOrder = 22;
-        go.transform.localScale = Vector3.one * (radius * 2f);
-        Destroy(go, 0.16f);
+        CombatVfxService.SpawnFrost(at, radius * 2f);
     }
 
     void EnsureVisual()

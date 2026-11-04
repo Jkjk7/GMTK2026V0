@@ -70,6 +70,7 @@ public class FrostCannonProjectile : MonoBehaviour
                 CombatDamage.HitEffects.Chill(3f, ModuleCatalog.IceSlowPercent));
         }
 
+        CombatVfxService.SpawnFrost(transform.position, .85f);
         Destroy(gameObject);
     }
 

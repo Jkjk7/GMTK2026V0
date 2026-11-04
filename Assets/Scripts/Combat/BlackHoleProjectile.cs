@@ -58,6 +58,7 @@ public class BlackHoleProjectile : MonoBehaviour
         _arrived = true;
         transform.position = _target;
         EnsureVisual(true);
+        CombatVfxService.SpawnImplosion(_target, _radius * 2f);
     }
 
     void PullEnemies()

@@ -18,6 +18,8 @@ public class MainMenuController : MonoBehaviour
     Button _langZhButton;
     Button _fullscreenButton;
     Text _fullscreenLabel;
+    Text _qualityLabel;
+    Text _motionLabel;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
     static void HookSceneLoaded()
@@ -56,6 +58,7 @@ public class MainMenuController : MonoBehaviour
 
     void Update()
     {
+        if (TutorialOverlay.BlocksInput) return;
         if (!Input.GetKeyDown(KeyCode.Escape))
         {
             return;
@@ -150,26 +153,36 @@ public class MainMenuController : MonoBehaviour
         CreateMenuButton(
             canvasGo.transform,
             "StartButton",
-            new Vector2(0.35f, 0.46f),
-            new Vector2(0.65f, 0.56f),
+            new Vector2(0.35f, 0.49f),
+            new Vector2(0.65f, 0.58f),
             GameLocalization.Text("Start Game", "开始游戏"),
             StartGame);
+
+        CreateMenuButton(canvasGo.transform, "FieldGuideButton",
+            new Vector2(0.35f, 0.385f), new Vector2(0.65f, 0.475f),
+            GameLocalization.Text("Field Guide", "新手指南"), () => TutorialOverlay.Show(_font));
 
         CreateMenuButton(
             canvasGo.transform,
             "SettingsButton",
-            new Vector2(0.35f, 0.34f),
-            new Vector2(0.65f, 0.44f),
+            new Vector2(0.35f, 0.28f),
+            new Vector2(0.65f, 0.37f),
             GameLocalization.Text("Settings", "设置"),
             () => SetSettingsVisible(true));
 
         CreateMenuButton(
             canvasGo.transform,
             "QuitButton",
-            new Vector2(0.35f, 0.22f),
-            new Vector2(0.65f, 0.32f),
+            new Vector2(0.35f, 0.175f),
+            new Vector2(0.65f, 0.265f),
             GameLocalization.Text("Quit", "退出游戏"),
             ShowQuitConfirm);
+
+        Text note = CreateText(canvasGo.transform, "MenuNote", new Vector2(0.15f, 0.08f),
+            new Vector2(0.85f, 0.14f), 18, FontStyle.Normal, new Color(0.53f, 0.62f, 0.71f));
+        note.text = GameLocalization.Text("ROUTE THE ENERGY. PROTECT THE LAST GRAIN.", "引导能量，守住最后一粒沙。");
+        note.alignment = TextAnchor.MiddleCenter;
+        note.raycastTarget = false;
 
         BuildSettingsPanel(canvasGo.transform);
         BuildQuitConfirm(canvasGo.transform);
@@ -188,9 +201,9 @@ public class MainMenuController : MonoBehaviour
         var panel = CreateImage(
             _settingsRoot.transform,
             "Panel",
-            new Vector2(0.28f, 0.12f),
-            new Vector2(0.72f, 0.88f));
-        panel.color = new Color(0.1f, 0.12f, 0.16f, 0.98f);
+            new Vector2(0.19f, 0.08f),
+            new Vector2(0.81f, 0.92f));
+        panel.color = Color.white;
 
         Text title = CreateText(
             panel.transform,
@@ -331,6 +344,33 @@ public class MainMenuController : MonoBehaviour
             GameLocalization.Text("Back", "返回"),
             () => SetSettingsVisible(false));
 
+        // Keep display/language/developer settings together on the left and give
+        // the optional presentation settings their own quiet column.
+        for (int i = 0; i < panel.transform.childCount; i++)
+        {
+            var rect = panel.transform.GetChild(i) as RectTransform;
+            if (rect == null || rect.name == "SettingsTitle" || rect.name == "CloseSettings") continue;
+            rect.anchorMin = new Vector2(0.03f + rect.anchorMin.x * 0.51f, rect.anchorMin.y);
+            rect.anchorMax = new Vector2(0.03f + rect.anchorMax.x * 0.51f, rect.anchorMax.y);
+        }
+        Text presentation = CreateText(panel.transform, "PresentationTitle", new Vector2(0.59f, 0.8f),
+            new Vector2(0.94f, 0.88f), 20, FontStyle.Bold, new Color(0.91f, 0.73f, 0.42f));
+        presentation.text = GameLocalization.Text("Presentation", "画面表现");
+        presentation.alignment = TextAnchor.MiddleLeft;
+        _qualityLabel = CreateMenuButton(panel.transform, "EffectsQuality", new Vector2(0.59f, 0.68f),
+            new Vector2(0.94f, 0.78f), "", () => { PresentationSettings.CycleQuality(); RefreshPresentationLabels(); })
+            .GetComponentInChildren<Text>();
+        _motionLabel = CreateMenuButton(panel.transform, "MotionToggle", new Vector2(0.59f, 0.55f),
+            new Vector2(0.94f, 0.65f), "", () => { PresentationSettings.ToggleMotion(); RefreshPresentationLabels(); })
+            .GetComponentInChildren<Text>();
+        Text help = CreateText(panel.transform, "PresentationHint", new Vector2(0.59f, 0.28f),
+            new Vector2(0.94f, 0.49f), 18, FontStyle.Normal, new Color(0.61f, 0.7f, 0.78f));
+        help.text = GameLocalization.Text("Adjust effects and motion to suit your display.\n\nLearn the circuit at your own pace.",
+            "按喜好调整特效与动态表现。\n\n按自己的节奏了解电路玩法。");
+        help.alignment = TextAnchor.MiddleLeft;
+        CreateMenuButton(panel.transform, "SettingsFieldGuide", new Vector2(0.59f, 0.16f),
+            new Vector2(0.94f, 0.26f), GameLocalization.Text("Field Guide", "新手指南"), () => TutorialOverlay.Show(_font));
+        RefreshPresentationLabels();
         SetSettingsVisible(false);
     }
 
@@ -474,6 +514,7 @@ public class MainMenuController : MonoBehaviour
             RefreshLanguageButtons();
             RefreshDevStatus();
             RefreshFullscreenButton();
+            RefreshPresentationLabels();
             if (_devErrorText != null)
             {
                 _devErrorText.text = string.Empty;
@@ -491,6 +532,12 @@ public class MainMenuController : MonoBehaviour
         _fullscreenLabel.text = GameSettings.IsFullscreen
             ? GameLocalization.Text("Windowed", "切换为窗口化")
             : GameLocalization.Text("Fullscreen", "切换为全屏");
+    }
+
+    void RefreshPresentationLabels()
+    {
+        if (_qualityLabel != null) _qualityLabel.text = TutorialOverlay.EffectsQualityLabel();
+        if (_motionLabel != null) _motionLabel.text = TutorialOverlay.MotionLabel();
     }
 
     void ShowQuitConfirm()
@@ -622,7 +669,14 @@ public class MainMenuController : MonoBehaviour
         rt.anchorMax = anchorMax;
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
-        return go.AddComponent<Image>();
+        Image image = go.AddComponent<Image>();
+        if (name == "Panel")
+        {
+            image.sprite = PixelUiSprites.Panel;
+            image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1.5f;
+        }
+        return image;
     }
 
     Text CreateText(

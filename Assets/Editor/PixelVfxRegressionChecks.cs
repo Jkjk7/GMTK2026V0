@@ -31,6 +31,10 @@ public static class PixelVfxRegressionChecks
         GameObject root = first.transform.parent.gameObject;
         try
         {
+            TransientSpriteVfx freshMelt = CombatVfxService.SpawnMelt(Vector3.left);
+            Color freshMeltColor = freshMelt.GetComponent<SpriteRenderer>().color;
+            // A reused hit must receive the Melt palette, even after its previous tint has faded.
+            first.GetComponent<SpriteRenderer>().color = new Color(0.1f, 0.2f, 0.3f, 0f);
             typeof(TransientSpriteVfx).GetField("_age", BindingFlags.Instance | BindingFlags.NonPublic)
                 .SetValue(first, 5f);
             first.transform.rotation = Quaternion.Euler(0f, 0f, 123f);
@@ -45,7 +49,8 @@ public static class PixelVfxRegressionChecks
             Require(reused.transform.position == Vector3.one, "Reuse must reset position.");
             Require((float)typeof(TransientSpriteVfx).GetField("_age", BindingFlags.Instance | BindingFlags.NonPublic)
                 .GetValue(reused) == 0f, "Reuse must reset age.");
-            Require(reused.GetComponent<SpriteRenderer>().color.a == 1f, "Reuse must reset opacity.");
+            Require(reused.GetComponent<SpriteRenderer>().color == freshMeltColor,
+                "Reuse must restore the same color and opacity as a fresh Melt accent.");
         }
         finally { UnityEngine.Object.DestroyImmediate(root); }
     }

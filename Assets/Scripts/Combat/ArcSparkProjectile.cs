@@ -281,17 +281,9 @@ public class ArcSparkProjectile : MonoBehaviour
 
     void SpawnPop()
     {
-        var go = new GameObject("SparkPop");
-        go.transform.position = transform.position;
-        var sr = go.AddComponent<SpriteRenderer>();
-        sr.sprite = PrototypeSprites.Circle;
-        sr.sortingOrder = 24;
-        Color c = CoreColor(_style);
-        c.a = 0.75f;
-        sr.color = c;
-        float s = _style == Style.Ember ? 0.22f : (_style == Style.Arcane ? 0.24f : 0.2f);
-        go.transform.localScale = Vector3.one * s;
-        Destroy(go, 0.08f);
+        if (_style == Style.Ember) CombatVfxService.SpawnFire(transform.position, .65f);
+        else if (_style == Style.Arcane) CombatVfxService.SpawnArcane(transform.position, .72f);
+        else CombatVfxService.SpawnFrost(transform.position, .65f);
     }
 
     // 在类最上方定义私有字段，全局只初始化1次随机偏移

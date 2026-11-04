@@ -17,7 +17,7 @@
 
 当前源码目录包含 **27 种类型，其中 3 种为一次性道具**，涵盖攻击、路径、经济、附魔与辅助；每局通过解锁使用其中一部分。系统包括购买、放置、路径模块旋转、移动、合成、升级、分解，以及灼烧、寒冷、融化等互动。
 
-当前源码采用 **27 种独立像素模块图标与 7 种敌人轮廓**，共享清晰的点采样精灵，并为命中、融化、死亡及护盾破碎特效提供有容量上限的对象池。这些视觉改动不改变玩法规则，也不保证特定帧率。仓库附带的 `Play/` V0.3 试玩尚未包含这些改动。
+当前源码采用 **27 种独立像素模块图标与 7 种敌人轮廓**，共享清晰的点采样精灵，并为命中、融化、死亡及护盾破碎特效提供有容量上限的对象池。火焰、冰霜与奥术命中会迸出移动的像素碎片、拖尾、分层冲击环和局部闪光；死亡会碎解成像素片，黑洞展开时粒子向内收拢。敌人姿态与熔炉仅对美术子物体添加动态，玩法对象的变换保持不变。这些视觉改动不改变玩法规则，也不保证特定帧率。仓库附带的 `Play/` V0.3 试玩尚未包含这些改动。
 
 首次启动默认英文。在主菜单 **Settings → Language → 中文 / English** 切换语言，选择会保存。
 
@@ -31,9 +31,18 @@
 | **空格** / **准备** | 结束准备，开始波次倒计时。 |
 | **F** | 刷新商店；没有免费刷新次数时消耗金币。 |
 | 对准棋盘模块 **右键** / **X** | 拆回手牌。准备阶段免费立即执行；战斗中可能收费并要求确认。手牌必须有空位。 |
-| **Esc** | 打开/关闭局内设置，暂停、切换显示模式、继续游戏，或确认后退出。 |
+| **Esc** | 新手指南打开时优先关闭指南；否则打开/关闭局内设置，暂停、切换显示模式、继续游戏，或确认后退出。 |
+| 新手指南中的 **← / →** | 切换六节课程。 |
 
 波次倒计时及选择草稿期间，放置与商店操作会暂时禁用。锁定、地块和合成规则也会限制操作。拆除会回收模块到手牌，分解则出售换金币。
+
+## 新手指南与画面表现
+
+可从主菜单 **新手指南**，或局内 **设置 → 新手指南** 主动打开指南。指南跟随当前中英文选择，包含六课：**第一条电路**、**路径与操作**、**模块与能量**、**准备迎战**、**元素效果**、**搭建与升级**。**基础**、**操作**、**搭建技巧** 页签可快速定位线路示意、按键说明与搭建建议。既可直接点击课程，也可使用 **上一页** / **下一课  >** 或左右方向键翻阅。
+
+指南打开时暂停本局，并阻止商店与棋盘操作。点击 **关闭 [Esc]**、最后一课的 **关闭指南** 或按 Esc，会恢复打开前的暂停状态；从已暂停的设置进入指南，关闭后仍保持暂停。指南无需强制完成，也不会启动练习局或发放资源。
+
+主菜单 **设置 → 画面表现** 与局内 **设置** 提供会保存的画面偏好。点击 **特效：华丽**、**特效：精简** 或 **特效：均衡**，可循环切换三档粒子数量与强度；默认 **华丽**。**动态：完整** / **动态：精简** 控制额外的敌人、熔炉动态及指南打开过渡，状态标记仍然显示。粒子强度和动态是独立设置，均不改变游戏速度、伤害、奖励或索敌。
 
 ## 运行试玩包
 
@@ -101,6 +110,18 @@ $LASTEXITCODE
 
 & $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod PixelVfxRegressionChecks.Run -logFile Logs/pixel-vfx-regression.log
 $LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod PresentationSettingsRegressionChecks.Run -logFile Logs/presentation-settings-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod ParticleBurstRegressionChecks.Run -logFile Logs/particle-burst-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod AnimationRegressionChecks.Run -logFile Logs/animation-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod TutorialRegressionChecks.Run -logFile Logs/tutorial-regression.log
+$LASTEXITCODE
 ```
 
 各入口会自行退出 Unity：**0** 表示该组检查通过，**1** 表示失败。还应查看日志中的 `PASS` 标记及编译/导入错误。macOS 可使用已安装 Unity Editor app 内的可执行文件，参数相同。
@@ -112,6 +133,10 @@ $LASTEXITCODE
 | `CountdownArtRegressionChecks.Run` | 倒计时刻度与警告、美术或回退资源、模块图标与外观、敌人轮廓与状态、特效寿命上限及部分沙量常量。 |
 | `PixelIconRegressionChecks.Run` | 27 种独立共享像素图标、采样与轴心、棋盘外观、路径朝向、放置预览颜色及原型回退。 |
 | `PixelVfxRegressionChecks.Run` | 特效复用时重置状态、特效与护盾池容量上限、保留全局随机数序列及像素特效边缘。 |
+| `PresentationSettingsRegressionChecks.Run` | 三档粒子预算递增、无效值回退、动态选择、不落盘的偏好预览，以及游戏速度与全局随机数不变。 |
+| `ParticleBurstRegressionChecks.Run` | 最多 24 组粒子爆发、复用与重置、碎片与拖尾运动、到期停用全部渲染器、降低强度、血条层级及全局随机数不变。 |
+| `AnimationRegressionChecks.Run` | 敌人/熔炉仅美术子物体运动，根变换/碰撞体/随机数不变，冻结与静止姿态、精简动态下的状态可见性、受击反馈、不同敌人姿态及观察施法/熔炉状态的表现。 |
+| `TutorialRegressionChecks.Run` | 恢复原暂停状态（含原本已暂停）、模态复用与输入阻挡、六课可选、键盘导航、中文内容与关闭清理。 |
 
 可选 PNG 工具需要 Node.js 与 `sharp`，不影响 Unity 游戏本身：
 
