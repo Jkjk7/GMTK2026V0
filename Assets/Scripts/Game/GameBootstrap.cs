@@ -275,6 +275,10 @@ public class GameBootstrap : MonoBehaviour
         settingsHud.Initialize(font);
         settingsGo.transform.SetAsLastSibling();
 
+        // One-time binding includes inactive reward/confirmation controls; no scene scans per frame.
+        foreach (Button control in canvas.GetComponentsInChildren<Button>(true))
+            UiFeedback.Attach(control.gameObject);
+
         ValidateRedirectorTable();
         Debug.Log("[GameBootstrap] Roguelike：稀有度 / 黑洞 / 祝福束缚 / 26 波（终局 Boss）。");
     }

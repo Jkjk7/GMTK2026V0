@@ -515,6 +515,7 @@ public class MainMenuController : MonoBehaviour
             RefreshDevStatus();
             RefreshFullscreenButton();
             RefreshPresentationLabels();
+            ModalReveal.Play(_settingsRoot.transform.Find("Panel") as RectTransform);
             if (_devErrorText != null)
             {
                 _devErrorText.text = string.Empty;
@@ -547,6 +548,7 @@ public class MainMenuController : MonoBehaviour
         {
             _quitConfirmRoot.SetActive(true);
             _quitConfirmRoot.transform.SetAsLastSibling();
+            ModalReveal.Play(_quitConfirmRoot.transform.Find("Panel") as RectTransform);
         }
     }
 
@@ -607,6 +609,7 @@ public class MainMenuController : MonoBehaviour
         text.text = label;
         text.alignment = TextAnchor.MiddleCenter;
         text.raycastTarget = false;
+        UiFeedback.Attach(go);
         return button;
     }
 

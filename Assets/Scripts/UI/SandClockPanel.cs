@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 沙漏面板：屏幕左侧占位沙漏图形 + 上方精确到毫秒的倒计时（mm:ss.mmm）。
+/// 像素沙漏面板：铜框、青色玻璃、与实际资源同步的上下砂堆和毫秒倒计时。
 /// 漏怪罚沙时弹浮动 "-X.XXXs" 文字；剩余低于阈值时倒计时变红。
 /// 漏沙/回填粒子由 SandVfxService 驱动。
 /// </summary>
@@ -17,8 +17,14 @@ public class SandClockPanel : MonoBehaviour
     Image _glassTop;
     Image _glassBottom;
     Image _frame;
+    Image _reflections;
+    readonly Image[] _grains = new Image[6];
     SandClock _clock;
     RectTransform _glassBottomRt;
+    int _lastMs;
+    float _flowTimer;
+    float _flowAge;
+    float _ratio;
 
     float _floatTimer;
     float _shakeTimer;
@@ -35,6 +41,11 @@ public class SandClockPanel : MonoBehaviour
         Image glassBottom,
         Image frame = null)
     {
+        if (_clock != null)
+        {
+            _clock.OnPenalty -= OnPenalty;
+            _clock.OnSandGained -= OnSandGained;
+        }
         _clock = clock;
         _countdownText = countdownText;
         _floatText = floatText;
@@ -44,6 +55,9 @@ public class SandClockPanel : MonoBehaviour
         _glassBottomRt = glassBottom != null ? glassBottom.rectTransform : null;
         _rt = GetComponent<RectTransform>();
         _basePos = _rt != null ? _rt.anchoredPosition : Vector2.zero;
+        _lastMs = _clock != null ? _clock.RemainingMs : 0;
+        _flowTimer = 0f;
+        PreparePixelArt();
 
         if (_clock != null)
         {
@@ -62,13 +76,74 @@ public class SandClockPanel : MonoBehaviour
     /// <summary>沙漏下腔中心（世界坐标），漏沙起点。</summary>
     public Vector3 GetWorldLeakPosition()
     {
-        return UiToWorld(_glassBottomRt != null ? _glassBottomRt : _rt, new Vector2(0.5f, 0.05f));
+        return UiToWorld(_frame != null ? _frame.rectTransform : _glassBottomRt != null ? _glassBottomRt : _rt,
+            new Vector2(0.5f, _frame != null ? 0.17f : 0.05f));
     }
 
     /// <summary>沙漏回填落点（世界坐标）。</summary>
     public Vector3 GetWorldFillPosition()
     {
-        return UiToWorld(_glassBottomRt != null ? _glassBottomRt : _rt, new Vector2(0.5f, 0.55f));
+        return UiToWorld(_frame != null ? _frame.rectTransform : _glassBottomRt != null ? _glassBottomRt : _rt,
+            new Vector2(0.5f, _frame != null ? 0.27f : 0.55f));
+    }
+
+    void PreparePixelArt()
+    {
+        if (_frame == null) return;
+        _frame.sprite = PixelHourglassSprites.Frame;
+        _frame.type = Image.Type.Simple;
+        _frame.color = Color.white;
+        _frame.preserveAspect = true;
+        _frame.raycastTarget = false;
+        RectTransform frameRect = _frame.rectTransform;
+        frameRect.anchorMin = new Vector2(.13f, .01f);
+        frameRect.anchorMax = new Vector2(.87f, .70f);
+        frameRect.offsetMin = frameRect.offsetMax = Vector2.zero;
+        PrepareSand(_glassTop, frameRect);
+        PrepareSand(_glassBottom, frameRect);
+        if (_reflections == null)
+        {
+            _reflections = MakeImage("GlassReflections", frameRect);
+            Stretch(_reflections.rectTransform);
+        }
+        _reflections.sprite = PixelHourglassSprites.Reflections;
+        _reflections.preserveAspect = true;
+        if (_glassTop != null) _glassTop.transform.SetSiblingIndex(0);
+        if (_glassBottom != null) _glassBottom.transform.SetSiblingIndex(1);
+        _reflections.transform.SetAsLastSibling();
+        for (int i = 0; i < _grains.Length; i++)
+        {
+            if (_grains[i] == null) _grains[i] = MakeImage("SandGrain_" + i, frameRect);
+            _grains[i].sprite = PixelHourglassSprites.Grain;
+            _grains[i].enabled = false;
+            _grains[i].transform.SetAsLastSibling();
+        }
+    }
+
+    static void PrepareSand(Image sand, RectTransform parent)
+    {
+        if (sand == null) return;
+        sand.transform.SetParent(parent, false);
+        Stretch(sand.rectTransform);
+        sand.type = Image.Type.Simple;
+        sand.preserveAspect = true;
+        sand.raycastTarget = false;
+    }
+
+    static Image MakeImage(string name, Transform parent)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        Image image = go.AddComponent<Image>();
+        image.raycastTarget = false;
+        return image;
+    }
+
+    static void Stretch(RectTransform rect)
+    {
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = rect.offsetMax = Vector2.zero;
     }
 
     static Vector3 UiToWorld(RectTransform target, Vector2 normalizedLocal)
@@ -112,12 +187,14 @@ public class SandClockPanel : MonoBehaviour
     void Update()
     {
         Refresh();
+        bool motion = PresentationSettings.MotionEnabled;
+        TickFlow(motion);
 
         if (_floatTimer > 0f && _floatText != null)
         {
             _floatTimer -= Time.deltaTime;
             Color c = _floatText.color;
-            c.a = Mathf.Clamp01(_floatTimer / 0.4f);
+            c.a = motion ? Mathf.Clamp01(_floatTimer / 0.4f) : 1f;
             _floatText.color = c;
             if (_floatTimer <= 0f)
             {
@@ -125,12 +202,17 @@ public class SandClockPanel : MonoBehaviour
             }
         }
 
-        if (_shakeTimer > 0f && _rt != null)
+        if (!motion && _rt != null)
+        {
+            _shakeTimer = 0f;
+            _rt.anchoredPosition = _basePos;
+        }
+        else if (_shakeTimer > 0f && _rt != null)
         {
             _shakeTimer -= Time.deltaTime;
             float amp = Mathf.Clamp01(_shakeTimer / 0.35f) * 6f;
             _rt.anchoredPosition = _basePos + new Vector2(
-                Mathf.Sin(Time.unscaledTime * 60f) * amp, 0f);
+                Mathf.Sin(Time.time * 60f) * amp, 0f);
             if (_shakeTimer <= 0f)
             {
                 _rt.anchoredPosition = _basePos;
@@ -140,26 +222,50 @@ public class SandClockPanel : MonoBehaviour
 
     void Refresh()
     {
-        if (_countdownText == null)
+        int ms = _clock != null ? _clock.RemainingMs : 0;
+        if (ms < _lastMs && ms > 0) _flowTimer = .55f;
+        _lastMs = ms;
+        bool warning = CountdownVisualRules.IsWarning(ms);
+        if (_countdownText != null)
         {
-            return;
+            _countdownText.text = FormatMs(ms);
+            _countdownText.color = warning ? WarningColor : NormalColor;
+            _countdownText.transform.localScale = warning && PresentationSettings.MotionEnabled
+                ? Vector3.one * (1.025f + 0.025f * Mathf.Sin(Time.time * 8f))
+                : Vector3.one;
         }
 
-        int ms = _clock != null ? _clock.RemainingMs : 0;
-        _countdownText.text = FormatMs(ms);
-        bool warning = CountdownVisualRules.IsWarning(ms);
-        _countdownText.color = warning ? WarningColor : NormalColor;
-        _countdownText.transform.localScale = warning
-            ? Vector3.one * (1.08f + 0.05f * Mathf.Sin(Time.unscaledTime * 8f))
-            : Vector3.one;
-
-        // 沙漏上下腔按剩余比例简单填色（相对开局值，可溢出封顶）
+        // 资源不变：仅将实际毫秒值映射到缓存像素砂堆，超过开局容量仍显示精确时间。
+        _ratio = Mathf.Clamp01(ms / (float)SandClock.InitialSandMs);
         if (_glassTop != null && _glassBottom != null)
         {
-            float ratio = Mathf.Clamp01(ms / (float)SandClock.InitialSandMs);
-            Color sand = warning ? WarningColor : NormalColor;
-            _glassTop.color = Color.Lerp(new Color(sand.r, sand.g, sand.b, 0.15f), sand, ratio);
-            _glassBottom.color = new Color(sand.r, sand.g, sand.b, 0.35f);
+            _glassTop.sprite = PixelHourglassSprites.Sand(true, _ratio);
+            _glassBottom.sprite = PixelHourglassSprites.Sand(false, 1f - _ratio);
+            _glassTop.color = warning ? new Color(1f, .57f, .34f) : Color.white;
+            _glassBottom.color = warning ? new Color(.93f, .54f, .33f) : new Color(.85f, .88f, .92f);
+        }
+    }
+
+    void TickFlow(bool motion)
+    {
+        bool flowing = motion && _flowTimer > 0f && _ratio > 0f && Time.timeScale > 0f;
+        _flowTimer = Mathf.Max(0f, _flowTimer - Time.deltaTime);
+        if (flowing) _flowAge += Time.deltaTime;
+        if (_frame == null) return;
+        Rect rect = _frame.rectTransform.rect;
+        float pixel = Mathf.Min(rect.width / PixelHourglassSprites.Width, rect.height / PixelHourglassSprites.Height);
+        float landing = Mathf.Min(29f, 14f + (1f - _ratio) * 18f);
+        for (int i = 0; i < _grains.Length; i++)
+        {
+            Image grain = _grains[i];
+            if (grain == null) continue;
+            grain.enabled = flowing;
+            if (!flowing) continue;
+            float phase = Mathf.Repeat(_flowAge * 1.7f + i / (float)_grains.Length, 1f);
+            grain.rectTransform.anchoredPosition = new Vector2((i % 3 - 1) * pixel,
+                Mathf.Round(Mathf.Lerp(33f, landing, phase) - 32f) * pixel);
+            grain.rectTransform.sizeDelta = new Vector2(pixel, pixel * (i % 2 == 0 ? 2f : 1f));
+            grain.color = CountdownVisualRules.IsWarning(_lastMs) ? new Color(1f, .60f, .36f) : Color.white;
         }
     }
 

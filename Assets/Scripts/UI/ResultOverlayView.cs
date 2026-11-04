@@ -16,6 +16,7 @@ public sealed class ResultOverlayView : MonoBehaviour
 
     Coroutine _fadeRoutine;
     Action _onReturnToMenu;
+    bool _returning;
 
     public void Bind(CanvasGroup group, Text title, Button menu = null, Text menuLabel = null)
     {
@@ -28,6 +29,7 @@ public sealed class ResultOverlayView : MonoBehaviour
         {
             menuButton.onClick.RemoveListener(OnMenuClicked);
             menuButton.onClick.AddListener(OnMenuClicked);
+            UiFeedback.Attach(menuButton.gameObject);
         }
 
         HideImmediate();
@@ -40,6 +42,7 @@ public sealed class ResultOverlayView : MonoBehaviour
 
     public void Show(string message, Color color)
     {
+        _returning = false;
         if (titleText != null)
         {
             titleText.text = message;
@@ -67,13 +70,23 @@ public sealed class ResultOverlayView : MonoBehaviour
         if (_fadeRoutine != null)
         {
             StopCoroutine(_fadeRoutine);
+            _fadeRoutine = null;
         }
 
-        _fadeRoutine = StartCoroutine(FadeTo(1f));
+        if (titleText != null) ModalReveal.Play(titleText.rectTransform, true);
+        if (PresentationSettings.MotionEnabled) _fadeRoutine = StartCoroutine(FadeTo(1f));
+        else if (canvasGroup != null) canvasGroup.alpha = 1;
     }
 
     public void HideImmediate()
     {
+        if (_fadeRoutine != null)
+        {
+            StopCoroutine(_fadeRoutine);
+            _fadeRoutine = null;
+        }
+        if (titleText != null) ModalReveal.Cancel(titleText.rectTransform);
+        if (menuButton != null) UiFeedback.Cancel(menuButton.transform);
         if (canvasGroup != null)
         {
             canvasGroup.alpha = 0f;
@@ -96,6 +109,8 @@ public sealed class ResultOverlayView : MonoBehaviour
 
     void OnMenuClicked()
     {
+        if (_returning || !isActiveAndEnabled) return;
+        _returning = true;
         if (_onReturnToMenu != null)
         {
             _onReturnToMenu.Invoke();
@@ -123,5 +138,6 @@ public sealed class ResultOverlayView : MonoBehaviour
         }
 
         canvasGroup.alpha = target;
+        _fadeRoutine = null;
     }
 }

@@ -119,6 +119,7 @@ public class InGameSettingsHud : MonoBehaviour
             Time.timeScale = 0f;
             RefreshFullscreenButton();
             RefreshPresentationLabels();
+            ModalReveal.Play(_root.transform.Find("Panel") as RectTransform);
         }
         else
         {
@@ -262,6 +263,7 @@ public class InGameSettingsHud : MonoBehaviour
         {
             _quitConfirmRoot.SetActive(true);
             _quitConfirmRoot.transform.SetAsLastSibling();
+            ModalReveal.Play(_quitConfirmRoot.transform.Find("Panel") as RectTransform);
         }
     }
 
@@ -331,6 +333,7 @@ public class InGameSettingsHud : MonoBehaviour
         text.text = label;
         text.alignment = TextAnchor.MiddleCenter;
         text.raycastTarget = false;
+        UiFeedback.Attach(go);
         return button;
     }
 

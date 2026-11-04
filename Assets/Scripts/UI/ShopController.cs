@@ -169,17 +169,32 @@ public class ShopController : MonoBehaviour
         {
             RerollShop();
             UpdateRefreshLabel();
+            ShowRefreshFeedback(true);
             return;
         }
 
         int cost = CurrentRefreshCost;
         if (Economy.Instance != null && !Economy.Instance.TrySpend(cost))
         {
+            ShowRefreshFeedback(false);
             return;
         }
 
         RerollShop();
         UpdateRefreshLabel();
+        ShowRefreshFeedback(true);
+    }
+
+    void ShowRefreshFeedback(bool success)
+    {
+        Transform target = _refreshLabel != null ? _refreshLabel.transform.parent : null;
+        if (target == null && _refreshLabel != null) target = _refreshLabel.transform;
+        if (success) UiFeedback.Success(target);
+        else
+        {
+            UiFeedback.Reject(target, GameLocalization.Text("Not enough gold", "金币不足"));
+            UIAudioFeedback.Rejected();
+        }
     }
 
     public void RerollShop()
@@ -307,11 +322,13 @@ public class ShopController : MonoBehaviour
         if (_hand.IsFull)
         {
             Debug.Log("[Shop] 手牌已满（上限 " + HandController.SlotCount + "），无法购入。");
+            slot.ShowRejected(true);
             return false;
         }
 
         if (Economy.Instance != null && !Economy.Instance.TrySpend(price))
         {
+            slot.ShowRejected(false);
             return false;
         }
 
@@ -322,6 +339,7 @@ public class ShopController : MonoBehaviour
         if (!_hand.TryAddCard(purchased))
         {
             Economy.Instance?.AddGold(price, silent: true);
+            slot.ShowRejected(true);
             return false;
         }
 
@@ -344,6 +362,7 @@ public class ShopController : MonoBehaviour
         if (Economy.Instance != null && !Economy.Instance.TrySpend(pricePaid))
         {
             pricePaid = 0;
+            slot.ShowRejected(false);
             return false;
         }
 

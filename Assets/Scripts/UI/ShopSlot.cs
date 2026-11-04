@@ -30,11 +30,13 @@ public class ShopSlot : MonoBehaviour,
         _index = index;
         _view = view;
         _canvas = GetComponentInParent<Canvas>();
+        UiFeedback.Attach(gameObject);
         Clear();
     }
 
     public void SetOffer(ModuleCardData card, int price)
     {
+        UiFeedback.Cancel(transform);
         _occupied = true;
         _card = card;
         _price = price;
@@ -55,10 +57,27 @@ public class ShopSlot : MonoBehaviour,
 
     public void Clear()
     {
+        UiFeedback.Cancel(transform);
         _occupied = false;
         _card = default;
         _price = 0;
         _view?.SetEmpty();
+        CleanupDragIcon();
+    }
+
+    public void ShowRejected(bool handFull)
+    {
+        UiFeedback.Reject(transform, handFull
+            ? GameLocalization.Text("Hand full", "手牌已满")
+            : GameLocalization.Text("Not enough gold", "金币不足"));
+        UIAudioFeedback.Rejected();
+    }
+
+    void OnDisable()
+    {
+        UiFeedback.Cancel(transform);
+        ModuleTooltipView.EndHover(this);
+        _dragging = false;
         CleanupDragIcon();
     }
 
@@ -118,6 +137,7 @@ public class ShopSlot : MonoBehaviour,
         }
 
         _dragging = true;
+        UiFeedback.Cancel(transform);
         ModuleTooltipView.EndHover(this);
         CreateDragIcon(eventData);
         PlacementController.NotifyShopDragBegin(_shop, _index, _card, _price);

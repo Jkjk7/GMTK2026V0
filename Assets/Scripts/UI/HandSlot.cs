@@ -30,23 +30,41 @@ public class HandSlot : MonoBehaviour,
         _index = index;
         _view = view;
         _canvas = GetComponentInParent<Canvas>();
+        UiFeedback.Attach(gameObject);
         Clear();
     }
 
     public void SetCard(ModuleCardData card)
     {
+        UiFeedback.Cancel(transform);
         _occupied = true;
         _card = card;
         _view?.SetCard(card);
         SetSelected(false);
     }
 
+    /// <summary>Only actual insertions call this; redraws and selection stay silent.</summary>
+    public void ShowReceived()
+    {
+        UiFeedback.Receive(transform);
+        UIAudioFeedback.Receipt();
+    }
+
     public void Clear()
     {
+        UiFeedback.Cancel(transform);
         _occupied = false;
         _selected = false;
         _card = default;
         _view?.SetEmpty();
+        CleanupDragIcon();
+    }
+
+    void OnDisable()
+    {
+        UiFeedback.Cancel(transform);
+        ModuleTooltipView.EndHover(this);
+        _dragging = false;
         CleanupDragIcon();
     }
 
@@ -106,6 +124,7 @@ public class HandSlot : MonoBehaviour,
         }
 
         _dragging = true;
+        UiFeedback.Cancel(transform);
         _hand.SelectSlot(_index);
         ModuleTooltipView.EndHover(this);
         CreateDragIcon(eventData);

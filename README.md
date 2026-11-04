@@ -19,6 +19,10 @@ The current source includes **27 catalog types, including 3 consumable items**, 
 
 The source now uses **27 distinct pixel module icons and 7 enemy silhouettes**, shared sprites with crisp point filtering, and bounded pools for hit, Melt, death, and shield-shatter accents. Fire, frost and arcane impacts add moving pixel fragments, trails, layered shockwaves and compact flashes; deaths disintegrate into chips and black holes pull particles inward. Enemy poses and the furnace animate their visual children while gameplay transforms stay unchanged. These visual changes do not change gameplay rules or guarantee a particular frame rate. The included `Play/` V0.3 demo has not been rebuilt with them.
 
+The interface adds hover/press responses and clear transaction cues. An unaffordable purchase flashes red and shakes with **Not enough gold**; a full hand instead shows **Hand full**. A card entering your hand, including a dismantled board module, gets a gold star, glow and quiet ding. Shop refreshes, successful fusions and scrapping also give feedback. Reward choices appear with staggered cards, colored borders and a pixel magic circle; settings, confirmations and results have brief opening transitions. Actions remain immediate, with the same prices, rewards and resource timing. Transaction sounds reuse cached quiet tones unless custom clips are assigned.
+
+The upper-left hourglass now uses a crisp brass frame, cyan glass and gold sand that tracks the actual remaining resource. Its small grain stream stops while paused or when motion is reduced; the precise timer and low-time warning remain visible.
+
 The interface defaults to English on a fresh launch. Choose **Settings → Language → English / 中文** from the main menu; the choice is saved.
 
 ## Controls
@@ -42,7 +46,7 @@ Open the optional **Field Guide** from the main menu or **Settings → Field Gui
 
 The guide pauses the run and blocks shop/board input while open. **Close [Esc]** or **Close guide** returns to the previous pause state; opening it from paused settings keeps the run paused afterward. Reading it is optional and does not start a practice run or grant resources.
 
-Main-menu **Settings → Presentation** and the in-game **Settings** offer saved presentation preferences. Click **Effects: Cinematic**, **Effects: Reduced**, or **Effects: Balanced** to cycle the three quality levels; the default is **Cinematic**. These change the particle budget and intensity. **Motion: Full** / **Motion: Reduced** controls the extra enemy/furnace motion and guide opening transition; status indicators remain readable. Particle intensity and motion are separate settings. They do not change game speed, damage, rewards or targeting.
+Main-menu **Settings → Presentation** and the in-game **Settings** offer saved presentation preferences. Click **Effects: Cinematic**, **Effects: Reduced**, or **Effects: Balanced** to cycle the three quality levels; the default is **Cinematic**. These change the particle budget and intensity, including reward decorations. **Motion: Full** / **Motion: Reduced** controls the extra enemy/furnace motion, UI shaking and scaling, reward movement and modal/guide opening transitions. Reduced motion retains status indicators, rejection text, color flashes and receipt stars. Particle intensity and motion are separate settings. They do not change game speed, damage, rewards or targeting.
 
 ## Play a prebuilt demo
 
@@ -122,6 +126,18 @@ $LASTEXITCODE
 
 & $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod TutorialRegressionChecks.Run -logFile Logs/tutorial-regression.log
 $LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod UiFeedbackRegressionChecks.Run -logFile Logs/ui-feedback-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod TransactionFeedbackRegressionChecks.Run -logFile Logs/transaction-feedback-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod RewardFeedbackRegressionChecks.Run -logFile Logs/reward-feedback-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod HourglassVisualRegressionChecks.Run -logFile Logs/hourglass-visual-regression.log
+$LASTEXITCODE
 ```
 
 Each entry point exits Unity itself: **0** means its checks passed; **1** means failure. Inspect the log for its `PASS` marker and any compile/import errors. On macOS, use the executable inside the installed Unity Editor app with the same arguments.
@@ -137,6 +153,10 @@ Each entry point exits Unity itself: **0** means its checks passed; **1** means 
 | `ParticleBurstRegressionChecks.Run` | At most 24 bursts, reuse/reset, moving fragments/trails, expiry with inactive renderers, reduced intensity, health-bar layering and preserved global RNG. |
 | `AnimationRegressionChecks.Run` | Child-only enemy/furnace motion, unchanged root/collider/RNG, freeze/rest poses, reduced-motion status visibility, hit flinch, archetype poses and observed caster/furnace accents. |
 | `TutorialRegressionChecks.Run` | Pause restoration including already-paused runs, modal reuse/input blocking, six selectable lessons, keyboard navigation, Chinese copy and cleanup. |
+| `UiFeedbackRegressionChecks.Run` | Feedback while paused, preserved RNG, bounded non-interactive decorations, exact pose restoration after expiry/disable/reopen, and stationary reduced-motion cues. |
+| `TransactionFeedbackRegressionChecks.Run` | Purchase costs/callbacks/RNG, denied and full-hand purchases, silent refund after a late insertion failure, immediate receipt without hover/selection replay, direct-board purchases and refresh/session gates. |
+| `RewardFeedbackRegressionChecks.Run` | Immediate one-shot choices/confirmations/results, paused reveals, bounded decorations, reduced-motion poses, preserved resources/RNG and modal input/transform cleanup. |
+| `HourglassVisualRegressionChecks.Run` | Point-filtered frame and crisp sand, exact clock text, fill/empty/overflow states, reduced-motion warnings, bounded reuse, timer clearance and preserved RNG. |
 
 The optional PNG tools require Node.js with `sharp` and are independent of Unity gameplay:
 

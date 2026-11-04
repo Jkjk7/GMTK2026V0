@@ -38,18 +38,18 @@ public class ConfirmPromptView : MonoBehaviour
         cancelButton = cancel;
         confirmLabel = confirmText;
 
-        confirmButton?.onClick.AddListener(() =>
+        if (confirmButton != null)
         {
-            Action a = _onConfirm;
-            Close();
-            a?.Invoke();
-        });
-        cancelButton?.onClick.AddListener(() =>
+            confirmButton.onClick.RemoveListener(OnConfirmClicked);
+            confirmButton.onClick.AddListener(OnConfirmClicked);
+            UiFeedback.Attach(confirmButton.gameObject);
+        }
+        if (cancelButton != null)
         {
-            Action a = _onCancel;
-            Close();
-            a?.Invoke();
-        });
+            cancelButton.onClick.RemoveListener(OnCancelClicked);
+            cancelButton.onClick.AddListener(OnCancelClicked);
+            UiFeedback.Attach(cancelButton.gameObject);
+        }
 
         Close();
     }
@@ -101,10 +101,15 @@ public class ConfirmPromptView : MonoBehaviour
         }
 
         gameObject.SetActive(true);
+        transform.SetAsLastSibling();
+        ModalReveal.Play(transform as RectTransform);
     }
 
     public void Close()
     {
+        ModalReveal.Cancel(transform as RectTransform);
+        if (confirmButton != null) UiFeedback.Cancel(confirmButton.transform);
+        if (cancelButton != null) UiFeedback.Cancel(cancelButton.transform);
         _open = false;
         _onConfirm = null;
         _onCancel = null;
@@ -115,4 +120,22 @@ public class ConfirmPromptView : MonoBehaviour
             group.interactable = false;
         }
     }
+
+    void OnConfirmClicked()
+    {
+        if (!_open || confirmButton == null || !confirmButton.interactable) return;
+        Action action = _onConfirm;
+        Close();
+        action?.Invoke();
+    }
+
+    void OnCancelClicked()
+    {
+        if (!_open) return;
+        Action action = _onCancel;
+        Close();
+        action?.Invoke();
+    }
+
+    void OnDisable() => Close();
 }

@@ -16,6 +16,7 @@ public class ScrapZone : MonoBehaviour
     bool _highlighted;
     ModuleCardData _previewCard;
     bool _hasPreview;
+    float _scrapFlash;
 
     public void Initialize(Vector3 worldCenter)
     {
@@ -29,6 +30,7 @@ public class ScrapZone : MonoBehaviour
         transform.position = worldCenter;
         transform.localScale = Vector3.one;
         EnsureVisual(forceRescale: true);
+        _scrapFlash = 0f;
         SetIdle();
     }
 
@@ -55,10 +57,14 @@ public class ScrapZone : MonoBehaviour
                 "分解\n返还部分金币");
             _label.color = new Color(0.7f, 0.6f, 0.4f, 0.85f);
         }
+        // Placement redraws idle every frame and immediately after confirming a scrap.
+        // Keep the brief success cue alive across those presentation-only redraws.
+        if (_scrapFlash > 0f) UpdateScrapFlash();
     }
 
     public void ShowHandPreview(ModuleCardData card)
     {
+        _scrapFlash = 0f;
         _hasPreview = true;
         _previewCard = card;
         _highlighted = true;
@@ -96,7 +102,32 @@ public class ScrapZone : MonoBehaviour
         }
 
         SetIdle();
+        _scrapFlash = 0.3f;
+        UpdateScrapFlash();
+        UIAudioFeedback.Receipt();
         return true;
+    }
+
+    void Update()
+    {
+        if (_scrapFlash <= 0f) return;
+        _scrapFlash = Mathf.Max(0f, _scrapFlash - Time.unscaledDeltaTime);
+        UpdateScrapFlash();
+    }
+
+    void UpdateScrapFlash()
+    {
+        if (_bg != null)
+        {
+            _bg.color = Color.Lerp(new Color(0.22f, 0.14f, 0.1f, 0.55f),
+                new Color(1f, 0.78f, 0.3f, 0.95f), _scrapFlash / 0.3f);
+        }
+    }
+
+    void OnDisable()
+    {
+        _scrapFlash = 0f;
+        if (!_highlighted) UpdateScrapFlash();
     }
 
     void EnsureVisual(bool forceRescale = false)

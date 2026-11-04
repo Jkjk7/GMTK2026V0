@@ -98,6 +98,7 @@ public class HandController : MonoBehaviour
             if (_slots[i] != null && !_slots[i].IsOccupied)
             {
                 _slots[i].SetCard(card);
+                _slots[i].ShowReceived();
                 return true;
             }
         }
@@ -119,6 +120,7 @@ public class HandController : MonoBehaviour
         }
 
         target.SetCard(target.CardData.FusedWith(incoming));
+        UiFeedback.Success(target.transform);
         return true;
     }
 

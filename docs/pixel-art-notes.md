@@ -6,12 +6,22 @@ This branch changes presentation and cosmetic rendering only. The existing rules
 
 - 27 individually drawn 32×32 module icons share a cached point-filtered atlas. Shop, hand, draft, tooltip and placed modules use the same family; directional routing pieces retain their port indicators.
 - Seven 48×48 enemy silhouettes distinguish swarm, grunt, tank, elite, boss, disassembler and shield caster. Burn, chill/freeze and sand markers follow the existing states. Their held poses distinguish scuttling, walking, heavy steps, hovering and boss sway, with visual hit flinch and caster charge accents. Only child artwork animates; roots, colliders and combat state stay unchanged. Freeze and reduced motion restore the rest pose while retaining status indicators.
-- Dark blue panels, brass edges, quieter locked-cell padlocks, larger card icons and actual enemy preview portraits replace prototype blocks and circles. The original hourglass frame and bilingual font remain.
+- Dark blue panels, brass edges, quieter locked-cell padlocks, larger card icons and actual enemy preview portraits replace prototype blocks and circles. The bilingual font remains. The separate hourglass refresh is tracked below.
 - Hit, melt, death and shield effects use shared crisp pixel textures. Scene-owned pools retain at most 96 accents, 12 shield effects and 24 particle bursts; overflow reuses the oldest cosmetic effect. Each particle burst uses at most 12 moving fragments, eight sampled fragment trails, two rings and a small impact cross (23 sprite renderers). Lifetimes are at most 0.78 seconds, and particle layers stay below enemy health bars. Fire is orange, frost cyan and arcane violet; deaths scatter falling chips and black holes draw particles inward. The new particles use private deterministic randomness and cached sprites, with no per-spawn materials. The original shield effect's global random-number calls remain in the same order.
 - The furnace adds child-only nozzle recoil, an amber core and a brass rim. The core turns and pulses; its fill-dependent scale and color observe the existing emitter buffer. These accents do not trigger emission or change stored energy, timing or the gameplay transform.
 - Ball-count labels and the 60 countdown tick colors skip updates when their displayed values are unchanged. No frame-rate improvement percentage is claimed.
 
 Sand-grain and coin animations still own their original resource-arrival callbacks and timing. They were deliberately left unchanged.
+
+## UI feedback pass
+
+- `UiFeedback` adds hover/press responses and brief transaction cues. An unaffordable shop purchase gets a red edge, flash, shake and localized **Not enough gold / 金币不足** message; a full hand instead shows **Hand full / 手牌已满**. Existing interaction gates return before rejection feedback.
+- Successful hand insertion gets a gold pop, star, glow and quiet ding, including modules dismantled back from the board. Hover, selection and affordability redraws do not replay receipt cues. Successful refreshes and fusions pulse; the scrap zone flashes gold and dings after its existing refund path. Gold-panel effects preserve the original coin-arrival credit timing.
+- `UIAudioFeedback` keeps assigned clips and otherwise reuses two cached quiet transaction tones. Receipt and rejection sounds have independent real-time throttles. Tone generation and visual feedback do not consume gameplay RNG.
+- `RewardReveal` gives choices staggered card entrances, colored borders, glints and a violet/cyan pixel magic circle. Decorations are cached; quality settings reduce the rune budget from at most 12. `ModalReveal` supplies short opening transitions for settings, confirmations and results. Pointer feedback and reward motion use separate transforms.
+- Actions and reward callbacks remain immediate during reveals. Decorations do not intercept clicks; hiding or interrupting effects restores the authored pose and the owning view retains control of visibility, pause and input. Reduced motion keeps informative colors, text and stars while suppressing the added shakes, movement and scale changes.
+
+The hourglass refresh is being integrated separately. Its `HourglassVisualRegressionChecks.Run` entry point is listed below; runtime verification is pending. The new illustration must observe the actual `SandClock` resource without changing countdown rules or resource-arrival callbacks.
 
 ## Optional Field Guide and preferences
 
@@ -19,7 +29,7 @@ The bilingual **Field Guide / 新手指南** opens on request from the main menu
 
 The guide pauses the simulation, keeps keyboard focus inside the modal, and blocks board/shop input. Closing or destroying it restores the exact previous time scale, including an already-paused game. It consumes the closing frame's input so the same Escape/click cannot trigger an underlying action. There is no forced onboarding, practice simulation or resource grant.
 
-Main-menu **Settings → Presentation / 设置 → 画面表现** and in-game settings expose saved **Effects: Reduced / 特效：精简**, **Effects: Balanced / 特效：均衡**, and **Effects: Cinematic / 特效：华丽** options. These select particle intensities of 0.25, 0.65 and 1 respectively; Cinematic is the default. **Motion: Full / 动态：完整** and **Motion: Reduced / 动态：精简** separately control the extra enemy/furnace motion and guide opening transition. Reduced motion preserves status information. These preferences do not change simulation speed or rules.
+Main-menu **Settings → Presentation / 设置 → 画面表现** and in-game settings expose saved **Effects: Reduced / 特效：精简**, **Effects: Balanced / 特效：均衡**, and **Effects: Cinematic / 特效：华丽** options. These select particle intensities of 0.25, 0.65 and 1 respectively; Cinematic is the default. Reward rune counts use the same quality budget. **Motion: Full / 动态：完整** and **Motion: Reduced / 动态：精简** separately control the extra enemy/furnace motion, UI shaking/scaling, reward movement and modal/guide opening transitions. Reduced motion preserves status information and informative UI colors, text and stars. These preferences do not change simulation speed or rules.
 
 ## Art source and reproduction
 
@@ -84,6 +94,40 @@ Inspect each command's exit code and log; zero plus its `PASS` marker indicates 
 - Independent source review found no remaining blocking issue in gameplay isolation, RNG use, animation roots, pooling or modal lifecycle.
 
 The Windows review copy reuses the repository's player with the updated runtime assembly. A clean Unity Editor import/export, a Mac build, full playthrough and late-wave performance profiling remain unverified; no specific FPS gain is claimed.
+
+## Phase 3 regression entry points
+
+These checks cover UI response, transactions, rewards and the hourglass display. Use the same Unity editor and project-path setup as above:
+
+```powershell
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod UiFeedbackRegressionChecks.Run -logFile Logs/ui-feedback-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod TransactionFeedbackRegressionChecks.Run -logFile Logs/transaction-feedback-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod RewardFeedbackRegressionChecks.Run -logFile Logs/reward-feedback-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod HourglassVisualRegressionChecks.Run -logFile Logs/hourglass-visual-regression.log
+$LASTEXITCODE
+```
+
+| Entry point | Coverage |
+| --- | --- |
+| `UiFeedbackRegressionChecks.Run` | Unscaled feedback while paused; no gameplay RNG consumption; cached, non-interactive decorations; exact pose restoration on expiry, disable and reopen; stationary reduced-motion cues. |
+| `TransactionFeedbackRegressionChecks.Run` | Unchanged spending/callbacks/RNG, denied/full-hand purchases, silent refund after a late insertion failure, immediate hand receipt without hover/selection/redraw replay, direct-board purchases and refresh/session gates. |
+| `RewardFeedbackRegressionChecks.Run` | Immediate one-shot reward/confirm/result callbacks, paused reveals, decoration budgets/reuse, exact pose restoration, reduced motion, preserved resources/RNG and view-owned visibility/input. |
+| `HourglassVisualRegressionChecks.Run` | Point filtering and binary-alpha sand, actual clock text, full/empty/overflow states, reduced-motion warnings, bounded reuse, timer clearance and preserved RNG. |
+
+## Phase 3 validation performed
+
+- A disposable copy of the shipped Windows player passed the UI feedback, transaction and reward regression groups using real Unity components. Existing tutorial and icon checks also passed, along with scene-level checks.
+- The real `PlacementController.ExecuteDismantleAt` preparation path returned a module to the hand for free and started its receipt cue immediately. Purchase regression checks retained the existing price, callbacks, failed-insertion refund and direct-board behavior.
+- The hourglass regression also passed in the real player: the cached 48×64 brass/cyan artwork maps actual milliseconds to 33 sand levels, keeps full precision above the visual capacity, preserves low-time warnings in reduced-motion mode, and reuses six decorative grains. English and Chinese reward layouts, the new hourglass, receipt flashes and purchase rejection were rendered and inspected.
+- Grid-resize checks passed during active feedback and immediate cancellation, confirming that animation preserves newly assigned layout positions. Independent source review found no remaining actionable issue in the final feedback, reward or hourglass changes.
+
+The same limitations apply: the review copy reuses the shipped player with an updated runtime assembly, and only the Editor reporting APIs are adapted for the test harness. A clean Unity Editor import/export, Mac build, full playthrough and late-wave profiling remain unverified. The checked-in `Play/` V0.3 player and archives remain unchanged.
 
 ## Editor verification before a release
 

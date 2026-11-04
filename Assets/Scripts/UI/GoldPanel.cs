@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -13,8 +12,6 @@ public class GoldPanel : MonoBehaviour
     [SerializeField] Image background;
 
     float _deltaTimer;
-    float _shakeTimer;
-    Vector2 _basePos;
 
     public RectTransform Rect => root != null ? root : transform as RectTransform;
 
@@ -26,7 +23,7 @@ public class GoldPanel : MonoBehaviour
         root = panelRoot != null ? panelRoot : transform as RectTransform;
         if (root != null)
         {
-            _basePos = root.anchoredPosition;
+            UiFeedback.Attach(root.gameObject, false);
         }
 
         if (Economy.Instance != null)
@@ -59,23 +56,19 @@ public class GoldPanel : MonoBehaviour
     {
         if (_deltaTimer > 0f)
         {
-            _deltaTimer -= Time.deltaTime;
+            _deltaTimer -= Time.unscaledDeltaTime;
             if (_deltaTimer <= 0f && deltaText != null)
             {
                 deltaText.text = string.Empty;
             }
         }
+    }
 
-        if (_shakeTimer > 0f && root != null)
-        {
-            _shakeTimer -= Time.deltaTime;
-            float x = Mathf.Sin(Time.time * 60f) * 6f;
-            root.anchoredPosition = _basePos + new Vector2(x, 0f);
-            if (_shakeTimer <= 0f)
-            {
-                root.anchoredPosition = _basePos;
-            }
-        }
+    void OnDisable()
+    {
+        UiFeedback.Cancel(Rect);
+        _deltaTimer = 0f;
+        if (deltaText != null) deltaText.text = string.Empty;
     }
 
     void OnGoldChanged(int gold)
@@ -92,7 +85,8 @@ public class GoldPanel : MonoBehaviour
 
     void OnInsufficient()
     {
-        _shakeTimer = 0.35f;
+        UiFeedback.Reject(Rect);
+        UIAudioFeedback.Rejected();
         ShowDelta(0, new Color(0.7f, 0.15f, 0.1f, 1f));
         if (deltaText != null)
         {
@@ -128,39 +122,7 @@ public class GoldPanel : MonoBehaviour
             Economy.Instance.AddGold(amount);
         }
 
-        if (root != null)
-        {
-            StopAllCoroutines();
-            StartCoroutine(Pulse());
-        }
-    }
-
-    IEnumerator Pulse()
-    {
-        if (root == null)
-        {
-            yield break;
-        }
-
-        Vector3 s0 = Vector3.one;
-        Vector3 s1 = Vector3.one * 1.12f;
-        float t = 0f;
-        while (t < 0.12f)
-        {
-            t += Time.deltaTime;
-            root.localScale = Vector3.Lerp(s0, s1, t / 0.12f);
-            yield return null;
-        }
-
-        t = 0f;
-        while (t < 0.12f)
-        {
-            t += Time.deltaTime;
-            root.localScale = Vector3.Lerp(s1, s0, t / 0.12f);
-            yield return null;
-        }
-
-        root.localScale = s0;
+        UiFeedback.Success(Rect);
     }
 
     public Vector3 GetWorldIconPosition()

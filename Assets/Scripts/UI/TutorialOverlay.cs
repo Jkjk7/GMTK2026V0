@@ -312,6 +312,7 @@ public sealed class TutorialOverlay : MonoBehaviour
         button.onClick.AddListener(action);
         Text text = Label(image.transform, "Label", 0.045f, 0.06f, 0.955f, 0.94f, copy, 21, Paper, true);
         text.alignment = TextAnchor.MiddleCenter;
+        UiFeedback.Attach(image.gameObject);
         return button;
     }
 

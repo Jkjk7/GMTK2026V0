@@ -31,6 +31,9 @@ public class DraftChoiceView : MonoBehaviour
     Action _onRefresh;
     readonly List<Option> _options = new List<Option>();
     DraftChoiceHoverTarget[] _hovers;
+    RewardReveal _reveal;
+    Color[] _rarityColors;
+    bool _visible;
     int _customCount;
 
     public void Bind(
@@ -51,11 +54,14 @@ public class DraftChoiceView : MonoBehaviour
         buttonDescs = descs;
         refreshButton = refreshBtn;
         refreshLabel = refreshText;
+        _reveal = RewardReveal.Attach(transform as RectTransform, buttons);
+        _rarityColors = new Color[buttons.Length];
         _hovers = new DraftChoiceHoverTarget[buttons.Length];
         for (int i = 0; i < buttons.Length; i++)
         {
             int idx = i;
             buttons[i].onClick.AddListener(() => OnClick(idx));
+            UiFeedback.Attach(buttons[i].gameObject);
             _hovers[i] = buttons[i].GetComponent<DraftChoiceHoverTarget>();
             if (_hovers[i] == null)
             {
@@ -66,6 +72,7 @@ public class DraftChoiceView : MonoBehaviour
         if (refreshButton != null)
         {
             refreshButton.onClick.AddListener(OnRefreshClicked);
+            UiFeedback.Attach(refreshButton.gameObject);
         }
 
         Hide();
@@ -102,8 +109,11 @@ public class DraftChoiceView : MonoBehaviour
                 continue;
             }
 
+            SetCardLayout(i, false);
+
             Option opt = _options[i];
             ModuleRarity rarity = ModuleCatalog.GetRarity(opt.AddType);
+            _rarityColors[i] = ModuleCatalog.GetRarityColor(rarity);
             string name = ModuleCatalog.GetDisplayName(opt.AddType);
             string rarityName = ModuleCatalog.GetRarityName(rarity);
             string line = $"{name}\n[{rarityName}]";
@@ -140,6 +150,7 @@ public class DraftChoiceView : MonoBehaviour
 
         SetRefreshVisible(_onRefresh != null);
         SetVisible(true);
+        _reveal?.Show(_rarityColors);
     }
 
     public void ShowCustom(string title, IList<string> labels, Action<int> onPick, Action onSkip = null)
@@ -169,6 +180,8 @@ public class DraftChoiceView : MonoBehaviour
                 continue;
             }
 
+            SetCardLayout(i, true);
+
             if (buttonLabels != null && i < buttonLabels.Length && buttonLabels[i] != null)
             {
                 buttonLabels[i].text = labels[i];
@@ -177,7 +190,13 @@ public class DraftChoiceView : MonoBehaviour
 
             if (buttonIcons != null && i < buttonIcons.Length && buttonIcons[i] != null)
             {
-                buttonIcons[i].gameObject.SetActive(false);
+                Image icon = buttonIcons[i];
+                icon.gameObject.SetActive(true);
+                icon.sprite = RewardReveal.UpgradeEmblem;
+                icon.color = RewardReveal.CustomAccent(i);
+                icon.type = Image.Type.Simple;
+                icon.preserveAspect = true;
+                icon.raycastTarget = false;
             }
 
             if (buttonDescs != null && i < buttonDescs.Length && buttonDescs[i] != null)
@@ -187,10 +206,59 @@ public class DraftChoiceView : MonoBehaviour
         }
 
         SetVisible(true);
+        _reveal?.Show();
+    }
+
+    void SetCardLayout(int index, bool custom)
+    {
+        if (buttonLabels != null && index < buttonLabels.Length && buttonLabels[index] != null)
+        {
+            Text label = buttonLabels[index];
+            CardArea(label.rectTransform, new Vector2(0.07f, custom ? 0.07f : 0.30f),
+                new Vector2(0.93f, custom ? 0.59f : 0.61f));
+            label.fontSize = custom ? 22 : 20;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 18;
+            label.resizeTextMaxSize = custom ? 22 : 20;
+            label.fontStyle = FontStyle.Bold;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.horizontalOverflow = HorizontalWrapMode.Wrap;
+            label.verticalOverflow = VerticalWrapMode.Overflow;
+            label.lineSpacing = 1.08f;
+        }
+        if (buttonIcons != null && index < buttonIcons.Length && buttonIcons[index] != null)
+        {
+            RectTransform icon = buttonIcons[index].rectTransform;
+            CardArea(icon, new Vector2(custom ? 0.28f : 0.2f, 0.64f),
+                new Vector2(custom ? 0.72f : 0.8f, 0.93f));
+        }
+        if (buttonDescs != null && index < buttonDescs.Length && buttonDescs[index] != null)
+        {
+            Text description = buttonDescs[index];
+            CardArea(description.rectTransform, new Vector2(0.07f, 0.04f), new Vector2(0.93f, 0.28f));
+            description.fontSize = 14;
+            description.resizeTextForBestFit = true;
+            description.resizeTextMinSize = 12;
+            description.resizeTextMaxSize = 14;
+            description.horizontalOverflow = HorizontalWrapMode.Wrap;
+            description.verticalOverflow = VerticalWrapMode.Overflow;
+        }
+    }
+
+    static void CardArea(RectTransform rect, Vector2 min, Vector2 max)
+    {
+        rect.anchorMin = min;
+        rect.anchorMax = max;
+        rect.offsetMin = rect.offsetMax = Vector2.zero;
     }
 
     public void Hide()
     {
+        _reveal?.Hide();
+        if (buttons != null)
+            foreach (Button button in buttons)
+                if (button != null) UiFeedback.Cancel(button.transform);
+        if (refreshButton != null) UiFeedback.Cancel(refreshButton.transform);
         ClearHovers();
         ModuleTooltipView.HideAll();
         _onPick = null;
@@ -231,6 +299,7 @@ public class DraftChoiceView : MonoBehaviour
 
     void SetVisible(bool visible)
     {
+        _visible = visible;
         if (group != null)
         {
             group.alpha = visible ? 1f : 0f;
@@ -248,7 +317,7 @@ public class DraftChoiceView : MonoBehaviour
 
     void OnRefreshClicked()
     {
-        if (_onRefresh == null)
+        if (!_visible || _onRefresh == null)
         {
             return;
         }
@@ -261,6 +330,7 @@ public class DraftChoiceView : MonoBehaviour
 
     void OnClick(int index)
     {
+        if (!_visible) return;
         if (_onPickIndex != null)
         {
             if (index < 0 || index >= _customCount)
@@ -284,6 +354,8 @@ public class DraftChoiceView : MonoBehaviour
         Hide();
         modulePick?.Invoke(opt);
     }
+
+    void OnDisable() => Hide();
 }
 
 /// <summary>模块三选一选项悬停：显示与商店/手牌相同的描述弹窗。</summary>

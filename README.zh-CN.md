@@ -19,6 +19,10 @@
 
 当前源码采用 **27 种独立像素模块图标与 7 种敌人轮廓**，共享清晰的点采样精灵，并为命中、融化、死亡及护盾破碎特效提供有容量上限的对象池。火焰、冰霜与奥术命中会迸出移动的像素碎片、拖尾、分层冲击环和局部闪光；死亡会碎解成像素片，黑洞展开时粒子向内收拢。敌人姿态与熔炉仅对美术子物体添加动态，玩法对象的变换保持不变。这些视觉改动不改变玩法规则，也不保证特定帧率。仓库附带的 `Play/` V0.3 试玩尚未包含这些改动。
 
+界面新增悬停、按压与交易反馈。买不起的商品会红闪、轻晃并显示 **金币不足**；手牌没有空位时则显示 **手牌已满**。卡牌进入手牌时，包括从棋盘拆回的模块，会亮起金色星光并发出轻柔的“叮”声；商店刷新、成功合成与分解出售也有反馈。奖励选择以错峰弹出的卡牌、彩色边框与像素魔法阵呈现，设置、确认与结算窗口有短暂的打开过渡。操作仍立即生效，价格、奖励与资源到账时机保持不变。交易音效复用缓存的轻声音调，已配置的自定义音频仍优先使用。
+
+左上角沙漏采用清晰的像素铜框、青色玻璃和随实际余量变化的金色沙堆。细小流沙在暂停或简化动态时停止，精确计时与低余量警告始终保留。
+
 首次启动默认英文。在主菜单 **Settings → Language → 中文 / English** 切换语言，选择会保存。
 
 ## 操作
@@ -42,7 +46,7 @@
 
 指南打开时暂停本局，并阻止商店与棋盘操作。点击 **关闭 [Esc]**、最后一课的 **关闭指南** 或按 Esc，会恢复打开前的暂停状态；从已暂停的设置进入指南，关闭后仍保持暂停。指南无需强制完成，也不会启动练习局或发放资源。
 
-主菜单 **设置 → 画面表现** 与局内 **设置** 提供会保存的画面偏好。点击 **特效：华丽**、**特效：精简** 或 **特效：均衡**，可循环切换三档粒子数量与强度；默认 **华丽**。**动态：完整** / **动态：精简** 控制额外的敌人、熔炉动态及指南打开过渡，状态标记仍然显示。粒子强度和动态是独立设置，均不改变游戏速度、伤害、奖励或索敌。
+主菜单 **设置 → 画面表现** 与局内 **设置** 提供会保存的画面偏好。点击 **特效：华丽**、**特效：精简** 或 **特效：均衡**，可循环切换三档粒子数量与强度，包括奖励装饰；默认 **华丽**。**动态：完整** / **动态：精简** 控制额外的敌人、熔炉动态、界面晃动与缩放、奖励卡牌运动及弹窗和指南的打开过渡。精简动态仍保留状态标记、失败提示文字、颜色闪光与收卡星光。粒子强度和动态是独立设置，均不改变游戏速度、伤害、奖励或索敌。
 
 ## 运行试玩包
 
@@ -122,6 +126,18 @@ $LASTEXITCODE
 
 & $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod TutorialRegressionChecks.Run -logFile Logs/tutorial-regression.log
 $LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod UiFeedbackRegressionChecks.Run -logFile Logs/ui-feedback-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod TransactionFeedbackRegressionChecks.Run -logFile Logs/transaction-feedback-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod RewardFeedbackRegressionChecks.Run -logFile Logs/reward-feedback-regression.log
+$LASTEXITCODE
+
+& $unityEditor -batchmode -nographics -projectPath $projectPath -executeMethod HourglassVisualRegressionChecks.Run -logFile Logs/hourglass-visual-regression.log
+$LASTEXITCODE
 ```
 
 各入口会自行退出 Unity：**0** 表示该组检查通过，**1** 表示失败。还应查看日志中的 `PASS` 标记及编译/导入错误。macOS 可使用已安装 Unity Editor app 内的可执行文件，参数相同。
@@ -137,6 +153,10 @@ $LASTEXITCODE
 | `ParticleBurstRegressionChecks.Run` | 最多 24 组粒子爆发、复用与重置、碎片与拖尾运动、到期停用全部渲染器、降低强度、血条层级及全局随机数不变。 |
 | `AnimationRegressionChecks.Run` | 敌人/熔炉仅美术子物体运动，根变换/碰撞体/随机数不变，冻结与静止姿态、精简动态下的状态可见性、受击反馈、不同敌人姿态及观察施法/熔炉状态的表现。 |
 | `TutorialRegressionChecks.Run` | 恢复原暂停状态（含原本已暂停）、模态复用与输入阻挡、六课可选、键盘导航、中文内容与关闭清理。 |
+| `UiFeedbackRegressionChecks.Run` | 暂停时的反馈、随机数不变、装饰数量有界且不拦截输入、到期/停用/重开后的精确姿态恢复，以及精简动态下的静止提示。 |
+| `TransactionFeedbackRegressionChecks.Run` | 购买费用/回调/随机数、金币不足与满手牌拒绝、扣费回调后无法入手时的静默退款、即时收卡且悬停/选中不重播、直接购入棋盘及刷新/对局状态限制。 |
+| `RewardFeedbackRegressionChecks.Run` | 选择/确认/结算回调即时且只执行一次、暂停时的展示、装饰数量上限、精简动态姿态、资源/随机数不变，以及弹窗输入与变换清理。 |
+| `HourglassVisualRegressionChecks.Run` | 点采样边框与清晰沙粒、精确计时文字、沙量填充/耗尽/溢出、精简动态警告、复用上限、计时区域留空及随机数不变。 |
 
 可选 PNG 工具需要 Node.js 与 `sharp`，不影响 Unity 游戏本身：
 
